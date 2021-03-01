@@ -1,0 +1,27 @@
+[package]
+name = "rpmrepo"
+version = "0.1.0"
+authors = ["Daniel Alley <dalley@redhat.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+quick-xml = { path = "../quick-xml", default-features = false } # "0.22.0"
+argh = "0.1.4"
+ureq = "2.0.0-rc3"
+url = "2.2.0"
+flate2 = "1.0.19"
+rayon = "1.5.0"
+indicatif = "0.15.0"
+dialoguer = "0.8.0"
+thiserror = "1.0.24"
+sha2 = "0.9.3"
+anyhow = "1.0.38"
+niffler = "2.3.1"
+once_cell = "1.7.2"
+
+[dev-dependencies]
+tempdir = "0.3.7"
+pretty_assertions = "0.7.1"
+once_cell = "1.7.2"
