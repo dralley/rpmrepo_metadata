@@ -6,14 +6,12 @@ use std::{collections::BTreeMap, path::PathBuf};
 
 use quick_xml::{Reader, Writer};
 
-use super::MetadataError;
-use super::{
-    metadata::{
-        Compression, DistroTag, FilelistsXml, MetadataType, OtherXml, Package, PrimaryXml,
-        RepoMdRecord, RepomdXml, RpmMetadata, METADATA_FILELISTS, METADATA_OTHER, METADATA_PRIMARY,
-    },
-    other,
+use super::metadata::{
+    Compression, DistroTag, FilelistsXml, MetadataType, OtherXml, Package, PrimaryXml,
+    RepoMdRecord, RepomdXml, RpmMetadata, UpdateRecord, METADATA_FILELISTS, METADATA_OTHER,
+    METADATA_PRIMARY,
 };
+use super::MetadataError;
 
 fn configure_reader<R: BufRead>(reader: &mut Reader<R>) {
     reader.expand_empty_elements(true).trim_text(true);
@@ -30,6 +28,8 @@ pub struct RpmRepository {
     pub repo_tags: Vec<String>,
     pub content_tags: Vec<String>,
     pub distro_tags: Vec<DistroTag>,
+
+    pub advisories: Vec<UpdateRecord>,
 }
 
 impl RpmRepository {
@@ -216,6 +216,7 @@ impl RpmRepository {
             Compression::None => "",
             Compression::Gzip => ".gz",
             Compression::Xz => ".xz",
+            Compression::Bz2 => ".bz2",
         };
 
         let mut filename = PathBuf::from(M::NAME).as_os_str().to_owned();
@@ -229,6 +230,16 @@ impl RpmRepository {
             Compression::Gzip => niffler::get_writer(
                 Box::new(file),
                 niffler::compression::Format::Gzip,
+                niffler::Level::Nine,
+            )?,
+            Compression::Xz => niffler::get_writer(
+                Box::new(file),
+                niffler::compression::Format::Lzma,
+                niffler::Level::Nine,
+            )?,
+            Compression::Bz2 => niffler::get_writer(
+                Box::new(file),
+                niffler::compression::Format::Bzip,
                 niffler::Level::Nine,
             )?,
             _ => unimplemented!(),

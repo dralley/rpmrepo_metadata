@@ -75,6 +75,7 @@ pub enum Compression {
     None,
     Gzip,
     Xz,
+    Bz2,
 }
 
 #[derive(Debug, PartialEq, Default)]
@@ -345,7 +346,7 @@ impl DistroTag {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default)]
 pub struct RepoMdRecord {
     // TODO: location real? location base?  https://github.com/rpm-software-management/createrepo_c/commit/7e4ba3de1e9792f9d65f68c0d1cb18ed14ce1b68#diff-26e7fd2fdd746961fa628b1e9e42175640ec8d269c17e1608628d3377e0c07d4R371
     /// Record type
@@ -371,4 +372,64 @@ pub struct RepoMdRecord {
 
     /// Database version (used only for sqlite databases like primary.sqlite etc.)
     pub database_version: Option<u32>,
+}
+
+#[derive(Debug, PartialEq, Default)]
+pub struct UpdateRecord {
+    pub from: String,
+    pub update_type: String,
+    pub status: String,
+    pub version: String,
+    pub id: String,
+    pub title: String,
+    pub issued_date: Option<String>,
+    pub updated_date: Option<String>,
+    pub rights: String,
+    pub release: String,
+    pub pushcount: Option<String>, // deprecated?
+    pub severity: String,
+    pub summary: String,
+    pub description: String,
+    pub solution: String,
+    pub reboot_suggested: bool,
+    pub references: Vec<UpdateReference>,
+    pub pkglist: Vec<UpdateCollection>,
+}
+
+#[derive(Debug, PartialEq, Default)]
+pub struct UpdateCollection {
+    pub name: String,
+    pub shortname: String,
+    pub packages: Vec<UpdateCollectionPackage>,
+}
+
+#[derive(Debug, PartialEq, Default)]
+pub struct UpdateReference {
+    pub href: String,
+    pub id: String,
+    pub title: String,
+    pub reftype: String,
+}
+
+#[derive(Debug, PartialEq, Default)]
+pub struct UpdateCollectionPackage {
+    pub epoch: u32,
+    pub filename: String,
+    pub name: String,
+    pub reboot_suggested: bool,
+    pub restart_suggested: bool,
+    pub relogin_suggested: bool,
+    pub release: String,
+    pub src: String,
+    pub checksum: Checksum,
+    pub version: String,
+}
+
+#[derive(Debug, PartialEq, Default)]
+pub struct UpdateCollectionModule {
+    pub name: String,
+    pub stream: String,
+    pub version: u64,
+    pub context: String,
+    pub arch: String,
 }
