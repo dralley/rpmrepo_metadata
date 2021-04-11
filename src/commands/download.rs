@@ -12,7 +12,9 @@ pub fn download(config: DownloadCommand) -> Result<()> {
     let url = Url::parse(&config.url)?;
     let concurrency = config.concurrency.unwrap_or(DEFAULT_CONCURRENCY);
 
-    let downloader = RepoDownloader::new(url).with_concurrency(concurrency);
+    let downloader = RepoDownloader::new(url)
+        .with_concurrency(concurrency)
+        .only_metadata(true);
 
     let repository_path = env::current_dir()?.join(config.destination);
 

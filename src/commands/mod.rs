@@ -48,6 +48,10 @@ pub struct DownloadCommand {
     /// directory containing RPMs
     #[argh(positional)]
     destination: OsString,
+
+    /// download metadata only
+    #[argh(switch, short = 'm')]
+    only_metadata: bool
 }
 
 #[derive(FromArgs, PartialEq, Debug)]

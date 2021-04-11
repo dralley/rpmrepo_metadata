@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::{fs::File, io::Read};
 use std::io::Cursor;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -6,11 +6,11 @@ use std::{collections::BTreeMap, path::PathBuf};
 
 use quick_xml::{Reader, Writer};
 
-use super::metadata::{
+use super::{metadata::{
     Compression, DistroTag, FilelistsXml, MetadataType, OtherXml, Package, PrimaryXml,
     RepoMdRecord, RepomdXml, RpmMetadata, UpdateRecord, METADATA_FILELISTS, METADATA_OTHER,
     METADATA_PRIMARY,
-};
+}, other};
 use super::MetadataError;
 
 fn configure_reader<R: BufRead>(reader: &mut Reader<R>) {
@@ -272,4 +272,67 @@ impl RpmRepository {
     // * sqlite metadata yes/no
     // * zchunk metadata?
     // * signing
+}
+
+
+pub fn stream_from_directory(path: &Path) -> Result<PackageStreamer, MetadataError> {
+    let mut repo = RpmRepository::new();
+
+    repo.load_metadata_file::<RepomdXml>(&path.join("repodata/repomd.xml"))?;
+
+    let primary_href = path.join(
+        repo.get_record(METADATA_PRIMARY)
+            .unwrap()
+            .location_href
+            .as_str(),
+    );
+    let filelists_href = path.join(
+        repo.get_record(METADATA_FILELISTS)
+            .unwrap()
+            .location_href
+            .as_str(),
+    );
+    let other_href = path.join(
+        repo.get_record(METADATA_OTHER)
+            .unwrap()
+            .location_href
+            .as_str(),
+    );
+
+    let primary_file = File::open(&primary_href)?;
+    let (primary_file_reader, _compression) = niffler::get_reader(Box::new(primary_file))?;
+    let mut primary_reader = Reader::from_reader(BufReader::new(primary_file_reader));
+    configure_reader(&mut primary_reader);
+
+    let filelists_file = File::open(&filelists_href)?;
+    let (filelists_file_reader, _compression) = niffler::get_reader(Box::new(filelists_file))?;
+    let mut filelists_reader = Reader::from_reader(BufReader::new(filelists_file_reader));
+    configure_reader(&mut filelists_reader);
+
+    let other_file = File::open(&other_href)?;
+    let (other_file_reader, _compression) = niffler::get_reader(Box::new(other_file))?;
+    let mut other_reader = Reader::from_reader(BufReader::new(other_file_reader));
+    configure_reader(&mut other_reader);
+
+    Ok(PackageStreamer { primary_reader, filelists_reader, other_reader })
+}
+
+
+pub struct PackageStreamer {
+    primary_reader: Reader<BufReader<Box<dyn Read>>>,
+    filelists_reader: Reader<BufReader<Box<dyn Read>>>,
+    other_reader: Reader<BufReader<Box<dyn Read>>>,
+}
+
+impl Iterator for PackageStreamer {
+    type Item = Result<Package, MetadataError>;
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut package = Package::default();
+
+        // super::primary::read_package(package, self.primary_reader)?;
+        // FilelistsXml::read_into_package(package, self.filelists_reader)?;
+        // OtherXml::read_into_package(package, self.other_reader)?;
+
+        Some(Ok(package))
+    }
 }

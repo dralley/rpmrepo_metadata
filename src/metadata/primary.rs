@@ -75,9 +75,19 @@ fn read_primary_xml<R: BufRead>(
                     found_metadata_tag = true;
                 }
                 TAG_PACKAGE => {
+
+                    let ptype = e
+                        .try_get_attribute(b"type")?
+                        .unwrap()
+                        .unescape_and_decode_value(reader)?;
+
+                    assert_eq!(&ptype, "rpm"); // TODO: better error handling
+
                     // TODO: in theory, other or filelists could be parsed first, and in that case this is wrong
                     // need to at least enforce order w/ a state machine, or just handle it.
-                    let package = parse_package(reader, &e)?;
+                    let mut package = Package::default();
+
+                    parse_package(&mut package, reader)?;
                     let (_, pkgid) = package.checksum.to_values()?;
                     repository
                         .packages
@@ -313,20 +323,11 @@ fn write_requirement_section<W: Write, N: AsRef<[u8]> + Sized>(
 }
 
 pub fn parse_package<R: BufRead>(
+    package: &mut Package,
     reader: &mut Reader<R>,
-    open_tag: &BytesStart,
-) -> Result<Package, MetadataError> {
-    let ptype = open_tag
-        .try_get_attribute(b"type")?
-        .unwrap()
-        .unescape_and_decode_value(reader)?;
-
-    assert_eq!(&ptype, "rpm"); // TODO: better error handling
-
+) -> Result<(), MetadataError> {
     let mut buf = vec![];
     let mut text_buf = vec![];
-
-    let mut package = Package::default();
 
     loop {
         match reader.read_event(&mut buf)? {
@@ -501,8 +502,7 @@ pub fn parse_package<R: BufRead>(
         buf.clear();
         text_buf.clear();
     }
-
-    Ok(package)
+    Ok(())
 }
 
 pub fn parse_requirement_list<R: BufRead>(

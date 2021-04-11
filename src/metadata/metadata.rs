@@ -133,6 +133,7 @@ impl Package {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Checksum {
+    SHA1(String),
     SHA224(String),
     SHA256(String),
     SHA384(String),
@@ -154,6 +155,7 @@ impl Checksum {
         let bytes_to_str = |value| std::str::from_utf8(value).unwrap().to_owned();
 
         let checksum = match checksum_type.as_ref() {
+            b"sha1" => Checksum::SHA1(bytes_to_str(checksum.as_ref())),
             b"sha224" => Checksum::SHA224(bytes_to_str(checksum.as_ref())),
             b"sha256" => Checksum::SHA256(bytes_to_str(checksum.as_ref())),
             b"sha384" => Checksum::SHA384(bytes_to_str(checksum.as_ref())),
@@ -169,6 +171,7 @@ impl Checksum {
 
     pub fn to_values<'a>(&'a self) -> Result<(&str, &'a str), MetadataError> {
         let values = match self {
+            Checksum::SHA1(c) => ("sha224", c.as_str()),
             Checksum::SHA224(c) => ("sha224", c.as_str()),
             Checksum::SHA256(c) => ("sha256", c.as_str()),
             Checksum::SHA384(c) => ("sha384", c.as_str()),
@@ -356,7 +359,7 @@ pub struct RepoMdRecord {
     /// Mtime of the file
     pub timestamp: u64,
     /// Size of the file
-    pub size: u64,
+    pub size: Option<u64>,
     /// Checksum of the file
     pub checksum: Checksum,
 

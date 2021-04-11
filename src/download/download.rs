@@ -1,4 +1,3 @@
-use flate2::read::GzDecoder;
 use std::fs::{self, create_dir, File};
 use std::io::Write;
 use std::path::Path;
@@ -42,6 +41,7 @@ pub enum RepoDownloadError {
 pub struct RepoDownloader {
     base_url: Url,
     concurrency: u8,
+    only_metadata: bool,
 }
 
 impl RepoDownloader {
@@ -49,12 +49,20 @@ impl RepoDownloader {
         RepoDownloader {
             base_url: url,
             concurrency: DEFAULT_CONCURRENCY,
+            only_metadata: false,
         }
     }
 
     pub fn with_concurrency(self, threads: u8) -> Self {
         RepoDownloader {
             concurrency: threads,
+            ..self
+        }
+    }
+
+    pub fn only_metadata(self, val: bool) -> Self {
+        RepoDownloader {
+            only_metadata: val,
             ..self
         }
     }
@@ -99,13 +107,13 @@ impl RepoDownloader {
             (end - begin).as_secs_f32()
         );
 
+        if self.only_metadata {
+            return Ok(());
+        }
+
         let primary_href = repo.get_primary_data().location_href.as_str();
         let primary_path = repository_path.join(primary_href);
-        let primary_bytes = fs::read(&primary_path)?;
-        let mut decoder = GzDecoder::new(primary_bytes.as_slice());
-        let mut primary_xml = Vec::new();
-        decoder.read_to_end(&mut primary_xml).unwrap();
-        repo.load_metadata_bytes::<PrimaryXml>(&primary_xml)?;
+        repo.load_metadata_file::<PrimaryXml>(&primary_path)?;
 
         // let progress_bar = ProgressBar::new(packages.len() as u64);
 

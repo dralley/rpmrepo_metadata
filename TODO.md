@@ -3,6 +3,11 @@
 
 ## Use cases
 
+* Killer feature?  streaming API
+  * pull-based package parsing API, return one package at a time while streaming over metadata
+  * (probably) better alternative to the callback-based API of createrepo_c
+  * drawback: relies on the order of packages in primary.xml, filelists.xml, other.xml being the same
+  * upside: way less memory consumption, user has total control over how fast data is being pulled and when it is freed
 * download repository by providing URL
   * download metadata only
   * download metadata + packages

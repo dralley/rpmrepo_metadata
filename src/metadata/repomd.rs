@@ -197,9 +197,7 @@ pub fn parse_repomdrecord<R: BufRead>(
                 timestamp: builder
                     .timestamp
                     .ok_or_else(|| MetadataError::MissingFieldError("timestamp"))?,
-                size: builder
-                    .size
-                    .ok_or_else(|| MetadataError::MissingFieldError("size"))?,
+                size: builder.size,
                 checksum: builder
                     .checksum
                     .ok_or_else(|| MetadataError::MissingFieldError("checksum"))?,
@@ -401,9 +399,11 @@ fn write_data<W: Write>(writer: &mut Writer<W>, data: &RepoMdRecord) -> Result<(
         ))?;
 
     // <size>123987</size>
-    writer
-        .create_element(TAG_SIZE)
-        .write_text_content(BytesText::from_plain_str(&data.size.to_string()))?;
+    if let Some(size) = data.size {
+        writer
+            .create_element(TAG_SIZE)
+            .write_text_content(BytesText::from_plain_str(&size.to_string()))?;
+    }
 
     // <open-size>68652</open-size> (maybe)
     if let Some(open_size) = data.open_size {
