@@ -17,7 +17,7 @@ use quick_xml::events::{BytesDecl, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 
 use super::metadata::{Changelog, OtherXml, Package, RpmMetadata, EVR, XML_NS_OTHER};
-use super::{MetadataError, RpmRepository};
+use super::{MetadataError, Repository};
 
 const TAG_OTHERDATA: &[u8] = b"otherdata";
 const TAG_PACKAGE: &[u8] = b"package";
@@ -28,14 +28,14 @@ impl RpmMetadata for OtherXml {
     const NAME: &'static str = "other.xml";
 
     fn load_metadata<R: BufRead>(
-        repository: &mut RpmRepository,
+        repository: &mut Repository,
         reader: &mut Reader<R>,
     ) -> Result<(), MetadataError> {
         read_other_xml(repository, reader)
     }
 
     fn write_metadata<W: Write>(
-        repository: &RpmRepository,
+        repository: &Repository,
         writer: &mut Writer<W>,
     ) -> Result<(), MetadataError> {
         write_other_xml(repository, writer)
@@ -43,7 +43,7 @@ impl RpmMetadata for OtherXml {
 }
 
 fn read_other_xml<R: BufRead>(
-    repository: &mut RpmRepository,
+    repository: &mut Repository,
     reader: &mut Reader<R>,
 ) -> Result<(), MetadataError> {
     let mut buf = Vec::new();
@@ -73,7 +73,7 @@ fn read_other_xml<R: BufRead>(
 }
 
 pub fn write_other_xml<W: Write>(
-    repository: &RpmRepository,
+    repository: &Repository,
     writer: &mut Writer<W>,
 ) -> Result<(), MetadataError> {
     // <?xml version="1.0" encoding="UTF-8"?>
@@ -82,13 +82,13 @@ pub fn write_other_xml<W: Write>(
     // <otherdata xmlns="http://linux.duke.edu/metadata/other" packages="200">
     let mut other_tag = BytesStart::borrowed_name(TAG_OTHERDATA);
     other_tag.push_attribute(("xmlns", XML_NS_OTHER));
-    other_tag.push_attribute(("packages", repository.packages.len().to_string().as_str()));
+    other_tag.push_attribute(("packages", repository.packages().len().to_string().as_str()));
 
     // <filelists>
     writer.write_event(Event::Start(other_tag.to_borrowed()))?;
 
     // <packages>
-    for package in repository.packages.values() {
+    for package in repository.packages().values() {
         let mut package_tag = BytesStart::borrowed_name(TAG_PACKAGE);
         let (_, pkgid) = package.checksum.to_values()?;
         package_tag.push_attribute(("pkgid".as_bytes(), pkgid.as_bytes()));
@@ -131,7 +131,7 @@ pub fn write_other_xml<W: Write>(
 //     <changelog author="Behdad Esfahbod &lt;besfahbo@redhat.com&gt; - 2.8.0-1" date="1259841600">- Update to 2.8.0</changelog>
 //   </package>
 pub fn parse_package<R: BufRead>(
-    repository: &mut RpmRepository,
+    repository: &mut Repository,
     reader: &mut Reader<R>,
     open_tag: &BytesStart,
 ) -> Result<(), MetadataError> {
@@ -151,7 +151,7 @@ pub fn parse_package<R: BufRead>(
         .unescape_and_decode_value(reader)?;
 
     let mut package = repository
-        .packages
+        .packages_mut()
         .entry(pkgid)
         .or_insert(Package::default()); // TODO
 

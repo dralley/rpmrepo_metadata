@@ -1,11 +1,11 @@
+use std::io::{BufRead, Write};
+
 use niffler;
 use quick_xml;
 use quick_xml::{Reader, Writer};
-
-use std::io::{BufRead, Write};
 use thiserror::Error;
 
-use crate::RpmRepository;
+use crate::Repository;
 
 pub struct RepomdXml;
 pub struct PrimaryXml;
@@ -59,23 +59,38 @@ pub(crate) trait RpmMetadata {
     const NAME: &'static str;
 
     fn load_metadata<R: BufRead>(
-        repository: &mut RpmRepository,
+        repository: &mut Repository,
         reader: &mut Reader<R>,
     ) -> Result<(), MetadataError>;
 
     fn write_metadata<W: Write>(
-        repository: &RpmRepository,
+        repository: &Repository,
         writer: &mut Writer<W>,
     ) -> Result<(), MetadataError>;
 }
 
 // TODO: Trait impl tests https://github.com/rust-lang/rfcs/issues/616
 
-pub enum Compression {
+#[derive(Debug, Clone, Copy)]
+pub enum CompressionType {
     None,
     Gzip,
     Xz,
     Bz2,
+}
+
+impl TryInto<CompressionType> for &str {
+    type Error = MetadataError;
+
+    fn try_into(self) -> Result<CompressionType, Self::Error> {
+        match self {
+            "gzip" => Ok(CompressionType::Gzip),
+            "bz2" => Ok(CompressionType::Bz2),
+            "xz" => Ok(CompressionType::Xz),
+            "none" => Ok(CompressionType::None),
+            _ => Err(MetadataError::UnsupportedChecksumTypeError(self.to_owned())),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Default)]
@@ -131,13 +146,21 @@ impl Package {
     }
 }
 
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum ChecksumType {
+    Sha1,
+    Sha256,
+    Sha384,
+    Sha512,
+    Unknown,
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Checksum {
-    SHA1(String),
-    SHA224(String),
-    SHA256(String),
-    SHA384(String),
-    SHA512(String),
+    Sha1(String),
+    Sha256(String),
+    Sha384(String),
+    Sha512(String),
     Unknown,
 }
 
@@ -155,11 +178,10 @@ impl Checksum {
         let bytes_to_str = |value| std::str::from_utf8(value).unwrap().to_owned();
 
         let checksum = match checksum_type.as_ref() {
-            b"sha1" => Checksum::SHA1(bytes_to_str(checksum.as_ref())),
-            b"sha224" => Checksum::SHA224(bytes_to_str(checksum.as_ref())),
-            b"sha256" => Checksum::SHA256(bytes_to_str(checksum.as_ref())),
-            b"sha384" => Checksum::SHA384(bytes_to_str(checksum.as_ref())),
-            b"sha512" => Checksum::SHA512(bytes_to_str(checksum.as_ref())),
+            b"sha1" => Checksum::Sha1(bytes_to_str(checksum.as_ref())),
+            b"sha256" => Checksum::Sha256(bytes_to_str(checksum.as_ref())),
+            b"sha384" => Checksum::Sha384(bytes_to_str(checksum.as_ref())),
+            b"sha512" => Checksum::Sha512(bytes_to_str(checksum.as_ref())),
             _ => {
                 return Err(MetadataError::UnsupportedChecksumTypeError(bytes_to_str(
                     checksum_type.as_ref(),
@@ -171,11 +193,10 @@ impl Checksum {
 
     pub fn to_values<'a>(&'a self) -> Result<(&str, &'a str), MetadataError> {
         let values = match self {
-            Checksum::SHA1(c) => ("sha224", c.as_str()),
-            Checksum::SHA224(c) => ("sha224", c.as_str()),
-            Checksum::SHA256(c) => ("sha256", c.as_str()),
-            Checksum::SHA384(c) => ("sha384", c.as_str()),
-            Checksum::SHA512(c) => ("sha512", c.as_str()),
+            Checksum::Sha1(c) => ("sha1", c.as_str()),
+            Checksum::Sha256(c) => ("sha256", c.as_str()),
+            Checksum::Sha384(c) => ("sha384", c.as_str()),
+            Checksum::Sha512(c) => ("sha512", c.as_str()),
             Checksum::Unknown => panic!("Cannot take value of a checksum of unknown type"),
         };
         Ok(values)
@@ -435,4 +456,53 @@ pub struct UpdateCollectionModule {
     pub version: u64,
     pub context: String,
     pub arch: String,
+}
+
+use rpm;
+use std::convert::TryInto;
+
+impl TryInto<Package> for rpm::RPMPackage {
+    type Error = rpm::RPMError;
+
+    fn try_into(self) -> Result<Package, Self::Error> {
+        let pkg = Package {
+            name: self.metadata.header.get_name()?.to_owned(),
+            arch: self.metadata.header.get_arch()?.to_owned(),
+            evr: {
+                let epoch = self.metadata.header.get_epoch()?.to_string(); // TODO evaluate epoch type
+                let version = self.metadata.header.get_version()?;
+                let release = self.metadata.header.get_release()?;
+                EVR::new(epoch.as_str(), version, release)
+            },
+            checksum: todo!(),
+            location_href: todo!(),
+            summary: todo!(),
+            description: todo!(),
+            packager: todo!(),
+            url: todo!(),
+            time: todo!(),
+            size: todo!(),
+
+            rpm_license: todo!(),
+            rpm_vendor: todo!(),
+            rpm_group: todo!(),
+            rpm_buildhost: todo!(),
+            rpm_sourcerpm: todo!(),
+            rpm_header_range: todo!(),
+
+            rpm_requires: todo!(),
+            rpm_provides: todo!(),
+            rpm_conflicts: todo!(),
+            rpm_obsoletes: todo!(),
+            rpm_suggests: todo!(),
+            rpm_enhances: todo!(),
+            rpm_recommends: todo!(),
+            rpm_supplements: todo!(),
+
+            rpm_changelogs: todo!(),
+            rpm_files: todo!(),
+        };
+
+        Ok(pkg)
+    }
 }

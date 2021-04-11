@@ -1,26 +1,25 @@
-use std::{fs::File, io::Read};
 use std::io::Cursor;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::{collections::BTreeMap, path::PathBuf};
+use std::{fs::File, io::Read};
 
 use quick_xml::{Reader, Writer};
 
-use super::{metadata::{
-    Compression, DistroTag, FilelistsXml, MetadataType, OtherXml, Package, PrimaryXml,
-    RepoMdRecord, RepomdXml, RpmMetadata, UpdateRecord, METADATA_FILELISTS, METADATA_OTHER,
-    METADATA_PRIMARY,
-}, other};
-use super::MetadataError;
+use super::metadata::{
+    ChecksumType, CompressionType, DistroTag, FilelistsXml, MetadataType, OtherXml, Package,
+    PrimaryXml, RepoMdRecord, RepomdXml, RpmMetadata, UpdateRecord, METADATA_FILELISTS,
+    METADATA_OTHER, METADATA_PRIMARY,
+};
+use super::{repomd, MetadataError};
 
 fn configure_reader<R: BufRead>(reader: &mut Reader<R>) {
     reader.expand_empty_elements(true).trim_text(true);
 }
 
 #[derive(Debug, PartialEq, Default)]
-pub struct RpmRepository {
-    // TODO: super inefficient, fix this later. write benches first because the difference will probably be entertaining.
-    pub packages: BTreeMap<String, Package>,
+pub struct Repository {
+    packages: BTreeMap<String, Package>,
 
     pub revision: Option<String>,
     pub metadata_files: Vec<RepoMdRecord>,
@@ -32,7 +31,7 @@ pub struct RpmRepository {
     pub advisories: Vec<UpdateRecord>,
 }
 
-impl RpmRepository {
+impl Repository {
     pub fn new() -> Self {
         Self::default()
     }
@@ -112,12 +111,17 @@ impl RpmRepository {
             .expect("Cannot find other.xml")
     }
 
-    // pub fn packages(&self) -> &[Package] {
-    //     &self.packages
-    // }
+    pub fn packages(&self) -> &BTreeMap<String, Package> {
+        &self.packages
+    }
+
+    // TODO: better API for package access (entry-like)
+    pub fn packages_mut(&mut self) -> &mut BTreeMap<String, Package> {
+        &mut self.packages
+    }
 
     pub fn from_directory(path: &Path) -> Result<Self, MetadataError> {
-        let mut repo = RpmRepository::new();
+        let mut repo = Repository::new();
 
         repo.load_metadata_file::<RepomdXml>(&path.join("repodata/repomd.xml"))?;
 
@@ -147,15 +151,19 @@ impl RpmRepository {
         Ok(repo)
     }
 
-    pub fn to_directory(&self, path: &Path) -> Result<(), MetadataError> {
+    pub fn to_directory(
+        &mut self,
+        path: &Path,
+        options: RepositoryOptions,
+    ) -> Result<(), MetadataError> {
         let repodata_dir = path.join("repodata");
 
         std::fs::create_dir_all(&repodata_dir)?;
 
-        self.write_metadata_file::<RepomdXml>(&repodata_dir, Compression::None)?;
-        self.write_metadata_file::<PrimaryXml>(&repodata_dir, Compression::None)?;
-        self.write_metadata_file::<FilelistsXml>(&repodata_dir, Compression::None)?;
-        self.write_metadata_file::<OtherXml>(&repodata_dir, Compression::None)?;
+        self.write_metadata_file::<PrimaryXml>(&repodata_dir, options.metadata_compression_type)?;
+        self.write_metadata_file::<FilelistsXml>(&repodata_dir, options.metadata_compression_type)?;
+        self.write_metadata_file::<OtherXml>(&repodata_dir, options.metadata_compression_type)?;
+        self.write_metadata_file::<RepomdXml>(&repodata_dir, CompressionType::None)?;
 
         Ok(())
     }
@@ -165,7 +173,7 @@ impl RpmRepository {
         filelists_xml: &Path,
         other_xml: &Path,
     ) -> Result<Self, MetadataError> {
-        let mut repo = RpmRepository::new();
+        let mut repo = Repository::new();
         repo.load_metadata_file::<PrimaryXml>(primary_xml)?;
         repo.load_metadata_file::<FilelistsXml>(filelists_xml)?;
         repo.load_metadata_file::<OtherXml>(other_xml)?;
@@ -210,13 +218,13 @@ impl RpmRepository {
     pub(crate) fn write_metadata_file<M: RpmMetadata>(
         &self,
         path: &Path,
-        compression: Compression,
+        compression: CompressionType,
     ) -> Result<(), MetadataError> {
         let extension = match compression {
-            Compression::None => "",
-            Compression::Gzip => ".gz",
-            Compression::Xz => ".xz",
-            Compression::Bz2 => ".bz2",
+            CompressionType::None => "",
+            CompressionType::Gzip => ".gz",
+            CompressionType::Xz => ".xz",
+            CompressionType::Bz2 => ".bz2",
         };
 
         let mut filename = PathBuf::from(M::NAME).as_os_str().to_owned();
@@ -226,18 +234,18 @@ impl RpmRepository {
         let file = File::create(path)?;
 
         let write_buffer = match compression {
-            Compression::None => Box::new(file),
-            Compression::Gzip => niffler::get_writer(
+            CompressionType::None => Box::new(file),
+            CompressionType::Gzip => niffler::get_writer(
                 Box::new(file),
                 niffler::compression::Format::Gzip,
                 niffler::Level::Nine,
             )?,
-            Compression::Xz => niffler::get_writer(
+            CompressionType::Xz => niffler::get_writer(
                 Box::new(file),
                 niffler::compression::Format::Lzma,
                 niffler::Level::Nine,
             )?,
-            Compression::Bz2 => niffler::get_writer(
+            CompressionType::Bz2 => niffler::get_writer(
                 Box::new(file),
                 niffler::compression::Format::Bzip,
                 niffler::Level::Nine,
@@ -274,9 +282,57 @@ impl RpmRepository {
     // * signing
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct RepositoryOptions {
+    simple_metadata_filenames: bool,
+    metadata_compression_type: CompressionType,
+    metadata_checksum_type: ChecksumType,
+    package_checksum_type: ChecksumType,
+}
+
+impl Default for RepositoryOptions {
+    fn default() -> Self {
+        Self {
+            simple_metadata_filenames: false,
+            metadata_compression_type: CompressionType::Gzip,
+            metadata_checksum_type: ChecksumType::Sha256,
+            package_checksum_type: ChecksumType::Sha256,
+        }
+    }
+}
+
+impl RepositoryOptions {
+    pub fn package_checksum_type(self, chktype: ChecksumType) -> Self {
+        Self {
+            package_checksum_type: chktype,
+            ..self
+        }
+    }
+
+    pub fn metadata_checksum_type(self, chktype: ChecksumType) -> Self {
+        Self {
+            metadata_checksum_type: chktype,
+            ..self
+        }
+    }
+
+    pub fn metadata_compression_type(self, comptype: CompressionType) -> Self {
+        Self {
+            metadata_compression_type: comptype,
+            ..self
+        }
+    }
+
+    pub fn simple_metadata_filenames(self, val: bool) -> Self {
+        Self {
+            simple_metadata_filenames: val,
+            ..self
+        }
+    }
+}
 
 pub fn stream_from_directory(path: &Path) -> Result<PackageStreamer, MetadataError> {
-    let mut repo = RpmRepository::new();
+    let mut repo = Repository::new();
 
     repo.load_metadata_file::<RepomdXml>(&path.join("repodata/repomd.xml"))?;
 
@@ -314,9 +370,12 @@ pub fn stream_from_directory(path: &Path) -> Result<PackageStreamer, MetadataErr
     let mut other_reader = Reader::from_reader(BufReader::new(other_file_reader));
     configure_reader(&mut other_reader);
 
-    Ok(PackageStreamer { primary_reader, filelists_reader, other_reader })
+    Ok(PackageStreamer {
+        primary_reader,
+        filelists_reader,
+        other_reader,
+    })
 }
-
 
 pub struct PackageStreamer {
     primary_reader: Reader<BufReader<Box<dyn Read>>>,

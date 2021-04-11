@@ -6,7 +6,7 @@ use quick_xml::{Reader, Writer};
 use super::metadata::{
     FileType, FilelistsXml, Package, PackageFile, RpmMetadata, EVR, XML_NS_FILELISTS,
 };
-use super::{MetadataError, RpmRepository};
+use super::{MetadataError, Repository};
 
 const TAG_FILELISTS: &[u8] = b"filelists";
 const TAG_PACKAGE: &[u8] = b"package";
@@ -17,14 +17,14 @@ impl RpmMetadata for FilelistsXml {
     const NAME: &'static str = "filelists.xml";
 
     fn load_metadata<R: BufRead>(
-        repository: &mut RpmRepository,
+        repository: &mut Repository,
         reader: &mut Reader<R>,
     ) -> Result<(), MetadataError> {
         read_filelists_xml(repository, reader)
     }
 
     fn write_metadata<W: Write>(
-        repository: &RpmRepository,
+        repository: &Repository,
         writer: &mut Writer<W>,
     ) -> Result<(), MetadataError> {
         write_filelists_xml(repository, writer)
@@ -41,7 +41,7 @@ impl RpmMetadata for FilelistsXml {
 //   </package>
 // </filelists>
 fn read_filelists_xml<R: BufRead>(
-    repository: &mut RpmRepository,
+    repository: &mut Repository,
     reader: &mut Reader<R>,
 ) -> Result<(), MetadataError> {
     let mut buf = Vec::new();
@@ -71,20 +71,20 @@ fn read_filelists_xml<R: BufRead>(
 }
 
 fn write_filelists_xml<W: Write>(
-    repository: &RpmRepository,
+    repository: &Repository,
     writer: &mut Writer<W>,
 ) -> Result<(), MetadataError> {
     // <?xml version="1.0" encoding="UTF-8"?>
     writer.write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
 
     // <filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="210">
-    let num_pkgs = repository.packages.len().to_string();
+    let num_pkgs = repository.packages().len().to_string();
     let mut filelists_tag = BytesStart::borrowed_name(TAG_FILELISTS);
     filelists_tag.push_attribute(("xmlns", XML_NS_FILELISTS));
     filelists_tag.push_attribute(("packages", num_pkgs.as_str()));
     writer.write_event(Event::Start(filelists_tag.to_borrowed()))?;
 
-    for package in repository.packages.values() {
+    for package in repository.packages().values() {
         // <package pkgid="a2d3bce512f79b0bc840ca7912a86bbc0016cf06d5c363ffbb6fd5e1ef03de1b" name="fontconfig" arch="x86_64">
         let mut package_tag = BytesStart::borrowed_name(TAG_PACKAGE);
         let (_, pkgid) = package.checksum.to_values()?;
@@ -126,7 +126,7 @@ fn write_filelists_xml<W: Write>(
 //     <file>/etc/fonts/conf.avail/10-autohint.conf</file>
 //   </package>
 pub fn parse_package<R: BufRead>(
-    repository: &mut RpmRepository,
+    repository: &mut Repository,
     reader: &mut Reader<R>,
     open_tag: &BytesStart,
 ) -> Result<(), MetadataError> {
@@ -146,7 +146,7 @@ pub fn parse_package<R: BufRead>(
         .unescape_and_decode_value(reader)?;
 
     let mut package = repository
-        .packages
+        .packages_mut()
         .entry(pkgid)
         .or_insert(Package::default()); // TODO
 

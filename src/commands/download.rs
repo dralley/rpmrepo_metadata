@@ -6,15 +6,16 @@ use url::Url;
 
 use super::DownloadCommand;
 
-use rpmrepo::download::{RepoDownloader, DEFAULT_CONCURRENCY};
+use rpmrepo::download::RepoDownloader;
 
 pub fn download(config: DownloadCommand) -> Result<()> {
     let url = Url::parse(&config.url)?;
-    let concurrency = config.concurrency.unwrap_or(DEFAULT_CONCURRENCY);
 
-    let downloader = RepoDownloader::new(url)
-        .with_concurrency(concurrency)
-        .only_metadata(true);
+    let mut downloader = RepoDownloader::new(url);
+
+    if let Some(concurrency) = config.concurrency {
+        downloader = downloader.with_concurrency(concurrency);
+    }
 
     let repository_path = env::current_dir()?.join(config.destination);
 

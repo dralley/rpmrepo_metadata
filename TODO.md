@@ -56,7 +56,7 @@
 * download needs to download to tempdir and then move, for purpose of errors
 * error reporting back through the CLI
 * compression
-* fancy allocation strategies, central repository object to configure and APIs around that
+* fancy allocation strategies
 
 ### testing
 

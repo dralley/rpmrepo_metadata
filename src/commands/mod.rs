@@ -51,7 +51,7 @@ pub struct DownloadCommand {
 
     /// download metadata only
     #[argh(switch, short = 'm')]
-    only_metadata: bool
+    only_metadata: bool,
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
@@ -61,6 +61,34 @@ pub struct CreateCommand {
     /// directory containing RPMs
     #[argh(positional)]
     destination: OsString,
+
+    /// distro tag with optional cpeid: --distro "name,cpeid"
+    #[argh(option)]
+    distro_tag: Option<String>,
+
+    /// tags that describe the content in the repository
+    #[argh(option)]
+    content_tags: Option<String>,
+
+    /// tags that describe the repository
+    #[argh(option)]
+    repo_tags: Option<String>,
+
+    /// metadata compression type
+    #[argh(option)]
+    metadata_compression_type: Option<String>,
+
+    /// metadata checksum type
+    #[argh(option)]
+    metadata_checksum_type: Option<String>,
+
+    /// package checksum type
+    #[argh(option)]
+    package_checksum_type: Option<String>,
+
+    /// path to a list of RPM packages to add to the repo
+    #[argh(option)]
+    add_package_list: Option<String>,
 }
 
 #[derive(FromArgs, PartialEq, Debug)]

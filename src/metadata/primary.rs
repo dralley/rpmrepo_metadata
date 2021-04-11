@@ -7,7 +7,7 @@ use super::metadata::{
     Checksum, HeaderRange, MetadataError, Package, PrimaryXml, Requirement, RpmMetadata, Size,
     Time, EVR, XML_NS_COMMON, XML_NS_RPM,
 };
-use super::RpmRepository;
+use super::Repository;
 
 const TAG_METADATA: &[u8] = b"metadata";
 const TAG_PACKAGE: &[u8] = b"package";
@@ -46,14 +46,14 @@ impl RpmMetadata for PrimaryXml {
     const NAME: &'static str = "primary.xml";
 
     fn load_metadata<R: BufRead>(
-        repository: &mut RpmRepository,
+        repository: &mut Repository,
         reader: &mut Reader<R>,
     ) -> Result<(), MetadataError> {
         read_primary_xml(repository, reader)
     }
 
     fn write_metadata<W: Write>(
-        repository: &RpmRepository,
+        repository: &Repository,
         writer: &mut Writer<W>,
     ) -> Result<(), MetadataError> {
         write_primary_xml(repository, writer)
@@ -61,7 +61,7 @@ impl RpmMetadata for PrimaryXml {
 }
 
 fn read_primary_xml<R: BufRead>(
-    repository: &mut RpmRepository,
+    repository: &mut Repository,
     reader: &mut Reader<R>,
 ) -> Result<(), MetadataError> {
     let mut buf = Vec::new();
@@ -75,7 +75,6 @@ fn read_primary_xml<R: BufRead>(
                     found_metadata_tag = true;
                 }
                 TAG_PACKAGE => {
-
                     let ptype = e
                         .try_get_attribute(b"type")?
                         .unwrap()
@@ -90,7 +89,7 @@ fn read_primary_xml<R: BufRead>(
                     parse_package(&mut package, reader)?;
                     let (_, pkgid) = package.checksum.to_values()?;
                     repository
-                        .packages
+                        .packages_mut()
                         .entry(pkgid.to_owned())
                         .or_insert(package);
                 }
@@ -109,7 +108,7 @@ fn read_primary_xml<R: BufRead>(
 }
 
 fn write_primary_xml<W: Write>(
-    repository: &RpmRepository,
+    repository: &Repository,
     writer: &mut Writer<W>,
 ) -> Result<(), MetadataError> {
     // <?xml version="1.0" encoding="UTF-8"?>
@@ -119,10 +118,10 @@ fn write_primary_xml<W: Write>(
     let mut metadata_tag = BytesStart::borrowed_name(TAG_METADATA);
     metadata_tag.push_attribute(("xmlns", XML_NS_COMMON));
     metadata_tag.push_attribute(("xmlns:rpm", XML_NS_RPM));
-    metadata_tag.push_attribute(("packages", repository.packages.len().to_string().as_str()));
+    metadata_tag.push_attribute(("packages", repository.packages().len().to_string().as_str()));
     writer.write_event(Event::Start(metadata_tag.to_borrowed()))?;
 
-    for package in repository.packages.values() {
+    for package in repository.packages().values() {
         write_package(package, writer)?;
     }
 
@@ -538,12 +537,10 @@ pub fn parse_requirement_list<R: BufRead>(
                     .try_get_attribute("rel")?
                     .and_then(|attr| attr.unescape_and_decode_value(reader).ok());
 
-                let preinstall = e
-                    .try_get_attribute("rel")?
-                    .map_or(None, |a| {
-                        let val = a.unescape_and_decode_value(reader).unwrap(); // TODO
-                        Some(val == "0" || val.eq_ignore_ascii_case("false"))
-                    });
+                let preinstall = e.try_get_attribute("rel")?.map_or(None, |a| {
+                    let val = a.unescape_and_decode_value(reader).unwrap(); // TODO
+                    Some(val == "0" || val.eq_ignore_ascii_case("false"))
+                });
 
                 list.push(Requirement {
                     name,

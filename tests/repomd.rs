@@ -1,15 +1,15 @@
 extern crate rpmrepo;
 
-use rpmrepo::metadata::{MetadataError, RpmRepository};
+use rpmrepo::metadata::{MetadataError, Repository};
 
 #[test]
 fn repomd() -> Result<(), MetadataError> {
     // let fixture_path = "./tests/assets/complex_repo/";
     let fixture_path = "../test_repo/";
 
-    let repo = RpmRepository::from_directory(fixture_path.as_ref())?;
+    let repo = Repository::from_directory(fixture_path.as_ref())?;
 
-    assert_eq!(repo.packages.len(), 10700);
+    assert_eq!(repo.packages().len(), 10700);
     // assert_eq!(repo.packages.len(), 3);
 
     // repo.to_directory("./tests/assets/test_repo/".as_ref())?;

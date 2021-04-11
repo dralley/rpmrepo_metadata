@@ -9,7 +9,7 @@ use quick_xml::{Reader, Writer};
 use super::metadata::{
     Checksum, MetadataError, RepoMdRecord, RepomdXml, RpmMetadata, XML_NS_REPO, XML_NS_RPM,
 };
-use super::RpmRepository;
+use super::Repository;
 
 // RepoMd
 const TAG_REPOMD: &[u8] = b"repomd";
@@ -35,7 +35,7 @@ impl RpmMetadata for RepomdXml {
     const NAME: &'static str = "repomd.xml";
 
     fn load_metadata<R: BufRead>(
-        repository: &mut RpmRepository,
+        repository: &mut Repository,
         reader: &mut Reader<R>,
     ) -> Result<(), MetadataError> {
         read_repomd_xml(repository, reader)?;
@@ -43,7 +43,7 @@ impl RpmMetadata for RepomdXml {
     }
 
     fn write_metadata<W: Write>(
-        repository: &RpmRepository,
+        repository: &Repository,
         writer: &mut Writer<W>,
     ) -> Result<(), MetadataError> {
         write_repomd_xml(repository, writer)
@@ -51,7 +51,7 @@ impl RpmMetadata for RepomdXml {
 }
 
 fn read_repomd_xml<R: BufRead>(
-    repository: &mut RpmRepository,
+    repository: &mut Repository,
     reader: &mut Reader<R>,
 ) -> Result<(), MetadataError> {
     let mut event_buf = Vec::new();
@@ -120,7 +120,7 @@ fn read_repomd_xml<R: BufRead>(
 }
 
 fn write_repomd_xml<W: Write>(
-    repository: &RpmRepository,
+    repository: &Repository,
     writer: &mut Writer<W>,
 ) -> Result<(), MetadataError> {
     // <?xml version="1.0" encoding="UTF-8"?>
@@ -133,14 +133,19 @@ fn write_repomd_xml<W: Write>(
     writer.write_event(Event::Start(repomd_tag.to_borrowed()))?;
 
     // <revision>123897</revision>
-    let _revision = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("system clock failure")
-        .as_secs()
-        .to_string();
     // TODO, find a less messy way  to do this.
-    let revision = &repository.revision.as_ref().unwrap_or(&_revision);
-
+    let get_current_time = || {
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("system clock failure")
+            .as_secs()
+            .to_string()
+    };
+    let revision = if let Some(revision) = &repository.revision {
+        revision.to_owned()
+    } else {
+        get_current_time()
+    };
     writer
         .create_element(TAG_REVISION)
         .write_text_content(BytesText::from_plain_str(revision.as_str()))?;
@@ -304,7 +309,7 @@ pub fn parse_repomdrecord<R: BufRead>(
 ///   <content>binary-x86_64</content>
 //// </tags>
 fn write_tags<W: Write>(
-    repository: &RpmRepository,
+    repository: &Repository,
     writer: &mut Writer<W>,
 ) -> Result<(), MetadataError> {
     let has_distro_tags = !repository.distro_tags().is_empty();

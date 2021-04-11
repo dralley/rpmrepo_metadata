@@ -10,7 +10,7 @@ use ureq;
 use url::Url;
 
 // use crate::metadata::RpmMetadata;
-use crate::metadata::{self, RpmRepository, MetadataError, PrimaryXml, RepomdXml};
+use crate::metadata::{self, MetadataError, PrimaryXml, RepomdXml, Repository};
 
 pub const DEFAULT_CONCURRENCY: u8 = 5;
 
@@ -54,6 +54,8 @@ impl RepoDownloader {
     }
 
     pub fn with_concurrency(self, threads: u8) -> Self {
+        assert_eq!(threads.clamp(1, 10), threads, "Concurrency must be between 1 and 10");
+
         RepoDownloader {
             concurrency: threads,
             ..self
@@ -70,7 +72,7 @@ impl RepoDownloader {
     pub fn download_to(&self, repository_path: &Path) -> Result<(), RepoDownloadError> {
         let base_url = &self.base_url;
 
-        let mut repo = RpmRepository::new();
+        let mut repo = Repository::new();
 
         let repomd_url = base_url.join("repodata/repomd.xml")?;
         let repomd_xml = &download_file(&repomd_url)?;
@@ -119,7 +121,7 @@ impl RepoDownloader {
 
         let begin = Instant::now();
         pool.scope(|_| {
-            repo.packages.par_iter().for_each(|(_, package)| {
+            repo.packages().par_iter().for_each(|(_, package)| {
                 let relative_path = package.location_href.as_str();
                 let url = base_url.join(relative_path).unwrap();
 

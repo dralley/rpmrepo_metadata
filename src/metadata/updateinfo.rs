@@ -2,7 +2,7 @@ use quick_xml::events::{BytesDecl, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 use std::io::{BufRead, Write};
 
-use crate::RpmRepository;
+use crate::Repository;
 
 use super::metadata::{RpmMetadata, UpdateInfoXml, UpdateRecord};
 use super::MetadataError;
@@ -32,14 +32,14 @@ impl RpmMetadata for UpdateInfoXml {
     const NAME: &'static str = "updateinfo.xml";
 
     fn load_metadata<R: BufRead>(
-        repository: &mut RpmRepository,
+        repository: &mut Repository,
         reader: &mut Reader<R>,
     ) -> Result<(), MetadataError> {
         read_updateinfo_xml(repository, reader)
     }
 
     fn write_metadata<W: Write>(
-        repository: &RpmRepository,
+        repository: &Repository,
         writer: &mut Writer<W>,
     ) -> Result<(), MetadataError> {
         write_updateinfo_xml(repository, writer)
@@ -47,14 +47,14 @@ impl RpmMetadata for UpdateInfoXml {
 }
 
 fn read_updateinfo_xml<R: BufRead>(
-    repository: &mut RpmRepository,
+    repository: &mut Repository,
     reader: &mut Reader<R>,
 ) -> Result<(), MetadataError> {
     Ok(())
 }
 
 fn write_updateinfo_xml<W: Write>(
-    repository: &RpmRepository,
+    repository: &Repository,
     writer: &mut Writer<W>,
 ) -> Result<(), MetadataError> {
     // <?xml version="1.0" encoding="UTF-8"?>
@@ -179,9 +179,7 @@ fn write_updaterecord<W: Write>(
 
             // updatecollectionmodule
 
-            for package in &collection.packages {
-
-            }
+            for package in &collection.packages {}
             //     <name>Fedora 32</name>
             //     <package name="fbzx" version="4.2.0" release="1.fc32" epoch="0" arch="src" src="https://download.fedoraproject.org/pub/fedora/linux/updates/32/SRPMS/f/fbzx-4.2.0-1.fc32.src.rpm">
             //     <filename>fbzx-4.2.0-1.fc32.src.rpm</filename>
