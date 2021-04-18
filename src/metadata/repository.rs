@@ -163,6 +163,11 @@ impl Repository {
         self.write_metadata_file::<PrimaryXml>(&repodata_dir, options.metadata_compression_type)?;
         self.write_metadata_file::<FilelistsXml>(&repodata_dir, options.metadata_compression_type)?;
         self.write_metadata_file::<OtherXml>(&repodata_dir, options.metadata_compression_type)?;
+
+        // if !options.simple_metadata_filenames {
+        //     self.rename_metadata_files()
+        // }
+
         self.write_metadata_file::<RepomdXml>(&repodata_dir, CompressionType::None)?;
 
         Ok(())

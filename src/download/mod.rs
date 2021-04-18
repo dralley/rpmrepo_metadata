@@ -1,3 +1,3 @@
 mod download;
 
-pub use download::{RepoDownloadError, RepoDownloader};
+pub use download::{DownloadConfig, RepoDownloadError, RepoDownloader};

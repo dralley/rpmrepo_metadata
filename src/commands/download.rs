@@ -6,16 +6,28 @@ use url::Url;
 
 use super::DownloadCommand;
 
-use rpmrepo::download::RepoDownloader;
+use rpmrepo::download::{DownloadConfig, RepoDownloader};
 
 pub fn download(config: DownloadCommand) -> Result<()> {
     let url = Url::parse(&config.url)?;
 
-    let mut downloader = RepoDownloader::new(url);
+    let mut download_config = DownloadConfig::new();
 
     if let Some(concurrency) = config.concurrency {
-        downloader = downloader.with_concurrency(concurrency);
+        download_config = download_config.with_concurrency(concurrency);
     }
+
+    if let Some(client_cert) = config.client_cert {
+        let client_key = config.client_cert_key.unwrap_or(client_cert.clone());
+        download_config = download_config.with_client_certificate(client_cert, client_key);
+    }
+
+    if let Some(ca_cert) = config.ca_cert {
+        download_config = download_config.with_ca_cert(ca_cert);
+    }
+
+    download_config = download_config.verify_tls(!config.no_check_certificate);
+    download_config = download_config.only_metadata(config.only_metadata);
 
     let repository_path = env::current_dir()?.join(config.destination);
 
@@ -30,7 +42,9 @@ pub fn download(config: DownloadCommand) -> Result<()> {
         }
     }
 
-    downloader.download_to(&repository_path)?;
+    let repo_downloader = RepoDownloader::new(url, download_config);
+
+    repo_downloader.download_to(&repository_path)?;
 
     Ok(())
 }

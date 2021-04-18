@@ -12,8 +12,6 @@ pub fn handle_command() -> Result<()> {
     match execution_config.subcommand {
         Subcommands::Download(c) => download::download(c),
         Subcommands::Create(c) => create::create(c),
-        ///
-        _ => unimplemented!(),
     }
 }
 
@@ -45,12 +43,28 @@ pub struct DownloadCommand {
     #[argh(option)]
     concurrency: Option<u8>,
 
+    /// specify a CA cert location (if not present in system trust store)
+    #[argh(option)]
+    ca_cert: Option<String>,
+
+    /// specify a client cert location (.pem, .crt)
+    #[argh(option)]
+    client_cert: Option<String>,
+
+    /// specify a client key location (.pem, .key). If not provided, client_cert will be checked for one.
+    #[argh(option)]
+    client_cert_key: Option<String>,
+
+    /// disable TLS server certificate verification
+    #[argh(switch)]
+    no_check_certificate: bool,
+
     /// directory containing RPMs
     #[argh(positional)]
     destination: OsString,
 
     /// download metadata only
-    #[argh(switch, short = 'm')]
+    #[argh(switch)]
     only_metadata: bool,
 }
 
