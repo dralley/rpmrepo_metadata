@@ -1,11 +1,9 @@
-use quick_xml::events::{BytesDecl, BytesStart, BytesText, Event};
+use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 use std::io::{BufRead, Write};
 
-use crate::Repository;
-
-use super::metadata::{RpmMetadata, UpdateInfoXml, UpdateRecord};
-use super::MetadataError;
+use super::metadata::{RpmMetadata, UpdateRecord, UpdateinfoXml};
+use super::{MetadataError, Package, Repository};
 
 const TAG_UPDATES: &[u8] = b"updates";
 const TAG_UPDATE: &[u8] = b"update";
@@ -28,8 +26,10 @@ const TAG_REBOOT_SUGGESTED: &[u8] = b"reboot_suggested";
 const TAG_REFERENCES: &[u8] = b"references";
 const TAG_REFERENCE: &[u8] = b"reference";
 
-impl RpmMetadata for UpdateInfoXml {
-    const NAME: &'static str = "updateinfo.xml";
+impl RpmMetadata for UpdateinfoXml {
+    fn filename() -> &'static str {
+        "updateinfo.xml"
+    }
 
     fn load_metadata<R: BufRead>(
         repository: &mut Repository,
@@ -42,7 +42,16 @@ impl RpmMetadata for UpdateInfoXml {
         repository: &Repository,
         writer: &mut Writer<W>,
     ) -> Result<(), MetadataError> {
-        write_updateinfo_xml(repository, writer)
+        let mut writer = UpdateinfoXml::new_writer(writer);
+        writer.write_header()?;
+
+        for record in &repository.advisories {
+            writer.write_updaterecord(record)?;
+        }
+
+        writer.write_footer()?;
+
+        Ok(())
     }
 }
 
@@ -53,27 +62,60 @@ fn read_updateinfo_xml<R: BufRead>(
     Ok(())
 }
 
-fn write_updateinfo_xml<W: Write>(
-    repository: &Repository,
-    writer: &mut Writer<W>,
-) -> Result<(), MetadataError> {
-    // <?xml version="1.0" encoding="UTF-8"?>
-    writer.write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
+pub struct UpdateinfoXmlWriter<'a, W: Write> {
+    writer: &'a mut Writer<W>,
+}
 
-    // <updates>
-    let updates_tag = BytesStart::borrowed_name(TAG_UPDATES);
-    writer.write_event(Event::Start(updates_tag.to_borrowed()))?;
+impl<'a, W: Write> UpdateinfoXmlWriter<'a, W> {
+    fn write_header(&mut self) -> Result<(), MetadataError> {
+        // <?xml version="1.0" encoding="UTF-8"?>
+        self.writer
+            .write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
 
-    for record in &repository.advisories {
-        write_updaterecord(&record, writer)?;
+        // <updates>
+        let updates_tag = BytesStart::borrowed_name(TAG_UPDATES);
+        self.writer
+            .write_event(Event::Start(updates_tag.to_borrowed()))?;
+
+        Ok(())
     }
 
-    // </updates>
-    writer.write_event(Event::End(updates_tag.to_end()))?;
+    fn write_updaterecord(&mut self, record: &UpdateRecord) -> Result<(), MetadataError> {
+        write_updaterecord(record, self.writer)
+    }
 
-    // trailing newline
-    writer.write_event(Event::Text(BytesText::from_plain_str("\n")))?;
-    Ok(())
+    fn write_footer(&mut self) -> Result<(), MetadataError> {
+        // </updates>
+        self.writer
+            .write_event(Event::End(BytesEnd::borrowed(TAG_UPDATES)))?;
+
+        // trailing newline
+        self.writer
+            .write_event(Event::Text(BytesText::from_plain_str("\n")))?;
+        Ok(())
+    }
+}
+
+pub struct UpdateinfoXmlReader<'a, R: BufRead> {
+    reader: &'a mut Reader<R>,
+}
+
+impl<'a, R: BufRead> UpdateinfoXmlReader<'a, R> {
+    pub fn read_header(&mut self) {}
+
+    pub fn read_package(&mut self, package: &mut Package) {}
+
+    pub fn finish(&mut self) {}
+}
+
+impl UpdateinfoXml {
+    pub fn new_writer<'a, W: Write>(writer: &'a mut Writer<W>) -> UpdateinfoXmlWriter<'a, W> {
+        UpdateinfoXmlWriter { writer }
+    }
+
+    pub fn new_reader<'a, R: BufRead>(reader: &'a mut Reader<R>) -> UpdateinfoXmlReader<'a, R> {
+        UpdateinfoXmlReader { reader }
+    }
 }
 
 fn write_updaterecord<W: Write>(

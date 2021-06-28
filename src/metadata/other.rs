@@ -13,11 +13,12 @@
 
 use std::io::{BufRead, Write};
 
-use quick_xml::events::{BytesDecl, BytesStart, BytesText, Event};
+use quick_xml::escape::partial_escape;
+use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 
-use super::metadata::{Changelog, OtherXml, Package, RpmMetadata, EVR, XML_NS_OTHER};
-use super::{MetadataError, Repository};
+use super::metadata::{Changelog, OtherXml, Package, RpmMetadata, XML_NS_OTHER};
+use super::{MetadataError, Repository, EVR};
 
 const TAG_OTHERDATA: &[u8] = b"otherdata";
 const TAG_PACKAGE: &[u8] = b"package";
@@ -25,7 +26,9 @@ const TAG_VERSION: &[u8] = b"version";
 const TAG_CHANGELOG: &[u8] = b"changelog";
 
 impl RpmMetadata for OtherXml {
-    const NAME: &'static str = "other.xml";
+    fn filename() -> &'static str {
+        "other.xml"
+    }
 
     fn load_metadata<R: BufRead>(
         repository: &mut Repository,
@@ -38,7 +41,13 @@ impl RpmMetadata for OtherXml {
         repository: &Repository,
         writer: &mut Writer<W>,
     ) -> Result<(), MetadataError> {
-        write_other_xml(repository, writer)
+        let mut writer = OtherXml::new_writer(writer);
+        writer.write_header(repository.packages().len())?;
+        for package in repository.packages().values() {
+            writer.write_package(package)?;
+        }
+        writer.write_footer()?;
+        Ok(())
     }
 }
 
@@ -72,56 +81,107 @@ fn read_other_xml<R: BufRead>(
     Ok(())
 }
 
-pub fn write_other_xml<W: Write>(
-    repository: &Repository,
-    writer: &mut Writer<W>,
-) -> Result<(), MetadataError> {
-    // <?xml version="1.0" encoding="UTF-8"?>
-    writer.write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
+impl OtherXml {
+    pub fn new_writer<'a, W: Write>(writer: &'a mut Writer<W>) -> OtherXmlWriter<'a, W> {
+        OtherXmlWriter {
+            writer,
+            num_packages: 0,
+            packages_written: 0,
+        }
+    }
 
-    // <otherdata xmlns="http://linux.duke.edu/metadata/other" packages="200">
-    let mut other_tag = BytesStart::borrowed_name(TAG_OTHERDATA);
-    other_tag.push_attribute(("xmlns", XML_NS_OTHER));
-    other_tag.push_attribute(("packages", repository.packages().len().to_string().as_str()));
+    pub fn new_reader<'a, R: BufRead>(reader: &'a mut Reader<R>) -> OtherXmlReader<'a, R> {
+        OtherXmlReader { reader }
+    }
+}
 
-    // <filelists>
-    writer.write_event(Event::Start(other_tag.to_borrowed()))?;
+pub struct OtherXmlWriter<'a, W: Write> {
+    writer: &'a mut Writer<W>,
+    num_packages: usize,
+    packages_written: usize,
+}
 
-    // <packages>
-    for package in repository.packages().values() {
+impl<'a, W: Write> OtherXmlWriter<'a, W> {
+    pub fn write_header(&mut self, num_pkgs: usize) -> Result<(), MetadataError> {
+        self.num_packages = num_pkgs;
+
+        // <?xml version="1.0" encoding="UTF-8"?>
+        self.writer
+            .write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
+
+        // <otherdata xmlns="http://linux.duke.edu/metadata/other" packages="200">
+        let mut other_tag = BytesStart::borrowed_name(TAG_OTHERDATA);
+        other_tag.push_attribute(("xmlns", XML_NS_OTHER));
+        other_tag.push_attribute(("packages", num_pkgs.to_string().as_str()));
+        self.writer.write_event(Event::Start(other_tag))?;
+
+        Ok(())
+    }
+
+    pub fn write_package(&mut self, package: &Package) -> Result<(), MetadataError> {
         let mut package_tag = BytesStart::borrowed_name(TAG_PACKAGE);
         let (_, pkgid) = package.checksum.to_values()?;
-        package_tag.push_attribute(("pkgid".as_bytes(), pkgid.as_bytes()));
-        package_tag.push_attribute(("name".as_bytes(), package.name.as_bytes()));
-        package_tag.push_attribute(("arch".as_bytes(), package.arch.as_bytes()));
-        writer.write_event(Event::Start(package_tag.to_borrowed()))?;
+        package_tag.push_attribute(("pkgid", pkgid));
+        package_tag.push_attribute(("name", package.name.as_str()));
+        package_tag.push_attribute(("arch", package.arch.as_str()));
+        self.writer
+            .write_event(Event::Start(package_tag.to_borrowed()))?;
 
         let (epoch, version, release) = package.evr.values();
         // <version epoch="0" ver="2.8.0" rel="5.el6"/>
         let mut version_tag = BytesStart::borrowed_name(TAG_VERSION);
-        version_tag.push_attribute(("epoch".as_bytes(), epoch.as_bytes()));
-        version_tag.push_attribute(("ver".as_bytes(), version.as_bytes()));
-        version_tag.push_attribute(("rel".as_bytes(), release.as_bytes()));
-        writer.write_event(Event::Empty(version_tag))?;
+        version_tag.push_attribute(("epoch", epoch));
+        version_tag.push_attribute(("ver", version));
+        version_tag.push_attribute(("rel", release));
+        self.writer.write_event(Event::Empty(version_tag))?;
 
         for changelog in &package.rpm_changelogs {
             //  <changelog author="dalley &lt;dalley@redhat.com&gt; - 2.7.2-1" date="1251720000">- Update to 2.7.2</changelog>
-            writer
+            self.writer
                 .create_element(TAG_CHANGELOG)
-                .with_attribute(("author".as_bytes(), changelog.author.as_str().as_bytes()))
-                .with_attribute((
-                    "date".as_bytes(),
-                    format!("{}", changelog.date).as_str().as_bytes(),
-                ))
-                .write_text_content(BytesText::from_plain_str(&changelog.description))?;
+                .with_attribute(("author", changelog.author.as_str()))
+                .with_attribute(("date", format!("{}", changelog.date).as_str()))
+                .write_text_content(BytesText::from_escaped(partial_escape(
+                    &changelog.description.as_bytes(),
+                )))?;
         }
 
         // </package>
-        writer.write_event(Event::End(package_tag.to_end()))?;
+        self.writer.write_event(Event::End(package_tag.to_end()))?;
+
+        self.packages_written += 1;
+        Ok(())
     }
-    // </otherdata>
-    writer.write_event(Event::End(other_tag.to_end()))?;
-    Ok(())
+
+    pub fn write_footer(self) -> Result<(), MetadataError> {
+        assert_eq!(
+            self.packages_written, self.num_packages,
+            "Number of packages written {} does not match number of packages declared {}.",
+            self.packages_written, self.num_packages
+        );
+
+        // </otherdata>
+        self.writer
+            .write_event(Event::End(BytesEnd::borrowed(TAG_OTHERDATA)))?;
+
+        // trailing newline
+        self.writer
+            .write_event(Event::Text(BytesText::from_plain_str("\n")))?;
+
+        Ok(())
+    }
+}
+
+pub struct OtherXmlReader<'a, R: BufRead> {
+    reader: &'a mut Reader<R>,
+}
+
+impl<'a, R: BufRead> OtherXmlReader<'a, R> {
+    pub fn read_header(&mut self) {}
+
+    pub fn read_package(&mut self, package: &mut Package) {}
+
+    pub fn finish(&mut self) {}
 }
 
 //   <package pkgid="6a915b6e1ad740994aa9688d70a67ff2b6b72e0ced668794aeb27b2d0f2e237b" name="fontconfig" arch="x86_64">

@@ -32,7 +32,9 @@ const TAG_HEADER_SIZE: &[u8] = b"header-size";
 const TAG_DATABASE_VERSION: &[u8] = b"database_version";
 
 impl RpmMetadata for RepomdXml {
-    const NAME: &'static str = "repomd.xml";
+    fn filename() -> &'static str {
+        "repomd.xml"
+    }
 
     fn load_metadata<R: BufRead>(
         repository: &mut Repository,
@@ -403,7 +405,7 @@ fn write_data<W: Write>(writer: &mut Writer<W>, data: &RepoMdRecord) -> Result<(
             data.timestamp.to_string().as_str(),
         ))?;
 
-    // <size>123987</size>
+    // <size>123987</size> (maybe)
     if let Some(size) = data.size {
         writer
             .create_element(TAG_SIZE)

@@ -5,14 +5,13 @@ use quick_xml;
 use quick_xml::{Reader, Writer};
 use thiserror::Error;
 
-use crate::Repository;
+use crate::metadata::{Repository, EVR};
 
 pub struct RepomdXml;
 pub struct PrimaryXml;
 pub struct FilelistsXml;
 pub struct OtherXml;
-
-pub struct UpdateInfoXml;
+pub struct UpdateinfoXml;
 
 pub const METADATA_PRIMARY: &str = "primary";
 pub const METADATA_FILELISTS: &str = "filelists";
@@ -42,6 +41,8 @@ pub enum MetadataError {
     MissingFieldError(&'static str), // TODO: support multiple missing fields?
     #[error("Missing metadata attributes: {0}")]
     MissingAttributeError(&'static str), // TODO: support multiple missing attributes?
+    #[error("Missing metadata header")]
+    MissingHeaderError,
 }
 
 /// Default namespace for primary.xml
@@ -55,17 +56,17 @@ pub const XML_NS_REPO: &str = "http://linux.duke.edu/metadata/repo";
 /// Namespace for rpm (used in primary.xml and repomd.xml)
 pub const XML_NS_RPM: &str = "http://linux.duke.edu/metadata/rpm";
 
-pub(crate) trait RpmMetadata {
-    const NAME: &'static str;
+pub trait RpmMetadata {
+    fn filename() -> &'static str;
 
     fn load_metadata<R: BufRead>(
         repository: &mut Repository,
-        reader: &mut Reader<R>,
+        buffer: &mut Reader<R>,
     ) -> Result<(), MetadataError>;
 
     fn write_metadata<W: Write>(
         repository: &Repository,
-        writer: &mut Writer<W>,
+        buffer: &mut Writer<W>,
     ) -> Result<(), MetadataError>;
 }
 
@@ -92,6 +93,13 @@ impl TryInto<CompressionType> for &str {
         }
     }
 }
+
+// impl<T: Ord> Ord for Package {
+//     #[inline]
+//     fn cmp(&self, other: &Package) -> Ordering {
+//         other.0.cmp(&self.0)
+//     }
+// }
 
 #[derive(Debug, PartialEq, Default)]
 pub struct Package {
@@ -144,6 +152,26 @@ impl Package {
             ..Package::default()
         }
     }
+
+    pub fn nevra<'a>(&'a self) -> Nevra<'a> {
+        self.into()
+    }
+}
+
+pub struct Nevra<'a> {
+    pub name: &'a str,
+    pub arch: &'a str,
+    pub evr: &'a EVR,
+}
+
+impl<'a> From<&'a Package> for Nevra<'a> {
+    fn from(pkg: &'a Package) -> Self {
+        Self {
+            name: &pkg.name,
+            evr: &pkg.evr,
+            arch: &pkg.arch,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -178,6 +206,7 @@ impl Checksum {
         let bytes_to_str = |value| std::str::from_utf8(value).unwrap().to_owned();
 
         let checksum = match checksum_type.as_ref() {
+            b"sha" => Checksum::Sha1(bytes_to_str(checksum.as_ref())),
             b"sha1" => Checksum::Sha1(bytes_to_str(checksum.as_ref())),
             b"sha256" => Checksum::Sha256(bytes_to_str(checksum.as_ref())),
             b"sha384" => Checksum::Sha384(bytes_to_str(checksum.as_ref())),
@@ -200,27 +229,6 @@ impl Checksum {
             Checksum::Unknown => panic!("Cannot take value of a checksum of unknown type"),
         };
         Ok(values)
-    }
-}
-
-#[derive(Debug, PartialEq, Default, Clone)]
-pub struct EVR {
-    pub epoch: String,
-    pub version: String, // ver
-    pub release: String, // rel
-}
-
-impl EVR {
-    pub fn new(epoch: &str, version: &str, release: &str) -> EVR {
-        EVR {
-            epoch: epoch.to_owned(),
-            version: version.to_owned(),
-            release: release.to_owned(),
-        }
-    }
-
-    pub fn values(&self) -> (&str, &str, &str) {
-        (&self.epoch, &self.version, &self.release)
     }
 }
 

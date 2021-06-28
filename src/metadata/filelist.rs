@@ -1,12 +1,13 @@
 use std::io::{BufRead, Write};
 
-use quick_xml::events::{BytesDecl, BytesStart, BytesText, Event};
+use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
+use ring::test::File;
 
 use super::metadata::{
-    FileType, FilelistsXml, Package, PackageFile, RpmMetadata, EVR, XML_NS_FILELISTS,
+    FileType, FilelistsXml, Package, PackageFile, RpmMetadata, XML_NS_FILELISTS,
 };
-use super::{MetadataError, Repository};
+use super::{MetadataError, Repository, EVR};
 
 const TAG_FILELISTS: &[u8] = b"filelists";
 const TAG_PACKAGE: &[u8] = b"package";
@@ -14,7 +15,9 @@ const TAG_VERSION: &[u8] = b"version";
 const TAG_FILE: &[u8] = b"file";
 
 impl RpmMetadata for FilelistsXml {
-    const NAME: &'static str = "filelists.xml";
+    fn filename() -> &'static str {
+        "filelists.xml"
+    }
 
     fn load_metadata<R: BufRead>(
         repository: &mut Repository,
@@ -27,9 +30,177 @@ impl RpmMetadata for FilelistsXml {
         repository: &Repository,
         writer: &mut Writer<W>,
     ) -> Result<(), MetadataError> {
-        write_filelists_xml(repository, writer)
+        let mut writer = Self::new_writer(writer);
+        writer.write_header(repository.packages().len())?;
+        for package in repository.packages().values() {
+            writer.write_package(package)?;
+        }
+        writer.write_footer()?;
+        Ok(())
     }
 }
+
+impl FilelistsXml {
+    pub fn new_writer<'a, W: Write>(writer: &'a mut Writer<W>) -> FilelistsXmlWriter<'a, W> {
+        FilelistsXmlWriter {
+            writer,
+            num_packages: 0,
+            packages_written: 0,
+        }
+    }
+
+    // pub fn new_reader<'a, R: BufRead>(reader: &'a mut Reader<R>) -> FilelistsXmlReader<'a, R> {
+    //     FilelistsXmlReader {
+    //         reader,
+    //         num_packages: 0,
+    //         packages_read: 0,
+    //         buffer: Vec::new(),
+    //     }
+    // }
+}
+
+pub struct FilelistsXmlWriter<'a, W: Write> {
+    writer: &'a mut Writer<W>,
+    num_packages: usize,
+    packages_written: usize,
+}
+
+impl<'a, W: Write> FilelistsXmlWriter<'a, W> {
+    pub fn write_header(&mut self, num_pkgs: usize) -> Result<(), MetadataError> {
+        self.num_packages = num_pkgs;
+
+        // <?xml version="1.0" encoding="UTF-8"?>
+        self.writer
+            .write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
+
+        // <filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="210">
+        let mut filelists_tag = BytesStart::borrowed_name(TAG_FILELISTS);
+        filelists_tag.push_attribute(("xmlns", XML_NS_FILELISTS));
+        filelists_tag.push_attribute(("packages", num_pkgs.to_string().as_str()));
+        self.writer
+            .write_event(Event::Start(filelists_tag.to_borrowed()))?;
+
+        Ok(())
+    }
+
+    pub fn write_package(&mut self, package: &Package) -> Result<(), MetadataError> {
+        // <package pkgid="a2d3bce512f79b0bc840ca7912a86bbc0016cf06d5c363ffbb6fd5e1ef03de1b" name="fontconfig" arch="x86_64">
+        let mut package_tag = BytesStart::borrowed_name(TAG_PACKAGE);
+        let (_, pkgid) = package.checksum.to_values()?;
+        package_tag.push_attribute(("pkgid", pkgid));
+        package_tag.push_attribute(("name", package.name.as_str()));
+        package_tag.push_attribute(("arch", package.arch.as_str()));
+        self.writer
+            .write_event(Event::Start(package_tag.to_borrowed()))?;
+
+        // <version epoch="0" ver="2.8.0" rel="5.fc33"/>
+        let (epoch, version, release) = package.evr.values();
+        let mut version_tag = BytesStart::borrowed_name(TAG_VERSION);
+        version_tag.push_attribute(("epoch", epoch));
+        version_tag.push_attribute(("ver", version));
+        version_tag.push_attribute(("rel", release));
+        self.writer.write_event(Event::Empty(version_tag))?;
+
+        // <file type="dir">/etc/fonts/conf.avail</file>
+        for file in &package.rpm_files {
+            let mut file_tag = BytesStart::borrowed_name(TAG_FILE);
+            if file.filetype != FileType::File {
+                file_tag.push_attribute(("type".as_bytes(), file.filetype.to_values()));
+            }
+            self.writer
+                .write_event(Event::Start(file_tag.to_borrowed()))?;
+            self.writer
+                .write_event(Event::Text(BytesText::from_plain_str(&file.path)))?;
+            self.writer.write_event(Event::End(file_tag.to_end()))?;
+        }
+
+        // </package>
+        self.writer.write_event(Event::End(package_tag.to_end()))?;
+
+        self.packages_written += 1;
+        Ok(())
+    }
+
+    pub fn write_footer(&mut self) -> Result<(), MetadataError> {
+        assert_eq!(
+            self.packages_written, self.num_packages,
+            "Number of packages written {} does not match number of packages declared {}.",
+            self.packages_written, self.num_packages
+        );
+
+        // </filelists>
+        self.writer
+            .write_event(Event::End(BytesEnd::borrowed(TAG_FILELISTS)))?;
+
+        // trailing newline
+        self.writer
+            .write_event(Event::Text(BytesText::from_plain_str("\n")))?;
+        Ok(())
+    }
+}
+
+// pub struct FilelistsXmlReader<'a, R: BufRead> {
+//     reader: &'a mut Reader<R>,
+//     num_packages: usize,
+//     packages_read: usize,
+//     buffer: Vec<u8>,
+// }
+
+// impl<'a, R: BufRead> FilelistsXmlReader<'a, R> {
+//     pub fn read_header(&mut self) -> Result<(), MetadataError> {
+//         let mut found_metadata_tag = false;
+
+//         loop {
+//             match self.reader.read_event(&mut self.buffer)? {
+//                 Event::Start(e) => match e.name() {
+//                     TAG_FILELISTS => {
+//                         found_metadata_tag = true;
+//                         self.num_packages = e
+//                             .try_get_attribute("packages")?
+//                             .ok_or_else(|| MetadataError::MissingAttributeError("packages"))?
+//                             .unescape_and_decode_value(self.reader)?
+//                             .parse()?;
+//                     }
+//                     _ => (),
+//                 },
+//                 Event::Eof => break,
+//                 Event::Decl(_) => (),
+//                 _ => break,
+//             }
+//         }
+//         if !found_metadata_tag {
+//             return Err(MetadataError::MissingHeaderError)
+//         }
+
+//         self.buffer.clear();
+//         Ok(())
+//     }
+
+//     pub fn read_into_package(&mut self, package: &mut Package) -> Result<(), MetadataError> {
+//         loop {
+//             match self.reader.read_event(&mut self.buffer)? {
+//                 Event::Start(e) => match e.name() {
+//                     TAG_PACKAGE => {
+//                         found_metadata_tag = true;
+//                         self.num_packages = e
+//                             .try_get_attribute("packages")?
+//                             .ok_or_else(|| MetadataError::MissingAttributeError("packages"))?
+//                             .unescape_and_decode_value(self.reader)?
+//                             .parse()?;
+//                     }
+//                     _ => (),
+//                 },
+//                 Event::Eof => break,
+//                 Event::Decl(_) => (),
+//                 _ => break,
+//             }
+//         // TAG_PACKAGE => {
+//         //     self.current_element = Some(e)
+//         // }
+//         parse_package(repository, self.reader, &self.current_package_element);
+//         Ok(())
+//     }
+// }
 
 // <?xml version="1.0" encoding="UTF-8"?>
 // <filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="1">
@@ -67,55 +238,6 @@ fn read_filelists_xml<R: BufRead>(
     if !found_metadata_tag {
         // TODO
     }
-    Ok(())
-}
-
-fn write_filelists_xml<W: Write>(
-    repository: &Repository,
-    writer: &mut Writer<W>,
-) -> Result<(), MetadataError> {
-    // <?xml version="1.0" encoding="UTF-8"?>
-    writer.write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
-
-    // <filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="210">
-    let num_pkgs = repository.packages().len().to_string();
-    let mut filelists_tag = BytesStart::borrowed_name(TAG_FILELISTS);
-    filelists_tag.push_attribute(("xmlns", XML_NS_FILELISTS));
-    filelists_tag.push_attribute(("packages", num_pkgs.as_str()));
-    writer.write_event(Event::Start(filelists_tag.to_borrowed()))?;
-
-    for package in repository.packages().values() {
-        // <package pkgid="a2d3bce512f79b0bc840ca7912a86bbc0016cf06d5c363ffbb6fd5e1ef03de1b" name="fontconfig" arch="x86_64">
-        let mut package_tag = BytesStart::borrowed_name(TAG_PACKAGE);
-        let (_, pkgid) = package.checksum.to_values()?;
-        package_tag.push_attribute(("pkgid", pkgid));
-        package_tag.push_attribute(("name", package.name.as_str()));
-        package_tag.push_attribute(("arch", package.arch.as_str()));
-        writer.write_event(Event::Start(package_tag.to_borrowed()))?;
-
-        // <version epoch="0" ver="2.8.0" rel="5.fc33"/>
-        let (epoch, version, release) = package.evr.values();
-        let mut version_tag = BytesStart::borrowed_name(TAG_VERSION);
-        version_tag.push_attribute(("epoch", epoch));
-        version_tag.push_attribute(("ver", version));
-        version_tag.push_attribute(("rel", release));
-        writer.write_event(Event::Empty(version_tag))?;
-
-        // <file type="dir">/etc/fonts/conf.avail</file>
-        for file in &package.rpm_files {
-            let mut file_tag = BytesStart::borrowed_name(TAG_FILE);
-            file_tag.push_attribute(("type".as_bytes(), file.filetype.to_values()));
-            writer.write_event(Event::Start(file_tag.to_borrowed()))?;
-            writer.write_event(Event::Text(BytesText::from_plain_str(&file.path)))?;
-            writer.write_event(Event::End(file_tag.to_end()))?;
-        }
-
-        // </package>
-        writer.write_event(Event::End(package_tag.to_end()))?;
-    }
-
-    // </filelists>
-    writer.write_event(Event::End(filelists_tag.to_end()))?;
     Ok(())
 }
 

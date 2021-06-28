@@ -55,7 +55,6 @@
 * split up into multiple crates, one for working with metadata, one for downloading, etc.
 * download needs to download to tempdir and then move, for purpose of errors
 * error reporting back through the CLI
-* compression
 * fancy allocation strategies
 
 ### testing

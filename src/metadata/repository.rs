@@ -1,16 +1,19 @@
-use std::io::Cursor;
 use std::io::{BufRead, BufReader};
+use std::io::{BufWriter, Cursor, Write};
 use std::path::Path;
 use std::{collections::BTreeMap, path::PathBuf};
 use std::{fs::File, io::Read};
 
 use quick_xml::{Reader, Writer};
 
+use super::filelist::FilelistsXmlWriter;
 use super::metadata::{
     ChecksumType, CompressionType, DistroTag, FilelistsXml, MetadataType, OtherXml, Package,
     PrimaryXml, RepoMdRecord, RepomdXml, RpmMetadata, UpdateRecord, METADATA_FILELISTS,
     METADATA_OTHER, METADATA_PRIMARY,
 };
+use super::other::OtherXmlWriter;
+use super::primary::PrimaryXmlWriter;
 use super::{repomd, MetadataError};
 
 fn configure_reader<R: BufRead>(reader: &mut Reader<R>) {
@@ -120,7 +123,7 @@ impl Repository {
         &mut self.packages
     }
 
-    pub fn from_directory(path: &Path) -> Result<Self, MetadataError> {
+    pub fn load_from_directory(path: &Path) -> Result<Self, MetadataError> {
         let mut repo = Repository::new();
 
         repo.load_metadata_file::<RepomdXml>(&path.join("repodata/repomd.xml"))?;
@@ -151,7 +154,7 @@ impl Repository {
         Ok(repo)
     }
 
-    pub fn to_directory(
+    pub fn write_to_directory(
         &mut self,
         path: &Path,
         options: RepositoryOptions,
@@ -173,12 +176,13 @@ impl Repository {
         Ok(())
     }
 
-    pub fn from_files(
+    pub fn load_from_files(
         primary_xml: &Path,
         filelists_xml: &Path,
         other_xml: &Path,
     ) -> Result<Self, MetadataError> {
         let mut repo = Repository::new();
+
         repo.load_metadata_file::<PrimaryXml>(primary_xml)?;
         repo.load_metadata_file::<FilelistsXml>(filelists_xml)?;
         repo.load_metadata_file::<OtherXml>(other_xml)?;
@@ -225,39 +229,9 @@ impl Repository {
         path: &Path,
         compression: CompressionType,
     ) -> Result<(), MetadataError> {
-        let extension = match compression {
-            CompressionType::None => "",
-            CompressionType::Gzip => ".gz",
-            CompressionType::Xz => ".xz",
-            CompressionType::Bz2 => ".bz2",
-        };
-
-        let mut filename = PathBuf::from(M::NAME).as_os_str().to_owned();
-        filename.push(&extension);
-        let path = path.join(&filename);
-
-        let file = File::create(path)?;
-
-        let write_buffer = match compression {
-            CompressionType::None => Box::new(file),
-            CompressionType::Gzip => niffler::get_writer(
-                Box::new(file),
-                niffler::compression::Format::Gzip,
-                niffler::Level::Nine,
-            )?,
-            CompressionType::Xz => niffler::get_writer(
-                Box::new(file),
-                niffler::compression::Format::Lzma,
-                niffler::Level::Nine,
-            )?,
-            CompressionType::Bz2 => niffler::get_writer(
-                Box::new(file),
-                niffler::compression::Format::Bzip,
-                niffler::Level::Nine,
-            )?,
-            _ => unimplemented!(),
-        };
-        let mut writer = Writer::new_with_indent(write_buffer, b' ', 2);
+        let new_path = PathBuf::from(path);
+        let new_path = new_path.join(M::filename());
+        let mut writer = create_writer(&new_path, compression)?;
         M::write_metadata(self, &mut writer)?;
         Ok(())
     }
@@ -285,6 +259,45 @@ impl Repository {
     // * sqlite metadata yes/no
     // * zchunk metadata?
     // * signing
+}
+
+fn create_writer(
+    path: &Path,
+    compression: CompressionType,
+) -> Result<Writer<Box<dyn Write>>, MetadataError> {
+    let extension = match compression {
+        CompressionType::None => "",
+        CompressionType::Gzip => ".gz",
+        CompressionType::Xz => ".xz",
+        CompressionType::Bz2 => ".bz2",
+    };
+
+    let mut filename = path.as_os_str().to_owned();
+    filename.push(&extension);
+    let path = path.join(&filename);
+
+    let file = File::create(path)?;
+
+    let write_buffer = match compression {
+        CompressionType::None => Box::new(file),
+        CompressionType::Gzip => niffler::get_writer(
+            Box::new(file),
+            niffler::compression::Format::Gzip,
+            niffler::Level::Nine,
+        )?,
+        CompressionType::Xz => niffler::get_writer(
+            Box::new(file),
+            niffler::compression::Format::Lzma,
+            niffler::Level::Nine,
+        )?,
+        CompressionType::Bz2 => niffler::get_writer(
+            Box::new(file),
+            niffler::compression::Format::Bzip,
+            niffler::Level::Nine,
+        )?,
+        _ => unimplemented!(),
+    };
+    Ok(Writer::new_with_indent(write_buffer, b' ', 2))
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -336,67 +349,127 @@ impl RepositoryOptions {
     }
 }
 
-pub fn stream_from_directory(path: &Path) -> Result<PackageStreamer, MetadataError> {
-    let mut repo = Repository::new();
+// pub fn stream_from_directory(path: &Path) -> Result<StreamingReader, MetadataError> {
+//     let mut repo = Repository::new();
 
-    repo.load_metadata_file::<RepomdXml>(&path.join("repodata/repomd.xml"))?;
+//     repo.load_metadata_file::<RepomdXml>(&path.join("repodata/repomd.xml"))?;
 
-    let primary_href = path.join(
-        repo.get_record(METADATA_PRIMARY)
-            .unwrap()
-            .location_href
-            .as_str(),
-    );
-    let filelists_href = path.join(
-        repo.get_record(METADATA_FILELISTS)
-            .unwrap()
-            .location_href
-            .as_str(),
-    );
-    let other_href = path.join(
-        repo.get_record(METADATA_OTHER)
-            .unwrap()
-            .location_href
-            .as_str(),
-    );
+//     let primary_href = path.join(
+//         repo.get_record(METADATA_PRIMARY)
+//             .unwrap()
+//             .location_href
+//             .as_str(),
+//     );
+//     let filelists_href = path.join(
+//         repo.get_record(METADATA_FILELISTS)
+//             .unwrap()
+//             .location_href
+//             .as_str(),
+//     );
+//     let other_href = path.join(
+//         repo.get_record(METADATA_OTHER)
+//             .unwrap()
+//             .location_href
+//             .as_str(),
+//     );
 
-    let primary_file = File::open(&primary_href)?;
-    let (primary_file_reader, _compression) = niffler::get_reader(Box::new(primary_file))?;
-    let mut primary_reader = Reader::from_reader(BufReader::new(primary_file_reader));
-    configure_reader(&mut primary_reader);
+//     let primary_file = File::open(&primary_href)?;
+//     let (primary_file_reader, _compression) = niffler::get_reader(Box::new(primary_file))?;
+//     let mut primary_reader = Reader::from_reader(BufReader::new(primary_file_reader));
+//     configure_reader(&mut primary_reader);
 
-    let filelists_file = File::open(&filelists_href)?;
-    let (filelists_file_reader, _compression) = niffler::get_reader(Box::new(filelists_file))?;
-    let mut filelists_reader = Reader::from_reader(BufReader::new(filelists_file_reader));
-    configure_reader(&mut filelists_reader);
+//     let filelists_file = File::open(&filelists_href)?;
+//     let (filelists_file_reader, _compression) = niffler::get_reader(Box::new(filelists_file))?;
+//     let mut filelists_reader = Reader::from_reader(BufReader::new(filelists_file_reader));
+//     configure_reader(&mut filelists_reader);
 
-    let other_file = File::open(&other_href)?;
-    let (other_file_reader, _compression) = niffler::get_reader(Box::new(other_file))?;
-    let mut other_reader = Reader::from_reader(BufReader::new(other_file_reader));
-    configure_reader(&mut other_reader);
+//     let other_file = File::open(&other_href)?;
+//     let (other_file_reader, _compression) = niffler::get_reader(Box::new(other_file))?;
+//     let mut other_reader = Reader::from_reader(BufReader::new(other_file_reader));
+//     configure_reader(&mut other_reader);
 
-    Ok(PackageStreamer {
-        primary_reader,
-        filelists_reader,
-        other_reader,
-    })
-}
+//     Ok(StreamingReader {
+//         primary_reader,
+//         filelists_reader,
+//         other_reader,
+//     })
+// }
 
-pub struct PackageStreamer {
-    primary_reader: Reader<BufReader<Box<dyn Read>>>,
-    filelists_reader: Reader<BufReader<Box<dyn Read>>>,
-    other_reader: Reader<BufReader<Box<dyn Read>>>,
-}
+// pub struct RepositoryWriter<'a, W: Write> {
+//     options: RepositoryOptions,
 
-impl Iterator for PackageStreamer {
-    type Item = Result<Package, MetadataError>;
-    fn next(&mut self) -> Option<Self::Item> {
-        let mut package = Package::default();
+//     primary_writer: Writer<Box<dyn Write>>,
+//     filelists_writer: Writer<Box<dyn Write>>,
+//     other_writer: Writer<Box<dyn Write>>,
 
-        // super::primary::read_package(package, self.primary_reader)?;
-        // FilelistsXml::read_into_package(package, self.filelists_reader)?;
-        // OtherXml::read_into_package(package, self.other_reader)?;
+//     primary_xml_writer: PrimaryXmlWriter<'a, W>,
+//     filelists_xml_writer: FilelistsXmlWriter<'a, W>,
+//     other_xml_writer: OtherXmlWriter<'a, W>,
+// }
 
-        Some(Ok(package))
-    }
-}
+// // Writer<BufWriter<Box<dyn Write>>>
+
+// impl<'a, W: Write> RepositoryWriter<'a, W> {
+//     pub fn new(options: RepositoryOptions) -> Result<Self, MetadataError> {
+
+//         let mut primary_writer =  create_writer(&Path::new("primary.xml"), CompressionType::None)?;
+//         let mut filelists_writer =  create_writer(&Path::new("filelists.xml"), CompressionType::None)?;
+//         let mut other_writer = create_writer(&Path::new("other.xml"), CompressionType::None)?;
+
+//         Ok(Self {
+//             options,
+
+//             primary_writer: primary_writer,
+//             filelists_writer: filelists_writer,
+//             other_writer: other_writer,
+
+//             primary_xml_writer: PrimaryXml::new_writer(&mut primary_writer),
+//             filelists_xml_writer: FilelistsXml::new_writer(&mut filelists_writer),
+//             other_xml_writer: OtherXml::new_writer(&mut other_writer),
+//         })
+//     }
+
+//     pub fn start(&mut self, num_pkgs: usize) -> Result<(), MetadataError> {
+//         self.primary_xml_writer.write_header(num_pkgs)?;
+//         self.filelists_xml_writer.write_header(num_pkgs)?;
+//         self.other_xml_writer.write_header(num_pkgs)?;
+//         Ok(())
+//     }
+
+//     pub fn add_package(&mut self, pkg: &Package) -> Result<(), MetadataError> {
+//         self.primary_xml_writer.write_package(pkg)?;
+//         self.filelists_xml_writer.write_package(pkg)?;
+//         self.other_xml_writer.write_package(pkg)?;
+//         Ok(())
+//     }
+
+//     pub fn finish(&mut self) -> Result<(), MetadataError> {
+//         self.primary_xml_writer.write_footer()?;
+//         self.filelists_xml_writer.write_footer()?;
+//         self.other_xml_writer.write_footer()?;
+
+//         // let mut repomd_writer = RepomdXml::from_writer(repomd_writer);
+//         // match self.options.metadata_checksum_type {}
+
+//         Ok(())
+//     }
+// }
+
+// pub struct StreamingReader {
+//     primary_reader: Reader<BufReader<Box<dyn Read>>>,
+//     filelists_reader: Reader<BufReader<Box<dyn Read>>>,
+//     other_reader: Reader<BufReader<Box<dyn Read>>>,
+// }
+
+// impl Iterator for StreamingReader {
+//     type Item = Result<Package, MetadataError>;
+//     fn next(&mut self) -> Option<Self::Item> {
+//         let mut package = Package::default();
+
+//         // super::primary::read_package(package, self.primary_reader)?;
+//         // FilelistsXml::read_into_package(package, self.filelists_reader)?;
+//         // OtherXml::read_into_package(package, self.other_reader)?;
+
+//         Some(Ok(package))
+//     }
+// }

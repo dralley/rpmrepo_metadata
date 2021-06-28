@@ -1,13 +1,14 @@
+use core::num;
 use std::io::{BufRead, Write};
 
-use quick_xml::events::{BytesDecl, BytesStart, BytesText, Event};
+use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 
 use super::metadata::{
     Checksum, HeaderRange, MetadataError, Package, PrimaryXml, Requirement, RpmMetadata, Size,
-    Time, EVR, XML_NS_COMMON, XML_NS_RPM,
+    Time, XML_NS_COMMON, XML_NS_RPM,
 };
-use super::Repository;
+use super::{FileType, PackageFile, Repository, EVR};
 
 const TAG_METADATA: &[u8] = b"metadata";
 const TAG_PACKAGE: &[u8] = b"package";
@@ -43,7 +44,9 @@ const TAG_RPM_SUPPLEMENTS: &[u8] = b"rpm:supplements";
 const TAG_FILE: &[u8] = b"file";
 
 impl RpmMetadata for PrimaryXml {
-    const NAME: &'static str = "primary.xml";
+    fn filename() -> &'static str {
+        "primary.xml"
+    }
 
     fn load_metadata<R: BufRead>(
         repository: &mut Repository,
@@ -56,8 +59,89 @@ impl RpmMetadata for PrimaryXml {
         repository: &Repository,
         writer: &mut Writer<W>,
     ) -> Result<(), MetadataError> {
-        write_primary_xml(repository, writer)
+        let mut writer = PrimaryXml::new_writer(writer);
+        writer.write_header(repository.packages().len())?;
+        for package in repository.packages().values() {
+            writer.write_package(package)?;
+        }
+        writer.write_footer()?;
+        Ok(())
     }
+}
+
+impl PrimaryXml {
+    pub fn new_writer<'a, W: Write>(writer: &'a mut Writer<W>) -> PrimaryXmlWriter<'a, W> {
+        PrimaryXmlWriter {
+            writer,
+            num_packages: 0,
+            packages_written: 0,
+        }
+    }
+
+    pub fn new_reader<'a, R: BufRead>(reader: &'a mut Reader<R>) -> PrimaryXmlReader<'a, R> {
+        PrimaryXmlReader { reader }
+    }
+}
+
+pub struct PrimaryXmlWriter<'a, W: Write> {
+    writer: &'a mut Writer<W>,
+    num_packages: usize,
+    packages_written: usize,
+}
+
+impl<'a, W: Write> PrimaryXmlWriter<'a, W> {
+    pub fn write_header(&mut self, num_pkgs: usize) -> Result<(), MetadataError> {
+        self.num_packages = num_pkgs;
+
+        // <?xml version="1.0" encoding="UTF-8"?>
+        self.writer
+            .write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
+
+        // <metadata xmlns="http://linux.duke.edu/metadata/common" xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="210">
+        let mut metadata_tag = BytesStart::borrowed_name(TAG_METADATA);
+        metadata_tag.push_attribute(("xmlns", XML_NS_COMMON));
+        metadata_tag.push_attribute(("xmlns:rpm", XML_NS_RPM));
+        metadata_tag.push_attribute(("packages", num_pkgs.to_string().as_str()));
+        self.writer
+            .write_event(Event::Start(metadata_tag.to_borrowed()))?;
+
+        Ok(())
+    }
+
+    pub fn write_package(&mut self, package: &Package) -> Result<(), MetadataError> {
+        write_package(package, self.writer)?;
+        self.packages_written += 1;
+        Ok(())
+    }
+
+    pub fn write_footer(&mut self) -> Result<(), MetadataError> {
+        assert_eq!(
+            self.packages_written, self.num_packages,
+            "Number of packages written {} does not match number of packages declared {}.",
+            self.packages_written, self.num_packages
+        );
+
+        // </metadata>
+        self.writer
+            .write_event(Event::End(BytesEnd::borrowed(TAG_METADATA)))?;
+
+        // trailing newline
+        self.writer
+            .write_event(Event::Text(BytesText::from_plain_str("\n")))?;
+        Ok(())
+    }
+}
+
+pub struct PrimaryXmlReader<'a, R: BufRead> {
+    reader: &'a mut Reader<R>,
+}
+
+impl<'a, R: BufRead> PrimaryXmlReader<'a, R> {
+    pub fn read_header(&mut self) {}
+
+    pub fn read_package(&mut self, package: &mut Package) {}
+
+    pub fn finish(&mut self) {}
 }
 
 fn read_primary_xml<R: BufRead>(
@@ -107,33 +191,6 @@ fn read_primary_xml<R: BufRead>(
     Ok(())
 }
 
-fn write_primary_xml<W: Write>(
-    repository: &Repository,
-    writer: &mut Writer<W>,
-) -> Result<(), MetadataError> {
-    // <?xml version="1.0" encoding="UTF-8"?>
-    writer.write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
-
-    // <metadata xmlns="http://linux.duke.edu/metadata/common" xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="35">
-    let mut metadata_tag = BytesStart::borrowed_name(TAG_METADATA);
-    metadata_tag.push_attribute(("xmlns", XML_NS_COMMON));
-    metadata_tag.push_attribute(("xmlns:rpm", XML_NS_RPM));
-    metadata_tag.push_attribute(("packages", repository.packages().len().to_string().as_str()));
-    writer.write_event(Event::Start(metadata_tag.to_borrowed()))?;
-
-    for package in repository.packages().values() {
-        write_package(package, writer)?;
-    }
-
-    // </metadata>
-    writer.write_event(Event::End(metadata_tag.to_end()))?;
-
-    // trailing newline
-    writer.write_event(Event::Text(BytesText::from_plain_str("\n")))?;
-
-    Ok(())
-}
-
 pub fn write_package<W: Write>(
     package: &Package,
     writer: &mut Writer<W>,
@@ -166,7 +223,7 @@ pub fn write_package<W: Write>(
     writer
         .create_element(TAG_CHECKSUM)
         .with_attribute(("type", checksum_type))
-        .with_attribute(("pkgId", "YES"))
+        .with_attribute(("pkgid", "YES"))
         .write_text_content(BytesText::from_plain_str(checksum_value))?;
 
     // <summary>A dummy package of horse</summary>
@@ -260,13 +317,21 @@ pub fn write_package<W: Write>(
     write_requirement_section(writer, TAG_RPM_RECOMMENDS, &package.rpm_recommends)?;
     write_requirement_section(writer, TAG_RPM_SUPPLEMENTS, &package.rpm_supplements)?;
 
-    // <file type="dir">/etc/fonts/conf.avail</file>
+    // <file>/usr/bin/bash</file>
     for file in &package.rpm_files {
-        let mut file_tag = BytesStart::borrowed_name(TAG_FILE);
-        file_tag.push_attribute(("type".as_bytes(), file.filetype.to_values()));
-        writer.write_event(Event::Start(file_tag.to_borrowed()))?;
-        writer.write_event(Event::Text(BytesText::from_plain_str(&file.path)))?;
-        writer.write_event(Event::End(file_tag.to_end()))?;
+        // TODO: check this logic
+        let include = |f: &PackageFile| -> bool {
+            // strange algorithm, but it's what the original uses
+            f.path.starts_with("/etc/")
+                || f.path.contains("bin/")
+                || f.path.starts_with("/usr/lib/sendmail")
+        };
+
+        if file.filetype == FileType::File && include(file) {
+            writer
+                .create_element(TAG_FILE)
+                .write_text_content(BytesText::from_plain_str(&file.path))?;
+        }
     }
 
     // </format>
@@ -312,6 +377,10 @@ fn write_requirement_section<W: Write, N: AsRef<[u8]> + Sized>(
 
         if let Some(release) = &entry.release {
             entry_tag.push_attribute(("rel", release.as_str()));
+        }
+        // TODO: make sure this logic is correct, should this be option or just plain bool?
+        if let Some(true) = &entry.preinstall {
+            entry_tag.push_attribute(("pre", "1"));
         }
         writer.write_event(Event::Empty(entry_tag))?;
     }
