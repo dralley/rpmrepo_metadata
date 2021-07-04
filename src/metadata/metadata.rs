@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::io::{BufRead, Write};
 
 use niffler;
@@ -66,7 +67,7 @@ pub trait RpmMetadata {
 
     fn write_metadata<W: Write>(
         repository: &Repository,
-        buffer: &mut Writer<W>,
+        buffer: Writer<W>,
     ) -> Result<(), MetadataError>;
 }
 
@@ -94,7 +95,7 @@ impl TryInto<CompressionType> for &str {
     }
 }
 
-// impl<T: Ord> Ord for Package {
+// impl Ord for Package {
 //     #[inline]
 //     fn cmp(&self, other: &Package) -> Ordering {
 //         other.0.cmp(&self.0)
@@ -103,36 +104,36 @@ impl TryInto<CompressionType> for &str {
 
 #[derive(Debug, PartialEq, Default)]
 pub struct Package {
-    pub name: String,
-    pub arch: String,
-    pub evr: EVR,
-    pub checksum: Checksum,
-    pub location_href: String,
-    pub summary: String,
-    pub description: String,
-    pub packager: String,
-    pub url: String,
-    pub time: Time,
-    pub size: Size,
+    name: String,
+    arch: String,
+    evr: EVR,
+    checksum: Checksum,
+    location_href: String,
+    summary: String,
+    description: String,
+    packager: String,
+    url: String,
+    time: Time,
+    size: Size,
 
-    pub rpm_license: String,           // rpm:license
-    pub rpm_vendor: String,            // rpm:vendor
-    pub rpm_group: String,             // rpm:group
-    pub rpm_buildhost: String,         // rpm:buildhost
-    pub rpm_sourcerpm: String,         // rpm:sourcerpm
-    pub rpm_header_range: HeaderRange, // rpm:header-range
+    rpm_license: String,           // rpm:license
+    rpm_vendor: String,            // rpm:vendor
+    rpm_group: String,             // rpm:group
+    rpm_buildhost: String,         // rpm:buildhost
+    rpm_sourcerpm: String,         // rpm:sourcerpm
+    rpm_header_range: HeaderRange, // rpm:header-range
 
-    pub rpm_requires: Vec<Requirement>,    // rpm:provides
-    pub rpm_provides: Vec<Requirement>,    // rpm:requires
-    pub rpm_conflicts: Vec<Requirement>,   // rpm:conflicts
-    pub rpm_obsoletes: Vec<Requirement>,   // rpm:obsoletes
-    pub rpm_suggests: Vec<Requirement>,    // rpm:suggests
-    pub rpm_enhances: Vec<Requirement>,    // rpm:enhances
-    pub rpm_recommends: Vec<Requirement>,  // rpm:recommends
-    pub rpm_supplements: Vec<Requirement>, // rpm:supplements
+    rpm_requires: Vec<Requirement>,    // rpm:provides
+    rpm_provides: Vec<Requirement>,    // rpm:requires
+    rpm_conflicts: Vec<Requirement>,   // rpm:conflicts
+    rpm_obsoletes: Vec<Requirement>,   // rpm:obsoletes
+    rpm_suggests: Vec<Requirement>,    // rpm:suggests
+    rpm_enhances: Vec<Requirement>,    // rpm:enhances
+    rpm_recommends: Vec<Requirement>,  // rpm:recommends
+    rpm_supplements: Vec<Requirement>, // rpm:supplements
 
-    pub rpm_changelogs: Vec<Changelog>,
-    pub rpm_files: Vec<PackageFile>,
+    rpm_changelogs: Vec<Changelog>,
+    rpm_files: Vec<PackageFile>,
 }
 
 impl Package {
@@ -153,8 +154,265 @@ impl Package {
         }
     }
 
+    pub fn set_name(&mut self, name: &str) -> &mut Self {
+        self.name = name.to_owned();
+        self
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn set_arch(&mut self, arch: &str) -> &mut Self {
+        self.arch = arch.to_owned();
+        self
+    }
+
+    pub fn arch(&self) -> &str {
+        &self.arch
+    }
+
+    // TODO: signature
+    pub fn set_evr(&mut self, evr: EVR) -> &mut Self {
+        self.evr = evr;
+        self
+    }
+
+    pub fn evr(&self) -> &EVR {
+        &self.evr
+    }
+
     pub fn nevra<'a>(&'a self) -> Nevra<'a> {
         self.into()
+    }
+
+    // TODO: signature
+    pub fn set_checksum(&mut self, checksum: Checksum) -> &mut Self {
+        self.checksum = checksum;
+        self
+    }
+
+    pub fn checksum(&self) -> &Checksum {
+        &self.checksum
+    }
+
+    pub fn set_location_href(&mut self, location_href: &str) -> &mut Self {
+        self.location_href = location_href.to_owned();
+        self
+    }
+
+    pub fn location_href(&self) -> &str {
+        &self.location_href
+    }
+
+    pub fn set_summary(&mut self, summary: &str) -> &mut Self {
+        self.summary = summary.to_owned();
+        self
+    }
+
+    pub fn summary(&self) -> &str {
+        &self.summary
+    }
+
+    pub fn set_description(&mut self, description: &str) -> &mut Self {
+        self.description = description.to_owned();
+        self
+    }
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn set_packager(&mut self, packager: &str) -> &mut Self {
+        self.packager = packager.to_owned();
+        self
+    }
+
+    pub fn packager(&self) -> &str {
+        &self.packager
+    }
+
+    pub fn set_url(&mut self, url: &str) -> &mut Self {
+        self.url = url.to_owned();
+        self
+    }
+
+    pub fn url(&self) -> &str {
+        &self.url
+    }
+
+    pub fn set_time(&mut self, file: u64, build: u64) -> &mut Self {
+        self.time = Time { build, file };
+        self
+    }
+
+    pub fn time(&self) -> &Time {
+        &self.time
+    }
+
+    pub fn set_size(&mut self, package: u64, installed: u64, archive: u64) -> &mut Self {
+        self.size = Size {
+            archive,
+            installed,
+            package,
+        };
+        self
+    }
+
+    pub fn size(&self) -> &Size {
+        &self.size
+    }
+
+    pub fn set_rpm_license(&mut self, license: &str) -> &mut Self {
+        self.rpm_license = license.to_owned();
+        self
+    }
+
+    pub fn rpm_license(&self) -> &str {
+        &self.rpm_license
+    }
+
+    pub fn set_rpm_vendor(&mut self, vendor: &str) -> &mut Self {
+        self.rpm_vendor = vendor.to_owned();
+        self
+    }
+
+    pub fn rpm_vendor(&self) -> &str {
+        &self.rpm_vendor
+    }
+
+    pub fn set_rpm_group(&mut self, group: &str) -> &mut Self {
+        self.rpm_group = group.to_owned();
+        self
+    }
+
+    pub fn rpm_group(&self) -> &str {
+        &self.rpm_group
+    }
+
+    pub fn set_rpm_buildhost(&mut self, rpm_buildhost: &str) -> &mut Self {
+        self.rpm_buildhost = rpm_buildhost.to_owned();
+        self
+    }
+
+    pub fn rpm_buildhost(&self) -> &str {
+        &self.rpm_buildhost
+    }
+
+    pub fn set_rpm_sourcerpm(&mut self, rpm_sourcerpm: &str) -> &mut Self {
+        self.rpm_sourcerpm = rpm_sourcerpm.to_owned();
+        self
+    }
+
+    pub fn rpm_sourcerpm(&self) -> &str {
+        &self.rpm_sourcerpm
+    }
+
+    pub fn set_rpm_header_range(&mut self, start: u64, end: u64) -> &mut Self {
+        self.rpm_header_range = HeaderRange { start, end };
+        self
+    }
+
+    pub fn rpm_header_range(&self) -> &HeaderRange {
+        &self.rpm_header_range
+    }
+
+    // TODO: probably adjust the signatures on all of these w/ builder pattern or something
+    pub fn set_requires(&mut self, requires: Vec<Requirement>) -> &mut Self {
+        self.rpm_requires = requires;
+        self
+    }
+
+    pub fn requires(&self) -> &[Requirement] {
+        &self.rpm_requires
+    }
+
+    pub fn set_provides(&mut self, provides: Vec<Requirement>) -> &mut Self {
+        self.rpm_provides = provides;
+        self
+    }
+
+    pub fn provides(&self) -> &[Requirement] {
+        &self.rpm_provides
+    }
+
+    pub fn set_conflicts(&mut self, conflicts: Vec<Requirement>) -> &mut Self {
+        self.rpm_conflicts = conflicts;
+        self
+    }
+
+    pub fn conflicts(&self) -> &[Requirement] {
+        &self.rpm_conflicts
+    }
+
+    pub fn set_obsoletes(&mut self, obsoletes: Vec<Requirement>) -> &mut Self {
+        self.rpm_obsoletes = obsoletes;
+        self
+    }
+
+    pub fn obsoletes(&self) -> &[Requirement] {
+        &self.rpm_obsoletes
+    }
+
+    pub fn set_suggests(&mut self, suggests: Vec<Requirement>) -> &mut Self {
+        self.rpm_suggests = suggests;
+        self
+    }
+
+    pub fn suggests(&self) -> &[Requirement] {
+        &self.rpm_suggests
+    }
+
+    pub fn set_enhances(&mut self, enhances: Vec<Requirement>) -> &mut Self {
+        self.rpm_enhances = enhances;
+        self
+    }
+
+    pub fn enhances(&self) -> &[Requirement] {
+        &self.rpm_enhances
+    }
+
+    pub fn set_recommends(&mut self, recommends: Vec<Requirement>) -> &mut Self {
+        self.rpm_recommends = recommends;
+        self
+    }
+
+    pub fn recommends(&self) -> &[Requirement] {
+        &self.rpm_recommends
+    }
+
+    pub fn set_supplements(&mut self, supplements: Vec<Requirement>) -> &mut Self {
+        self.rpm_supplements = supplements;
+        self
+    }
+
+    pub fn supplements(&self) -> &[Requirement] {
+        &self.rpm_supplements
+    }
+
+    pub fn add_file(&mut self, filetype: FileType, path: &str) -> &mut Self {
+        self.rpm_files.push(PackageFile {
+            filetype,
+            path: path.to_owned(),
+        });
+        self
+    }
+
+    pub fn files(&self) -> &[PackageFile] {
+        &self.rpm_files
+    }
+
+    pub fn add_changelog(&mut self, author: &str, description: &str, date: u64) -> &mut Self {
+        self.rpm_changelogs.push(Changelog {
+            author: author.to_owned(),
+            date: date,
+            description: description.to_owned(),
+        });
+        self
+    }
+
+    pub fn changelogs(&self) -> &[Changelog] {
+        &self.rpm_changelogs
     }
 }
 
@@ -466,7 +724,7 @@ pub struct UpdateCollectionModule {
     pub arch: String,
 }
 
-use rpm;
+use rpm::{self, Header};
 use std::convert::TryInto;
 
 impl TryInto<Package> for rpm::RPMPackage {

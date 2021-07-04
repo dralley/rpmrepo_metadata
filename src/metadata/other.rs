@@ -39,15 +39,14 @@ impl RpmMetadata for OtherXml {
 
     fn write_metadata<W: Write>(
         repository: &Repository,
-        writer: &mut Writer<W>,
+        writer: Writer<W>,
     ) -> Result<(), MetadataError> {
         let mut writer = OtherXml::new_writer(writer);
         writer.write_header(repository.packages().len())?;
         for package in repository.packages().values() {
             writer.write_package(package)?;
         }
-        writer.write_footer()?;
-        Ok(())
+        writer.finish()
     }
 }
 
@@ -82,7 +81,7 @@ fn read_other_xml<R: BufRead>(
 }
 
 impl OtherXml {
-    pub fn new_writer<'a, W: Write>(writer: &'a mut Writer<W>) -> OtherXmlWriter<'a, W> {
+    pub fn new_writer<W: Write>(writer: Writer<W>) -> OtherXmlWriter<W> {
         OtherXmlWriter {
             writer,
             num_packages: 0,
@@ -95,13 +94,13 @@ impl OtherXml {
     }
 }
 
-pub struct OtherXmlWriter<'a, W: Write> {
-    writer: &'a mut Writer<W>,
+pub struct OtherXmlWriter<W: Write> {
+    writer: Writer<W>,
     num_packages: usize,
     packages_written: usize,
 }
 
-impl<'a, W: Write> OtherXmlWriter<'a, W> {
+impl<W: Write> OtherXmlWriter<W> {
     pub fn write_header(&mut self, num_pkgs: usize) -> Result<(), MetadataError> {
         self.num_packages = num_pkgs;
 
@@ -120,14 +119,14 @@ impl<'a, W: Write> OtherXmlWriter<'a, W> {
 
     pub fn write_package(&mut self, package: &Package) -> Result<(), MetadataError> {
         let mut package_tag = BytesStart::borrowed_name(TAG_PACKAGE);
-        let (_, pkgid) = package.checksum.to_values()?;
+        let (_, pkgid) = package.checksum().to_values()?;
         package_tag.push_attribute(("pkgid", pkgid));
-        package_tag.push_attribute(("name", package.name.as_str()));
-        package_tag.push_attribute(("arch", package.arch.as_str()));
+        package_tag.push_attribute(("name", package.name()));
+        package_tag.push_attribute(("arch", package.arch()));
         self.writer
             .write_event(Event::Start(package_tag.to_borrowed()))?;
 
-        let (epoch, version, release) = package.evr.values();
+        let (epoch, version, release) = package.evr().values();
         // <version epoch="0" ver="2.8.0" rel="5.el6"/>
         let mut version_tag = BytesStart::borrowed_name(TAG_VERSION);
         version_tag.push_attribute(("epoch", epoch));
@@ -135,7 +134,7 @@ impl<'a, W: Write> OtherXmlWriter<'a, W> {
         version_tag.push_attribute(("rel", release));
         self.writer.write_event(Event::Empty(version_tag))?;
 
-        for changelog in &package.rpm_changelogs {
+        for changelog in package.changelogs() {
             //  <changelog author="dalley &lt;dalley@redhat.com&gt; - 2.7.2-1" date="1251720000">- Update to 2.7.2</changelog>
             self.writer
                 .create_element(TAG_CHANGELOG)
@@ -153,7 +152,7 @@ impl<'a, W: Write> OtherXmlWriter<'a, W> {
         Ok(())
     }
 
-    pub fn write_footer(self) -> Result<(), MetadataError> {
+    pub fn finish(&mut self) -> Result<(), MetadataError> {
         assert_eq!(
             self.packages_written, self.num_packages,
             "Number of packages written {} does not match number of packages declared {}.",
@@ -169,6 +168,10 @@ impl<'a, W: Write> OtherXmlWriter<'a, W> {
             .write_event(Event::Text(BytesText::from_plain_str("\n")))?;
 
         Ok(())
+    }
+
+    pub fn into_inner(self) -> W {
+        self.writer.into_inner()
     }
 }
 
@@ -216,12 +219,12 @@ pub fn parse_package<R: BufRead>(
         .or_insert(Package::default()); // TODO
 
     // TODO: using empty strings as null value is slightly questionable
-    if package.name.is_empty() {
-        package.name = name.to_owned();
+    if package.name().is_empty() {
+        package.set_name(&name);
     }
 
-    if package.arch.is_empty() {
-        package.arch = arch.to_owned();
+    if package.arch().is_empty() {
+        package.set_arch(&arch);
     }
 
     loop {
@@ -230,11 +233,16 @@ pub fn parse_package<R: BufRead>(
 
             Event::Start(e) => match e.name() {
                 TAG_VERSION => {
-                    package.evr = parse_evr(reader, &e)?;
+                    package.set_evr(parse_evr(reader, &e)?);
                 }
                 TAG_CHANGELOG => {
-                    let file = parse_changelog(reader, &e)?;
-                    package.rpm_changelogs.push(file);
+                    let changelog = parse_changelog(reader, &e)?;
+                    // TODO: Temporary changelog?
+                    package.add_changelog(
+                        &changelog.author,
+                        &changelog.description,
+                        changelog.date,
+                    );
                 }
                 _ => (),
             },

@@ -9,7 +9,7 @@ mod updateinfo;
 
 pub use common::EVR;
 pub use metadata::{
-    Changelog, Checksum, ChecksumType, FileType, FilelistsXml, HeaderRange, MetadataError,
-    OtherXml, Package, PackageFile, PrimaryXml, RepomdXml, Requirement, Size, Time, UpdateinfoXml,
+    Checksum, ChecksumType, FileType, FilelistsXml, MetadataError, OtherXml, Package, PackageFile,
+    PrimaryXml, RepomdXml, Requirement, UpdateinfoXml,
 };
 pub use repository::{Repository, RepositoryOptions};

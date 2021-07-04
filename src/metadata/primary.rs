@@ -1,12 +1,11 @@
-use core::num;
 use std::io::{BufRead, Write};
 
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 
 use super::metadata::{
-    Checksum, HeaderRange, MetadataError, Package, PrimaryXml, Requirement, RpmMetadata, Size,
-    Time, XML_NS_COMMON, XML_NS_RPM,
+    Checksum, MetadataError, Package, PrimaryXml, Requirement, RpmMetadata, XML_NS_COMMON,
+    XML_NS_RPM,
 };
 use super::{FileType, PackageFile, Repository, EVR};
 
@@ -57,20 +56,19 @@ impl RpmMetadata for PrimaryXml {
 
     fn write_metadata<W: Write>(
         repository: &Repository,
-        writer: &mut Writer<W>,
+        writer: Writer<W>,
     ) -> Result<(), MetadataError> {
         let mut writer = PrimaryXml::new_writer(writer);
         writer.write_header(repository.packages().len())?;
         for package in repository.packages().values() {
             writer.write_package(package)?;
         }
-        writer.write_footer()?;
-        Ok(())
+        writer.finish()
     }
 }
 
 impl PrimaryXml {
-    pub fn new_writer<'a, W: Write>(writer: &'a mut Writer<W>) -> PrimaryXmlWriter<'a, W> {
+    pub fn new_writer<W: Write>(writer: Writer<W>) -> PrimaryXmlWriter<W> {
         PrimaryXmlWriter {
             writer,
             num_packages: 0,
@@ -83,13 +81,13 @@ impl PrimaryXml {
     }
 }
 
-pub struct PrimaryXmlWriter<'a, W: Write> {
-    writer: &'a mut Writer<W>,
+pub struct PrimaryXmlWriter<W: Write> {
+    writer: Writer<W>,
     num_packages: usize,
     packages_written: usize,
 }
 
-impl<'a, W: Write> PrimaryXmlWriter<'a, W> {
+impl<W: Write> PrimaryXmlWriter<W> {
     pub fn write_header(&mut self, num_pkgs: usize) -> Result<(), MetadataError> {
         self.num_packages = num_pkgs;
 
@@ -109,12 +107,12 @@ impl<'a, W: Write> PrimaryXmlWriter<'a, W> {
     }
 
     pub fn write_package(&mut self, package: &Package) -> Result<(), MetadataError> {
-        write_package(package, self.writer)?;
+        write_package(package, &mut self.writer)?;
         self.packages_written += 1;
         Ok(())
     }
 
-    pub fn write_footer(&mut self) -> Result<(), MetadataError> {
+    pub fn finish(&mut self) -> Result<(), MetadataError> {
         assert_eq!(
             self.packages_written, self.num_packages,
             "Number of packages written {} does not match number of packages declared {}.",
@@ -128,7 +126,12 @@ impl<'a, W: Write> PrimaryXmlWriter<'a, W> {
         // trailing newline
         self.writer
             .write_event(Event::Text(BytesText::from_plain_str("\n")))?;
+
         Ok(())
+    }
+
+    pub fn into_inner(self) -> W {
+        self.writer.into_inner()
     }
 }
 
@@ -171,7 +174,7 @@ fn read_primary_xml<R: BufRead>(
                     let mut package = Package::default();
 
                     parse_package(&mut package, reader)?;
-                    let (_, pkgid) = package.checksum.to_values()?;
+                    let (_, pkgid) = package.checksum().to_values()?;
                     repository
                         .packages_mut()
                         .entry(pkgid.to_owned())
@@ -203,23 +206,24 @@ pub fn write_package<W: Write>(
     // <name>horse</name>
     writer
         .create_element(TAG_NAME)
-        .write_text_content(BytesText::from_plain_str(&package.name))?;
+        .write_text_content(BytesText::from_plain_str(package.name()))?;
 
     // <arch>noarch</arch>
     writer
         .create_element(TAG_ARCH)
-        .write_text_content(BytesText::from_plain_str(&package.arch))?;
+        .write_text_content(BytesText::from_plain_str(package.arch()))?;
 
     // <version epoch="0" ver="4.1" rel="1"/>
+    let (epoch, version, release) = package.evr().values();
     writer
         .create_element(TAG_VERSION)
-        .with_attribute(("epoch", package.evr.epoch.as_str()))
-        .with_attribute(("ver", package.evr.version.as_str()))
-        .with_attribute(("rel", package.evr.release.as_str()))
+        .with_attribute(("epoch", epoch))
+        .with_attribute(("ver", version))
+        .with_attribute(("rel", release))
         .write_empty()?;
 
     // <checksum type="sha256" pkgid="YES">6d0fd7f08cef63677726973d327e0b99f819b1983f90c2b656bb27cd2112cb7f</checksum>
-    let (checksum_type, checksum_value) = package.checksum.to_values()?;
+    let (checksum_type, checksum_value) = package.checksum().to_values()?;
     writer
         .create_element(TAG_CHECKSUM)
         .with_attribute(("type", checksum_type))
@@ -229,42 +233,42 @@ pub fn write_package<W: Write>(
     // <summary>A dummy package of horse</summary>
     writer
         .create_element(TAG_SUMMARY)
-        .write_text_content(BytesText::from_plain_str(&package.summary))?;
+        .write_text_content(BytesText::from_plain_str(package.summary()))?;
 
     // <description>A dummy package of horse</description>
     writer
         .create_element(TAG_DESCRIPTION)
-        .write_text_content(BytesText::from_plain_str(&package.description))?;
+        .write_text_content(BytesText::from_plain_str(package.description()))?;
 
     // <packager>Bojack Horseman</packager>
     writer
         .create_element(TAG_PACKAGER)
-        .write_text_content(BytesText::from_plain_str(&package.packager))?;
+        .write_text_content(BytesText::from_plain_str(package.packager()))?;
 
     // <url>http://arandomaddress.com</url>
     writer
         .create_element(TAG_URL)
-        .write_text_content(BytesText::from_plain_str(&package.url))?;
+        .write_text_content(BytesText::from_plain_str(package.url()))?;
 
     // <time file="1615451135" build="1331831374"/>
     writer
         .create_element(TAG_TIME)
-        .with_attribute(("file", package.time.file.to_string().as_str()))
-        .with_attribute(("build", package.time.build.to_string().as_str()))
+        .with_attribute(("file", package.time().file.to_string().as_str()))
+        .with_attribute(("build", package.time().build.to_string().as_str()))
         .write_empty()?;
 
     // <size package="1846" installed="42" archive="296"/>
     writer
         .create_element(TAG_SIZE)
-        .with_attribute(("package", package.size.package.to_string().as_str()))
-        .with_attribute(("installed", package.size.installed.to_string().as_str()))
-        .with_attribute(("archive", package.size.archive.to_string().as_str()))
+        .with_attribute(("package", package.size().package.to_string().as_str()))
+        .with_attribute(("installed", package.size().installed.to_string().as_str()))
+        .with_attribute(("archive", package.size().archive.to_string().as_str()))
         .write_empty()?;
 
     // <location href="horse-4.1-1.noarch.rpm"/>
     writer
         .create_element(TAG_LOCATION)
-        .with_attribute(("href", package.location_href.as_str()))
+        .with_attribute(("href", package.location_href()))
         .write_empty()?;
 
     // <format>
@@ -274,31 +278,31 @@ pub fn write_package<W: Write>(
     // <rpm:license>GPLv2</rpm:license>
     writer
         .create_element(TAG_RPM_LICENSE)
-        .write_text_content(BytesText::from_plain_str(package.rpm_license.as_str()))?;
+        .write_text_content(BytesText::from_plain_str(package.rpm_license()))?;
 
     // <rpm:vendor></rpm:vendor>
     writer
         .create_element(TAG_RPM_VENDOR)
-        .write_text_content(BytesText::from_plain_str(package.rpm_vendor.as_str()))?;
+        .write_text_content(BytesText::from_plain_str(package.rpm_vendor()))?;
 
     // <rpm:group>Internet/Applications</rpm:group>
     writer
         .create_element(TAG_RPM_GROUP)
-        .write_text_content(BytesText::from_plain_str(&package.rpm_group.as_str()))?;
+        .write_text_content(BytesText::from_plain_str(&package.rpm_group()))?;
 
     // <rpm:buildhost>smqe-ws15</rpm:buildhost>
     writer
         .create_element(TAG_RPM_BUILDHOST)
-        .write_text_content(BytesText::from_plain_str(&package.rpm_buildhost.as_str()))?;
+        .write_text_content(BytesText::from_plain_str(&package.rpm_buildhost()))?;
 
     // <rpm:sourcerpm>horse-4.1-1.src.rpm</rpm:sourcerpm>
     writer
         .create_element(TAG_RPM_SOURCERPM)
-        .write_text_content(BytesText::from_plain_str(&package.rpm_sourcerpm.as_str()))?;
+        .write_text_content(BytesText::from_plain_str(&package.rpm_sourcerpm()))?;
 
     // <rpm:header-range start="280" end="1697"/>
-    let header_start = package.rpm_header_range.start.to_string();
-    let header_end = package.rpm_header_range.end.to_string();
+    let header_start = package.rpm_header_range().start.to_string();
+    let header_end = package.rpm_header_range().end.to_string();
     writer
         .create_element(TAG_RPM_HEADER_RANGE)
         .with_attribute(("start", header_start.as_str()))
@@ -308,17 +312,17 @@ pub fn write_package<W: Write>(
     // <rpm:supplements>
     //   <rpm:entry name="horse" flags="EQ" epoch="0" ver="4.1" rel="1"/>
     // </rpm:supplements>
-    write_requirement_section(writer, TAG_RPM_PROVIDES, &package.rpm_provides)?;
-    write_requirement_section(writer, TAG_RPM_REQUIRES, &package.rpm_requires)?;
-    write_requirement_section(writer, TAG_RPM_CONFLICTS, &package.rpm_conflicts)?;
-    write_requirement_section(writer, TAG_RPM_OBSOLETES, &package.rpm_obsoletes)?;
-    write_requirement_section(writer, TAG_RPM_SUGGESTS, &package.rpm_suggests)?;
-    write_requirement_section(writer, TAG_RPM_ENHANCES, &package.rpm_enhances)?;
-    write_requirement_section(writer, TAG_RPM_RECOMMENDS, &package.rpm_recommends)?;
-    write_requirement_section(writer, TAG_RPM_SUPPLEMENTS, &package.rpm_supplements)?;
+    write_requirement_section(writer, TAG_RPM_PROVIDES, package.provides())?;
+    write_requirement_section(writer, TAG_RPM_REQUIRES, package.requires())?;
+    write_requirement_section(writer, TAG_RPM_CONFLICTS, package.conflicts())?;
+    write_requirement_section(writer, TAG_RPM_OBSOLETES, package.obsoletes())?;
+    write_requirement_section(writer, TAG_RPM_SUGGESTS, package.suggests())?;
+    write_requirement_section(writer, TAG_RPM_ENHANCES, package.enhances())?;
+    write_requirement_section(writer, TAG_RPM_RECOMMENDS, package.recommends())?;
+    write_requirement_section(writer, TAG_RPM_SUPPLEMENTS, package.supplements())?;
 
     // <file>/usr/bin/bash</file>
-    for file in &package.rpm_files {
+    for file in package.files() {
         // TODO: check this logic
         let include = |f: &PackageFile| -> bool {
             // strange algorithm, but it's what the original uses
@@ -401,7 +405,9 @@ pub fn parse_package<R: BufRead>(
         match reader.read_event(&mut buf)? {
             Event::End(e) if e.name() == TAG_PACKAGE => break,
             Event::Start(e) => match e.name() {
-                TAG_NAME => package.name = reader.read_text(TAG_NAME, &mut text_buf)?,
+                TAG_NAME => {
+                    package.set_name(reader.read_text(TAG_NAME, &mut text_buf)?.as_str());
+                }
                 TAG_VERSION => {
                     let epoch = e
                         .try_get_attribute("epoch")?
@@ -418,7 +424,9 @@ pub fn parse_package<R: BufRead>(
                         .ok_or_else(|| MetadataError::MissingAttributeError("rel"))?
                         .unescape_and_decode_value(reader)?;
 
-                    package.evr = EVR::new(epoch.as_str(), version.as_str(), release.as_str());
+                    // TODO: temporary conversions
+                    let evr = EVR::new(epoch.as_str(), version.as_str(), release.as_str());
+                    package.set_evr(evr);
                 }
                 TAG_CHECKSUM => {
                     let checksum_type = e
@@ -426,15 +434,25 @@ pub fn parse_package<R: BufRead>(
                         .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
                         .unescape_and_decode_value(reader)?;
                     let checksum_value = reader.read_text(TAG_CHECKSUM, &mut text_buf)?;
-                    package.checksum = Checksum::try_create(checksum_type, checksum_value)?;
+                    package.set_checksum(Checksum::try_create(checksum_type, checksum_value)?);
                 }
-                TAG_ARCH => package.arch = reader.read_text(TAG_ARCH, &mut text_buf)?,
-                TAG_SUMMARY => package.summary = reader.read_text(TAG_SUMMARY, &mut text_buf)?,
+                TAG_ARCH => {
+                    package.set_arch(reader.read_text(TAG_ARCH, &mut text_buf)?.as_str());
+                }
+                TAG_SUMMARY => {
+                    package.set_summary(reader.read_text(TAG_SUMMARY, &mut text_buf)?.as_str());
+                }
                 TAG_DESCRIPTION => {
-                    package.description = reader.read_text(TAG_DESCRIPTION, &mut text_buf)?
+                    package.set_description(
+                        reader.read_text(TAG_DESCRIPTION, &mut text_buf)?.as_str(),
+                    );
                 }
-                TAG_PACKAGER => package.packager = reader.read_text(TAG_PACKAGER, &mut text_buf)?,
-                TAG_URL => package.url = reader.read_text(TAG_URL, &mut text_buf)?,
+                TAG_PACKAGER => {
+                    package.set_packager(reader.read_text(TAG_PACKAGER, &mut text_buf)?.as_str());
+                }
+                TAG_URL => {
+                    package.set_url(reader.read_text(TAG_URL, &mut text_buf)?.as_str());
+                }
                 TAG_TIME => {
                     let time_file = e
                         .try_get_attribute("file")?
@@ -448,10 +466,7 @@ pub fn parse_package<R: BufRead>(
                         .unescape_and_decode_value(reader)?
                         .parse()?;
 
-                    package.time = Time {
-                        file: time_file,
-                        build: time_build,
-                    };
+                    package.set_time(time_file, time_build);
                 }
                 TAG_SIZE => {
                     let package_size = e
@@ -472,17 +487,14 @@ pub fn parse_package<R: BufRead>(
                         .unescape_and_decode_value(reader)?
                         .parse()?;
 
-                    package.size = Size {
-                        package: package_size,
-                        installed: installed_size,
-                        archive: archive_size,
-                    };
+                    package.set_size(package_size, installed_size, archive_size);
                 }
                 TAG_LOCATION => {
-                    package.location_href = e
+                    let location_href = e
                         .try_get_attribute("href")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("href"))?
                         .unescape_and_decode_value(reader)?;
+                    package.set_location_href(&location_href);
                 }
                 TAG_FORMAT => {
                     // TODO: allocations
@@ -493,24 +505,39 @@ pub fn parse_package<R: BufRead>(
                             Event::End(e) if e.name() == TAG_FORMAT => break,
                             Event::Start(e) => match e.name() {
                                 TAG_RPM_LICENSE => {
-                                    package.rpm_license =
-                                        reader.read_text(TAG_RPM_LICENSE, &mut format_text_buf)?
+                                    package.set_rpm_license(
+                                        reader
+                                            .read_text(TAG_RPM_LICENSE, &mut format_text_buf)?
+                                            .as_str(),
+                                    );
                                 }
                                 TAG_RPM_VENDOR => {
-                                    package.rpm_vendor =
-                                        reader.read_text(TAG_RPM_VENDOR, &mut format_text_buf)?
+                                    package.set_rpm_vendor(
+                                        reader
+                                            .read_text(TAG_RPM_VENDOR, &mut format_text_buf)?
+                                            .as_str(),
+                                    );
                                 }
                                 TAG_RPM_GROUP => {
-                                    package.rpm_group =
-                                        reader.read_text(TAG_RPM_GROUP, &mut format_text_buf)?
+                                    package.set_rpm_group(
+                                        reader
+                                            .read_text(TAG_RPM_GROUP, &mut format_text_buf)?
+                                            .as_str(),
+                                    );
                                 }
                                 TAG_RPM_BUILDHOST => {
-                                    package.rpm_buildhost =
-                                        reader.read_text(TAG_RPM_BUILDHOST, &mut format_text_buf)?
+                                    package.set_rpm_buildhost(
+                                        reader
+                                            .read_text(TAG_RPM_BUILDHOST, &mut format_text_buf)?
+                                            .as_str(),
+                                    );
                                 }
                                 TAG_RPM_SOURCERPM => {
-                                    package.rpm_sourcerpm =
-                                        reader.read_text(TAG_RPM_SOURCERPM, &mut format_text_buf)?
+                                    package.set_rpm_sourcerpm(
+                                        reader
+                                            .read_text(TAG_RPM_SOURCERPM, &mut format_text_buf)?
+                                            .as_str(),
+                                    );
                                 }
                                 TAG_RPM_HEADER_RANGE => {
                                     let start = e
@@ -527,31 +554,31 @@ pub fn parse_package<R: BufRead>(
                                         .unescape_and_decode_value(reader)?
                                         .parse()?;
 
-                                    package.rpm_header_range = HeaderRange { start, end };
+                                    package.set_rpm_header_range(start, end);
                                 }
                                 TAG_RPM_PROVIDES => {
-                                    package.rpm_provides = parse_requirement_list(reader, &e)?
+                                    package.set_provides(parse_requirement_list(reader, &e)?);
                                 }
                                 TAG_RPM_REQUIRES => {
-                                    package.rpm_requires = parse_requirement_list(reader, &e)?
+                                    package.set_requires(parse_requirement_list(reader, &e)?);
                                 }
                                 TAG_RPM_CONFLICTS => {
-                                    package.rpm_conflicts = parse_requirement_list(reader, &e)?
+                                    package.set_conflicts(parse_requirement_list(reader, &e)?);
                                 }
                                 TAG_RPM_OBSOLETES => {
-                                    package.rpm_obsoletes = parse_requirement_list(reader, &e)?
+                                    package.set_obsoletes(parse_requirement_list(reader, &e)?);
                                 }
                                 TAG_RPM_SUGGESTS => {
-                                    package.rpm_suggests = parse_requirement_list(reader, &e)?
+                                    package.set_suggests(parse_requirement_list(reader, &e)?);
                                 }
                                 TAG_RPM_ENHANCES => {
-                                    package.rpm_enhances = parse_requirement_list(reader, &e)?
+                                    package.set_enhances(parse_requirement_list(reader, &e)?);
                                 }
                                 TAG_RPM_RECOMMENDS => {
-                                    package.rpm_recommends = parse_requirement_list(reader, &e)?
+                                    package.set_recommends(parse_requirement_list(reader, &e)?);
                                 }
                                 TAG_RPM_SUPPLEMENTS => {
-                                    package.rpm_supplements = parse_requirement_list(reader, &e)?
+                                    package.set_supplements(parse_requirement_list(reader, &e)?);
                                 }
                                 TAG_FILE => (), // TODO: share implementation w/ filelists, but don't parse twice.
                                 _ => (),
@@ -606,9 +633,9 @@ pub fn parse_requirement_list<R: BufRead>(
                     .try_get_attribute("rel")?
                     .and_then(|attr| attr.unescape_and_decode_value(reader).ok());
 
-                let preinstall = e.try_get_attribute("rel")?.map_or(None, |a| {
+                let preinstall = e.try_get_attribute("pre")?.map_or(None, |a| {
                     let val = a.unescape_and_decode_value(reader).unwrap(); // TODO
-                    Some(val == "0" || val.eq_ignore_ascii_case("false"))
+                    Some(val != "0" || !val.eq_ignore_ascii_case("false"))
                 });
 
                 list.push(Requirement {

@@ -1,8 +1,9 @@
 pub mod create;
 pub mod download;
+pub mod sync;
 
 use anyhow::Result;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 
 use argh::FromArgs;
 
@@ -12,6 +13,7 @@ pub fn handle_command() -> Result<()> {
     match execution_config.subcommand {
         Subcommands::Download(c) => download::download(c),
         Subcommands::Create(c) => create::create(c),
+        Subcommands::Sync(c) => sync::sync(c),
     }
 }
 
@@ -27,13 +29,14 @@ pub struct RpmRepoExecConfig {
 enum Subcommands {
     Download(DownloadCommand),
     Create(CreateCommand),
+    Sync(SyncCommand),
     // Modify(ModifyCommand),
     // Merge(MergeCommand),
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
-#[argh(subcommand, name = "clone")]
-/// Download repo
+#[argh(subcommand, name = "download")]
+/// Download a repository
 pub struct DownloadCommand {
     /// the URL of the repository to download
     #[argh(positional)]
@@ -43,17 +46,17 @@ pub struct DownloadCommand {
     #[argh(option)]
     concurrency: Option<u8>,
 
-    /// specify a CA cert location (if not present in system trust store)
+    /// specify a TLS CA cert location (if not present in system trust store)
     #[argh(option)]
-    ca_cert: Option<String>,
+    tls_ca_cert: Option<String>,
 
-    /// specify a client cert location (.pem, .crt)
+    /// specify a TLS client cert location (.pem, .crt, .cert)
     #[argh(option)]
-    client_cert: Option<String>,
+    tls_client_cert: Option<String>,
 
-    /// specify a client key location (.pem, .key). If not provided, client_cert will be checked for one.
+    /// specify a TLS client key location (.pem, .key). If not provided, value of client_cert will be checked
     #[argh(option)]
-    client_cert_key: Option<String>,
+    tls_client_cert_key: Option<String>,
 
     /// disable TLS server certificate verification
     #[argh(switch)]
@@ -66,10 +69,35 @@ pub struct DownloadCommand {
     /// download metadata only
     #[argh(switch)]
     only_metadata: bool,
+
+    /// re-use existing metadata, only download
+    #[argh(switch)]
+    update: bool,
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
-/// Init repo subcommand
+#[argh(subcommand, name = "sync")]
+/// Sync all system-enabled repositories
+pub struct SyncCommand {
+    /// individual name(s) of repository(ies) to download
+    #[argh(option)]
+    name: Vec<String>,
+
+    /// how many files can be downloaded in parallel
+    #[argh(option)]
+    concurrency: Option<u8>,
+
+    /// path to a directory where .repo files are located
+    #[argh(option)]
+    reposdir: Option<OsString>,
+
+    /// re-use existing metadata, only download
+    #[argh(switch)]
+    update: bool,
+}
+
+#[derive(FromArgs, PartialEq, Debug)]
+/// Create a new repository
 #[argh(subcommand, name = "create")]
 pub struct CreateCommand {
     /// directory containing RPMs
@@ -104,8 +132,3 @@ pub struct CreateCommand {
     #[argh(option)]
     add_package_list: Option<String>,
 }
-
-#[derive(FromArgs, PartialEq, Debug)]
-/// Init repo subcommand
-#[argh(subcommand, name = "test")]
-pub struct TestCommand {}

@@ -1,59 +1,22 @@
 extern crate rpmrepo;
 
+use std::fs::OpenOptions;
+use std::io::{Cursor, Read, Seek, SeekFrom};
+
+use pretty_assertions::assert_eq;
+use tempdir::TempDir;
 use quick_xml;
+
 use rpmrepo::metadata::*;
-use std::io::Cursor;
 
 mod common;
 
-/// Test deserialization of repomd with full coverage of all fields of RepoMd and RepoMdRecord
-// #[test]
-// fn test_filelists_deserialization() -> Result<(), MetadataError> {
-//     let actual = &FilelistsXml::from_file(Path::new(FIXTURE_FILELIST_PATH))?;
-//     let expected = fixture_data();
-
-//     assert_eq!(actual, expected);
-//     // assert_eq!(actual.repo_tags(), expected.repo_tags());
-//     // assert_eq!(actual.content_tags(), expected.content_tags());
-//     // assert_eq!(actual.distro_tags(), expected.distro_tags());
-
-//     Ok(())
-// }
-
-#[test]
-fn test_filelists_xml_writer_empty() -> Result<(), MetadataError> {
-    let mut buf = Vec::new();
-
-    let mut xml_writer = quick_xml::Writer::new_with_indent(Cursor::new(&mut buf), b' ', 2);
-    let mut writer = FilelistsXml::new_writer(&mut xml_writer);
-
-    writer.write_header(0)?;
-    writer.write_footer()?;
-
-    let expected = r#"<?xml version="1.0" encoding="UTF-8"?>
+static EMPTY_FILELISTS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="0">
 </filelists>
 "#;
 
-    let actual = std::str::from_utf8(xml_writer.into_inner().into_inner())?;
-    assert_eq!(&actual, &expected);
-
-    Ok(())
-}
-
-#[test]
-fn test_filelists_xml_writer_complex_pkg() -> Result<(), MetadataError> {
-    use pretty_assertions::assert_eq;
-    let mut buf = Vec::new();
-
-    let mut xml_writer = quick_xml::Writer::new_with_indent(Cursor::new(&mut buf), b' ', 2);
-    let mut writer = FilelistsXml::new_writer(&mut xml_writer);
-
-    writer.write_header(1)?;
-    writer.write_package(&common::COMPLEX_PACKAGE)?;
-    writer.write_footer()?;
-
-    let expected = r#"<?xml version="1.0" encoding="UTF-8"?>
+static COMPLEX_FILELISTS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="1">
   <package pkgid="6e46283a16954c9cecd3799246eb1a426d7d8a8b1bc8d57c55c3da4253e200e5" name="complex-package" arch="x86_64">
     <version epoch="1" ver="2.3.4" rel="5.el8"/>
@@ -67,7 +30,40 @@ fn test_filelists_xml_writer_complex_pkg() -> Result<(), MetadataError> {
 </filelists>
 "#;
 
-    let actual = std::str::from_utf8(xml_writer.into_inner().into_inner())?;
+#[test]
+fn test_filelists_xml_writer_empty() -> Result<(), MetadataError> {
+    let mut buf = Vec::new();
+
+    let xml_writer = quick_xml::Writer::new_with_indent(Cursor::new(&mut buf), b' ', 2);
+    let mut writer = FilelistsXml::new_writer(xml_writer);
+    writer.write_header(0)?;
+    writer.finish()?;
+
+    let buffer= writer.into_inner().into_inner();
+
+    let actual = std::str::from_utf8(buffer)?;
+    let expected = EMPTY_FILELISTS;
+    assert_eq!(&actual, &expected);
+
+    Ok(())
+}
+
+#[test]
+fn test_filelists_xml_writer_complex_pkg() -> Result<(), MetadataError> {
+    let mut buf = Vec::new();
+
+    let xml_writer = quick_xml::Writer::new_with_indent(Cursor::new(&mut buf), b' ', 2);
+    let mut writer = FilelistsXml::new_writer(xml_writer);
+
+    writer.write_header(1)?;
+    writer.write_package(&common::COMPLEX_PACKAGE)?;
+    writer.finish()?;
+
+    let buffer = writer.into_inner().into_inner();
+
+    let actual = std::str::from_utf8(buffer)?;
+    let expected = COMPLEX_FILELISTS;
+
     assert_eq!(&actual, &expected);
 
     Ok(())
@@ -78,11 +74,11 @@ fn test_filelists_xml_writer_complex_pkg() -> Result<(), MetadataError> {
 fn test_filelists_xml_writer_not_enough_packages() {
     let mut buf = Vec::new();
 
-    let mut xml_writer = quick_xml::Writer::new_with_indent(Cursor::new(&mut buf), b' ', 2);
-    let mut writer = FilelistsXml::new_writer(&mut xml_writer);
+    let xml_writer = quick_xml::Writer::new_with_indent(Cursor::new(&mut buf), b' ', 2);
+    let mut writer = FilelistsXml::new_writer(xml_writer);
 
     writer.write_header(1).unwrap();
-    writer.write_footer().unwrap();
+    writer.finish().unwrap();
 }
 
 #[test]
@@ -90,13 +86,45 @@ fn test_filelists_xml_writer_not_enough_packages() {
 fn test_filelists_xml_writer_too_many_packages() {
     let mut buf = Vec::new();
 
-    let mut xml_writer = quick_xml::Writer::new_with_indent(Cursor::new(&mut buf), b' ', 2);
-    let mut writer = FilelistsXml::new_writer(&mut xml_writer);
+    let xml_writer = quick_xml::Writer::new_with_indent(Cursor::new(&mut buf), b' ', 2);
+    let mut writer = FilelistsXml::new_writer(xml_writer);
 
     writer.write_header(1).unwrap();
     writer.write_package(&common::RPM_EMPTY).unwrap();
     writer.write_package(&common::RPM_WITH_NON_ASCII).unwrap();
-    writer.write_footer().unwrap();
+    writer.finish().unwrap();
+}
+
+#[test]
+fn test_filelists_xml_writer_file() -> Result<(), MetadataError> {
+    let working_dir = TempDir::new("")?;
+    let filelists_name = working_dir.path().join("filelists.xml");
+
+    let f = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(filelists_name)
+        .unwrap();
+
+    let xml_writer = quick_xml::Writer::new_with_indent(f, b' ', 2);
+    let mut writer = FilelistsXml::new_writer(xml_writer);
+
+    writer.write_header(0).unwrap();
+    // TODO: actually test something here
+    // writer.write_package(&common::RPM_EMPTY).unwrap();
+    writer.finish()?;
+
+    let mut f = writer.into_inner();
+
+    f.seek(SeekFrom::Start(0))?;
+    let mut actual = String::new();
+
+    f.read_to_string(&mut actual).unwrap();
+
+    assert_eq!(actual, EMPTY_FILELISTS);
+
+    Ok(())
 }
 
 // pub(crate) fn to_string<M: RpmMetadata>(&self) -> Result<String, MetadataError> {

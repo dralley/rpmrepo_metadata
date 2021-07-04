@@ -2,7 +2,6 @@ use std::io::{BufRead, Write};
 
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
-use ring::test::File;
 
 use super::metadata::{
     FileType, FilelistsXml, Package, PackageFile, RpmMetadata, XML_NS_FILELISTS,
@@ -28,20 +27,19 @@ impl RpmMetadata for FilelistsXml {
 
     fn write_metadata<W: Write>(
         repository: &Repository,
-        writer: &mut Writer<W>,
+        writer: Writer<W>,
     ) -> Result<(), MetadataError> {
         let mut writer = Self::new_writer(writer);
         writer.write_header(repository.packages().len())?;
         for package in repository.packages().values() {
             writer.write_package(package)?;
         }
-        writer.write_footer()?;
-        Ok(())
+        writer.finish()
     }
 }
 
 impl FilelistsXml {
-    pub fn new_writer<'a, W: Write>(writer: &'a mut Writer<W>) -> FilelistsXmlWriter<'a, W> {
+    pub fn new_writer<W: Write>(writer: Writer<W>) -> FilelistsXmlWriter<W> {
         FilelistsXmlWriter {
             writer,
             num_packages: 0,
@@ -59,13 +57,13 @@ impl FilelistsXml {
     // }
 }
 
-pub struct FilelistsXmlWriter<'a, W: Write> {
-    writer: &'a mut Writer<W>,
+pub struct FilelistsXmlWriter<W: Write> {
+    pub writer: Writer<W>,
     num_packages: usize,
     packages_written: usize,
 }
 
-impl<'a, W: Write> FilelistsXmlWriter<'a, W> {
+impl<W: Write> FilelistsXmlWriter<W> {
     pub fn write_header(&mut self, num_pkgs: usize) -> Result<(), MetadataError> {
         self.num_packages = num_pkgs;
 
@@ -86,15 +84,15 @@ impl<'a, W: Write> FilelistsXmlWriter<'a, W> {
     pub fn write_package(&mut self, package: &Package) -> Result<(), MetadataError> {
         // <package pkgid="a2d3bce512f79b0bc840ca7912a86bbc0016cf06d5c363ffbb6fd5e1ef03de1b" name="fontconfig" arch="x86_64">
         let mut package_tag = BytesStart::borrowed_name(TAG_PACKAGE);
-        let (_, pkgid) = package.checksum.to_values()?;
+        let (_, pkgid) = package.checksum().to_values()?;
         package_tag.push_attribute(("pkgid", pkgid));
-        package_tag.push_attribute(("name", package.name.as_str()));
-        package_tag.push_attribute(("arch", package.arch.as_str()));
+        package_tag.push_attribute(("name", package.name()));
+        package_tag.push_attribute(("arch", package.arch()));
         self.writer
             .write_event(Event::Start(package_tag.to_borrowed()))?;
 
         // <version epoch="0" ver="2.8.0" rel="5.fc33"/>
-        let (epoch, version, release) = package.evr.values();
+        let (epoch, version, release) = package.evr().values();
         let mut version_tag = BytesStart::borrowed_name(TAG_VERSION);
         version_tag.push_attribute(("epoch", epoch));
         version_tag.push_attribute(("ver", version));
@@ -102,7 +100,7 @@ impl<'a, W: Write> FilelistsXmlWriter<'a, W> {
         self.writer.write_event(Event::Empty(version_tag))?;
 
         // <file type="dir">/etc/fonts/conf.avail</file>
-        for file in &package.rpm_files {
+        for file in package.files() {
             let mut file_tag = BytesStart::borrowed_name(TAG_FILE);
             if file.filetype != FileType::File {
                 file_tag.push_attribute(("type".as_bytes(), file.filetype.to_values()));
@@ -121,7 +119,7 @@ impl<'a, W: Write> FilelistsXmlWriter<'a, W> {
         Ok(())
     }
 
-    pub fn write_footer(&mut self) -> Result<(), MetadataError> {
+    pub fn finish(&mut self) -> Result<(), MetadataError> {
         assert_eq!(
             self.packages_written, self.num_packages,
             "Number of packages written {} does not match number of packages declared {}.",
@@ -135,7 +133,12 @@ impl<'a, W: Write> FilelistsXmlWriter<'a, W> {
         // trailing newline
         self.writer
             .write_event(Event::Text(BytesText::from_plain_str("\n")))?;
+
         Ok(())
+    }
+
+    pub fn into_inner(self) -> W {
+        self.writer.into_inner()
     }
 }
 
@@ -267,18 +270,18 @@ pub fn parse_package<R: BufRead>(
         .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
         .unescape_and_decode_value(reader)?;
 
-    let mut package = repository
+    let package = repository
         .packages_mut()
         .entry(pkgid)
         .or_insert(Package::default()); // TODO
 
     // TODO: using empty strings as null value is slightly questionable
-    if package.name.is_empty() {
-        package.name = name.to_owned();
+    if package.name().is_empty() {
+        package.set_name(&name);
     }
 
-    if package.arch.is_empty() {
-        package.arch = arch.to_owned();
+    if package.arch().is_empty() {
+        package.set_arch(&arch);
     }
 
     loop {
@@ -287,11 +290,12 @@ pub fn parse_package<R: BufRead>(
 
             Event::Start(e) => match e.name() {
                 TAG_VERSION => {
-                    package.evr = parse_evr(reader, &e)?;
+                    package.set_evr(parse_evr(reader, &e)?);
                 }
                 TAG_FILE => {
                     let file = parse_file(reader, &e)?;
-                    package.rpm_files.push(file);
+                    // TODO: temporary PackageFile?
+                    package.add_file(file.filetype, &file.path);
                 }
                 _ => (),
             },

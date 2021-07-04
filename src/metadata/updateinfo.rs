@@ -40,7 +40,7 @@ impl RpmMetadata for UpdateinfoXml {
 
     fn write_metadata<W: Write>(
         repository: &Repository,
-        writer: &mut Writer<W>,
+        writer: Writer<W>,
     ) -> Result<(), MetadataError> {
         let mut writer = UpdateinfoXml::new_writer(writer);
         writer.write_header()?;
@@ -49,9 +49,7 @@ impl RpmMetadata for UpdateinfoXml {
             writer.write_updaterecord(record)?;
         }
 
-        writer.write_footer()?;
-
-        Ok(())
+        writer.finish()
     }
 }
 
@@ -62,11 +60,11 @@ fn read_updateinfo_xml<R: BufRead>(
     Ok(())
 }
 
-pub struct UpdateinfoXmlWriter<'a, W: Write> {
-    writer: &'a mut Writer<W>,
+pub struct UpdateinfoXmlWriter<W: Write> {
+    writer: Writer<W>,
 }
 
-impl<'a, W: Write> UpdateinfoXmlWriter<'a, W> {
+impl<W: Write> UpdateinfoXmlWriter<W> {
     fn write_header(&mut self) -> Result<(), MetadataError> {
         // <?xml version="1.0" encoding="UTF-8"?>
         self.writer
@@ -81,10 +79,10 @@ impl<'a, W: Write> UpdateinfoXmlWriter<'a, W> {
     }
 
     fn write_updaterecord(&mut self, record: &UpdateRecord) -> Result<(), MetadataError> {
-        write_updaterecord(record, self.writer)
+        write_updaterecord(record, &mut self.writer)
     }
 
-    fn write_footer(&mut self) -> Result<(), MetadataError> {
+    fn finish(&mut self) -> Result<(), MetadataError> {
         // </updates>
         self.writer
             .write_event(Event::End(BytesEnd::borrowed(TAG_UPDATES)))?;
@@ -92,7 +90,12 @@ impl<'a, W: Write> UpdateinfoXmlWriter<'a, W> {
         // trailing newline
         self.writer
             .write_event(Event::Text(BytesText::from_plain_str("\n")))?;
+
         Ok(())
+    }
+
+    pub fn into_inner(self) -> Writer<W> {
+        self.writer
     }
 }
 
@@ -109,7 +112,7 @@ impl<'a, R: BufRead> UpdateinfoXmlReader<'a, R> {
 }
 
 impl UpdateinfoXml {
-    pub fn new_writer<'a, W: Write>(writer: &'a mut Writer<W>) -> UpdateinfoXmlWriter<'a, W> {
+    pub fn new_writer<W: Write>(writer: Writer<W>) -> UpdateinfoXmlWriter<W> {
         UpdateinfoXmlWriter { writer }
     }
 

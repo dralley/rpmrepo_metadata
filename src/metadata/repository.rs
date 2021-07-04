@@ -167,6 +167,7 @@ impl Repository {
         self.write_metadata_file::<FilelistsXml>(&repodata_dir, options.metadata_compression_type)?;
         self.write_metadata_file::<OtherXml>(&repodata_dir, options.metadata_compression_type)?;
 
+        // TODO
         // if !options.simple_metadata_filenames {
         //     self.rename_metadata_files()
         // }
@@ -231,8 +232,8 @@ impl Repository {
     ) -> Result<(), MetadataError> {
         let new_path = PathBuf::from(path);
         let new_path = new_path.join(M::filename());
-        let mut writer = create_writer(&new_path, compression)?;
-        M::write_metadata(self, &mut writer)?;
+        let writer = create_xml_writer(&new_path, compression)?;
+        M::write_metadata(self, writer)?;
         Ok(())
     }
 
@@ -243,9 +244,9 @@ impl Repository {
 
     pub(crate) fn to_bytes<M: RpmMetadata>(&self) -> Result<Vec<u8>, MetadataError> {
         let mut buf = Vec::new();
-        let mut writer = Writer::new_with_indent(Cursor::new(&mut buf), b' ', 2);
-        M::write_metadata(self, &mut writer)?;
-        Ok(writer.into_inner().into_inner().to_vec())
+        let writer = Writer::new_with_indent(Cursor::new(&mut buf), b' ', 2);
+        M::write_metadata(self, writer)?;
+        Ok(buf)
     }
 
     // TODO: allocation? one arena allocator per package, everything freed at once
@@ -261,7 +262,7 @@ impl Repository {
     // * signing
 }
 
-fn create_writer(
+fn create_xml_writer(
     path: &Path,
     compression: CompressionType,
 ) -> Result<Writer<Box<dyn Write>>, MetadataError> {
@@ -278,7 +279,7 @@ fn create_writer(
 
     let file = File::create(path)?;
 
-    let write_buffer = match compression {
+    let inner_writer = match compression {
         CompressionType::None => Box::new(file),
         CompressionType::Gzip => niffler::get_writer(
             Box::new(file),
@@ -297,7 +298,7 @@ fn create_writer(
         )?,
         _ => unimplemented!(),
     };
-    Ok(Writer::new_with_indent(write_buffer, b' ', 2))
+    Ok(Writer::new_with_indent(inner_writer, b' ', 2))
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -395,21 +396,17 @@ impl RepositoryOptions {
 //     })
 // }
 
-// pub struct RepositoryWriter<'a, W: Write> {
+// pub struct RepositoryWriter<W: Write> {
 //     options: RepositoryOptions,
 
-//     primary_writer: Writer<Box<dyn Write>>,
-//     filelists_writer: Writer<Box<dyn Write>>,
-//     other_writer: Writer<Box<dyn Write>>,
-
-//     primary_xml_writer: PrimaryXmlWriter<'a, W>,
-//     filelists_xml_writer: FilelistsXmlWriter<'a, W>,
-//     other_xml_writer: OtherXmlWriter<'a, W>,
+//     primary_xml_writer: PrimaryXmlWriter<W>,
+//     filelists_xml_writer: FilelistsXmlWriter<W>,
+//     other_xml_writer: OtherXmlWriter<W>,
 // }
 
 // // Writer<BufWriter<Box<dyn Write>>>
 
-// impl<'a, W: Write> RepositoryWriter<'a, W> {
+// impl<W: Write> RepositoryWriter<W> {
 //     pub fn new(options: RepositoryOptions) -> Result<Self, MetadataError> {
 
 //         let mut primary_writer =  create_writer(&Path::new("primary.xml"), CompressionType::None)?;
@@ -419,13 +416,9 @@ impl RepositoryOptions {
 //         Ok(Self {
 //             options,
 
-//             primary_writer: primary_writer,
-//             filelists_writer: filelists_writer,
-//             other_writer: other_writer,
-
-//             primary_xml_writer: PrimaryXml::new_writer(&mut primary_writer),
-//             filelists_xml_writer: FilelistsXml::new_writer(&mut filelists_writer),
-//             other_xml_writer: OtherXml::new_writer(&mut other_writer),
+//             primary_xml_writer: PrimaryXml::new_writer(primary_writer),
+//             filelists_xml_writer: FilelistsXml::new_writer(filelists_writer),
+//             other_xml_writer: OtherXml::new_writer(other_writer),
 //         })
 //     }
 
@@ -444,9 +437,9 @@ impl RepositoryOptions {
 //     }
 
 //     pub fn finish(&mut self) -> Result<(), MetadataError> {
-//         self.primary_xml_writer.write_footer()?;
-//         self.filelists_xml_writer.write_footer()?;
-//         self.other_xml_writer.write_footer()?;
+//         self.primary_xml_writer.finish()?;
+//         self.filelists_xml_writer.finish()?;
+//         self.other_xml_writer.finish()?;
 
 //         // let mut repomd_writer = RepomdXml::from_writer(repomd_writer);
 //         // match self.options.metadata_checksum_type {}

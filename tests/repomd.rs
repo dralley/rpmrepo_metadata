@@ -1,21 +1,22 @@
 extern crate rpmrepo;
 
 use rpmrepo::metadata::{MetadataError, Repository};
+mod common;
 
-#[test]
-fn repomd() -> Result<(), MetadataError> {
-    // let fixture_path = "./tests/assets/complex_repo/";
-    let fixture_path = "../test_repo/";
+// #[test]
+// fn repomd() -> Result<(), MetadataError> {
+//     // let fixture_path = "./tests/assets/complex_repo/";
+//     let fixture_path = "../test_repo/";
 
-    let repo = Repository::from_directory(fixture_path.as_ref())?;
+//     let repo = Repository::load_from_directory(fixture_path.as_ref())?;
 
-    assert_eq!(repo.packages().len(), 10700);
-    // assert_eq!(repo.packages.len(), 3);
+//     assert_eq!(repo.packages().len(), 10700);
+//     // assert_eq!(repo.packages.len(), 3);
 
-    // repo.to_directory("./tests/assets/test_repo/".as_ref())?;
+//     // repo.to_directory("./tests/assets/test_repo/".as_ref())?;
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 // #[test]
 // fn centos7() -> Result<(), DeError> {
@@ -39,89 +40,6 @@ fn repomd() -> Result<(), MetadataError> {
 //     let repomd: RepoMd = from_str(xml)?;
 //     assert_eq!(&repomd.revision, "8.2.2004");
 //     Ok(())
-// }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::metadata::MetadataIO;
-//     use once_cell::sync::OnceCell;
-//     use pretty_assertions::assert_eq;
-//     use std::path::Path;
-
-//     const FIXTURE_FILELIST_PATH: &str = "./tests/assets/complex_repo/repodata/filelists.xml.gz";
-
-//     /// Fixture should cover all fields / tag types for repomd.xml
-//     /// Started w/ Fedora 33 updates repodata, added repo, content, distro tags
-//     /// FilelistsDb covers standard fields + database_version, UpdateInfoZck covers header_size, header_checksum
-//     fn fixture_data() -> &'static Filelist {
-//         static INSTANCE: OnceCell<Filelist> = OnceCell::new();
-//         INSTANCE.get_or_init(|| {
-//             let mut filelist = Filelist::default();
-//             filelist.packages = vec![
-//                 Package {
-//                     pkgid: "90fbba546300f507473547f33e229ee7bad94bbbe6e84b21d485e8e43b5f1132"
-//                         .to_owned(),
-//                     name: "rpm-empty".to_owned(),
-//                     arch: "x86_64".to_owned(),
-//                     version: EVR::new("0", "0", "0"),
-//                     files: vec![],
-//                 },
-//                 Package {
-//                     pkgid: "957de8a966af8fe8e55102489099d8b20bbecc23954c8c2bd88fb59625260393"
-//                         .to_owned(),
-//                     name: "rpm-with-non-ascii".to_owned(),
-//                     arch: "noarch".to_owned(),
-//                     version: EVR::new("0", "1", "1.fc33"),
-//                     files: vec![],
-//                 },
-//             ];
-
-//             filelist
-//         })
-//     }
-
-//     /// Test deserialization of repomd with full coverage of all fields of RepoMd and RepoMdRecord
-//     #[test]
-//     fn test_deserialization() -> Result<(), MetadataError> {
-//         let actual = &Filelist::from_file(Path::new(FIXTURE_FILELIST_PATH))?;
-//         let expected = fixture_data();
-
-//         assert_eq!(actual, expected);
-//         // assert_eq!(actual.repo_tags(), expected.repo_tags());
-//         // assert_eq!(actual.content_tags(), expected.content_tags());
-//         // assert_eq!(actual.distro_tags(), expected.distro_tags());
-
-//         Ok(())
-//     }
-
-//     // /// Test Serialization on a real repomd.xml (Fedora 33 x86_64 release "everything")
-//     // #[test]
-//     // fn test_serialization() -> Result<(), MetadataError> {
-//     //     let actual = fixture_data().to_string()?;
-
-//     //     let mut expected = String::new();
-//     //     File::open(FIXTURE_FILELIST_PATH)?.read_to_string(&mut expected)?;
-
-//     //     assert_eq!(&expected, &actual);
-
-//     //     Ok(())
-//     // }
-
-//     /// Test roundtrip (serialize + deserialize) on a real repomd.xml (Fedora 33 x86_64 release "everything")
-//     #[test]
-//     fn test_roundtrip() -> Result<(), MetadataError> {
-//         let first_deserialize = Filelist::from_file(Path::new(FIXTURE_FILELIST_PATH))?;
-//         let first_serialize = first_deserialize.to_string()?;
-
-//         let second_deserialize = Filelist::from_str(&first_serialize)?;
-//         let second_serialize = second_deserialize.to_string()?;
-
-//         assert_eq!(first_deserialize, second_deserialize);
-//         assert_eq!(first_serialize, second_serialize);
-
-//         Ok(())
-//     }
 // }
 
 // #[cfg(test)]

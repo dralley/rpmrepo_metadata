@@ -79,7 +79,7 @@ pub fn create(config: CreateCommand) -> Result<()> {
         }
     }
 
-    repo.to_directory(&repository_path, options)?;
+    repo.write_to_directory(&repository_path, options)?;
 
     // copy_dir(&temp_dir, &repository_path)?;
 
