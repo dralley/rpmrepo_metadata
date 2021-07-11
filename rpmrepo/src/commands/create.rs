@@ -6,11 +6,8 @@ use std::{convert::TryInto, env};
 use anyhow::Result;
 use dialoguer::Confirm;
 use rpm;
-use rpmrepo::{
-    metadata::{Package, RepositoryOptions},
-    utils::copy_dir,
-    Repository,
-};
+use rpmrepo_metadata::{Package, Repository, RepositoryOptions};
+// use crate::utils::copy_dir;
 
 use super::CreateCommand;
 

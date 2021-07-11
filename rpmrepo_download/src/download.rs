@@ -1,8 +1,3 @@
-// Copyright (c) 2021 Daniel Alley
-//
-// This software is released under the MIT License.
-// https://opensource.org/licenses/MIT
-
 use std::fs::{self, File};
 use std::io::Write;
 use std::io::{self, Read};
@@ -10,8 +5,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
-use dialoguer::Confirm;
-use indicatif::{HumanBytes, ParallelProgressIterator, ProgressBar, ProgressFinish, ProgressStyle};
+// use dialoguer::Confirm;
+// use indicatif::{HumanBytes, ParallelProgressIterator, ProgressBar, ProgressFinish, ProgressStyle};
 use io::BufReader;
 use rayon::prelude::*;
 use ring::digest;
@@ -25,7 +20,7 @@ use ureq::{self, AgentBuilder};
 use url::Url;
 
 // use crate::metadata::RpmMetadata;
-use crate::metadata::{Checksum, MetadataError, PrimaryXml, RepomdXml, Repository};
+use rpmrepo_metadata::{Checksum, MetadataError, PrimaryXml, RepomdXml, Repository};
 
 pub const DEFAULT_CONCURRENCY: u8 = 5;
 

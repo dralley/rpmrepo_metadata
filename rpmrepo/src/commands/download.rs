@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::process::Command;
 
 use anyhow::Result;
 use dialoguer::Confirm;
@@ -31,7 +32,7 @@ pub fn download(config: DownloadCommand) -> Result<()> {
     download_config = download_config.verify_tls(!config.no_check_certificate);
     download_config = download_config.only_metadata(config.only_metadata);
 
-    let repo_destination = env::current_dir()?.join(config.destination);
+    let repo_destination = env::current_dir()?.join(&config.destination);
 
     if repo_destination.exists() {
         let overwrite = Confirm::new()
@@ -39,18 +40,31 @@ pub fn download(config: DownloadCommand) -> Result<()> {
             .interact()?;
 
         if !overwrite {
+            println!("Exiting.");
             std::process::exit(0);
         }
     }
 
     let parent_dir = repo_destination.parent().unwrap();
-    let cachedir = repo_destination;
-    // let cachedir = TempDir::new_in(parent_dir, ".rpmrepo_cache_")?;
+    println!("{:?}", parent_dir);
+    // let cachedir = repo_destination;
+
+    // let output = Command::new("rsync")
+    //         .arg("-avSHP")
+    //         .arg("--delete")
+    //         .arg("--dry-run")
+    //         .arg(&config.url)
+    //         .arg(&config.destination)
+    //         .output()
+    //         .expect("failed to execute process");
+    // println!("{:?}", output);
+
+    let cachedir = TempDir::new_in(repo_destination, ".rpmrepo_cache_")?;
 
     RepoDownloader::new(url, download_config).download_to(&cachedir)?;
 
-    // std::fs::remove_dir_all(&repo_destination)?;
-    // fs::rename(cachedir.into_path(), &repo_destination)?;
+    std::fs::remove_dir_all(&repo_destination)?;
+    fs::rename(cachedir.into_path(), &repo_destination)?;
 
     Ok(())
 }

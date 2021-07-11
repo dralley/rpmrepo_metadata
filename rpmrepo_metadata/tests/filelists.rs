@@ -1,4 +1,4 @@
-extern crate rpmrepo;
+extern crate rpmrepo_metadata;
 
 use std::fs::OpenOptions;
 use std::io::{Cursor, Read, Seek, SeekFrom};
@@ -7,7 +7,7 @@ use pretty_assertions::assert_eq;
 use tempdir::TempDir;
 use quick_xml;
 
-use rpmrepo::metadata::*;
+use rpmrepo_metadata::*;
 
 mod common;
 

@@ -6,7 +6,7 @@ use quick_xml;
 use quick_xml::{Reader, Writer};
 use thiserror::Error;
 
-use crate::metadata::{Repository, EVR};
+use crate::{Repository, EVR};
 
 pub struct RepomdXml;
 pub struct PrimaryXml;

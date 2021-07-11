@@ -1,7 +1,7 @@
-extern crate rpmrepo;
+extern crate rpmrepo_metadata;
 
 use once_cell::sync::Lazy;
-use rpmrepo::metadata::{Checksum, FileType, Package, Requirement, EVR};
+use rpmrepo_metadata::{Checksum, FileType, Package, Requirement, EVR};
 
 // const FIXTURE_FILELIST_PATH: &str = "./tests/assets/complex_repo/repodata/filelists.xml.gz";
 

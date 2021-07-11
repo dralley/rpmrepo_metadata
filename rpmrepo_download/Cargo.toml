@@ -1,0 +1,29 @@
+[package]
+name = "rpmrepo_download"
+version = "0.1.0"
+authors = ["Daniel Alley <dalley@redhat.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ureq = "2.0.0-rc3"
+url = "2.2.0"
+flate2 = "1.0.19"
+rayon = "1.5.0"
+thiserror = "1.0.24"
+sha2 = "0.9.3"
+anyhow = "1.0.38"
+once_cell = "1.7.2"
+rpm-rs = { path = "../../rpm-rs" }
+rustls = { version = "0.19.0", features = ["dangerous_configuration"]}
+rustls-native-certs = "0.5.0"
+webpki = "0.22.0"
+tempdir = "0.3.7"
+ring = "0.16.20"
+rpmrepo_metadata = { path = "../rpmrepo_metadata" }
+
+
+[dev-dependencies]
+tempdir = "0.3.7"
+pretty_assertions = "0.7.1"

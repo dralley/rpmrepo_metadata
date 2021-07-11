@@ -1,6 +1,6 @@
 pub mod create;
-pub mod download;
-pub mod sync;
+// pub mod download;
+// pub mod sync;
 
 use anyhow::Result;
 use std::ffi::{OsStr, OsString};
@@ -11,9 +11,9 @@ pub fn handle_command() -> Result<()> {
     let execution_config: RpmRepoExecConfig = argh::from_env();
 
     match execution_config.subcommand {
-        Subcommands::Download(c) => download::download(c),
+        // Subcommands::Download(c) => download::download(c),
         Subcommands::Create(c) => create::create(c),
-        Subcommands::Sync(c) => sync::sync(c),
+        // Subcommands::Sync(c) => sync::sync(c),
     }
 }
 
@@ -27,9 +27,9 @@ pub struct RpmRepoExecConfig {
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand)]
 enum Subcommands {
-    Download(DownloadCommand),
+    // Download(DownloadCommand),
     Create(CreateCommand),
-    Sync(SyncCommand),
+    // Sync(SyncCommand),
     // Modify(ModifyCommand),
     // Merge(MergeCommand),
 }

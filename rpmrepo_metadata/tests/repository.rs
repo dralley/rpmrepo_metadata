@@ -1,6 +1,6 @@
-extern crate rpmrepo;
+extern crate rpmrepo_metadata;
 
-use rpmrepo::metadata::{MetadataError, Package, Repository};
+use rpmrepo_metadata::{MetadataError, Package, Repository};
 mod common;
 
 #[test]

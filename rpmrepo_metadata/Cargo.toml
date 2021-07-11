@@ -1,0 +1,27 @@
+[package]
+name = "rpmrepo_metadata"
+version = "0.1.0"
+authors = ["Daniel Alley <dalley@redhat.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+quick-xml = { path = "../../quick-xml", default-features = false } # "0.22.0"
+flate2 = "1.0.19"
+rayon = "1.5.0"
+thiserror = "1.0.24"
+sha2 = "0.9.3"
+niffler = "2.3.1"
+once_cell = "1.7.2"
+rpm-rs = { path = "../../rpm-rs" }
+tempdir = "0.3.7"
+ring = "0.16.20"
+
+[dev-dependencies]
+tempdir = "0.3.7"
+pretty_assertions = "0.7.1"
+once_cell = "1.7.2"
+
+[profile.release]
+lto="thin"
