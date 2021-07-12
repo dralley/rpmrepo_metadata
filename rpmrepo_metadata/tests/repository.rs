@@ -3,6 +3,7 @@ extern crate rpmrepo_metadata;
 use rpmrepo_metadata::{MetadataError, Package, Repository};
 mod common;
 
+#[ignore]
 #[test]
 fn complex_repo() -> Result<(), MetadataError> {
     use pretty_assertions::assert_eq;

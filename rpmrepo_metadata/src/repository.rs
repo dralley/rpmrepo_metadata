@@ -396,22 +396,22 @@ impl RepositoryOptions {
 //     })
 // }
 
-// pub struct RepositoryWriter<W: Write> {
-//     options: RepositoryOptions,
+pub struct RepositoryWriter<W: Write> {
+    options: RepositoryOptions,
 
-//     primary_xml_writer: PrimaryXmlWriter<W>,
-//     filelists_xml_writer: FilelistsXmlWriter<W>,
-//     other_xml_writer: OtherXmlWriter<W>,
-// }
+    primary_xml_writer: PrimaryXmlWriter<W>,
+    filelists_xml_writer: FilelistsXmlWriter<W>,
+    other_xml_writer: OtherXmlWriter<W>,
+}
 
 // // Writer<BufWriter<Box<dyn Write>>>
 
 // impl<W: Write> RepositoryWriter<W> {
 //     pub fn new(options: RepositoryOptions) -> Result<Self, MetadataError> {
 
-//         let mut primary_writer =  create_writer(&Path::new("primary.xml"), CompressionType::None)?;
-//         let mut filelists_writer =  create_writer(&Path::new("filelists.xml"), CompressionType::None)?;
-//         let mut other_writer = create_writer(&Path::new("other.xml"), CompressionType::None)?;
+//         let mut primary_writer =  create_xml_writer(&Path::new("primary.xml"), CompressionType::None)?;
+//         let mut filelists_writer =  create_xml_writer(&Path::new("filelists.xml"), CompressionType::None)?;
+//         let mut other_writer = create_xml_writer(&Path::new("other.xml"), CompressionType::None)?;
 
 //         Ok(Self {
 //             options,

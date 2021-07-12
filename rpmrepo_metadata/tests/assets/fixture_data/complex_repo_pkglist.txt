@@ -1,0 +1,4 @@
+rpm-empty-0-0.x86_64.rpm
+rpm-with-invalid-chars-1-1.fc33.noarch.rpm
+rpm-with-non-ascii-1-1.fc33.noarch.rpm
+complex-package-2.3.4-5.el8.x86_64.rpm
