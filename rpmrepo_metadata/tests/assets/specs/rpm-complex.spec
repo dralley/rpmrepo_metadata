@@ -14,9 +14,11 @@ Requires: fur <= 2
 Requires: arson >= 1.0.0-1
 Requires(pre): /usr/sbin/useradd
 Requires: staircar <= 99.1-3
+Requires: /usr/bin/bash
 
 Provides: laughter = 33
 Provides: narration(ronhoward)
+Provides: /usr/bin/ls
 
 Obsoletes: cornballer < 444
 Obsoletes: bluemangroup < 32.1-0

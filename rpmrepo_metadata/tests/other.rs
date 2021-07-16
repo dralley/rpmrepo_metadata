@@ -4,8 +4,8 @@ use std::fs::OpenOptions;
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
 use pretty_assertions::assert_eq;
-use tempdir::TempDir;
 use quick_xml;
+use tempdir::TempDir;
 
 use rpmrepo_metadata::*;
 
@@ -18,7 +18,7 @@ static EMPTY_OTHERDATA: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 static COMPLEX_OTHERDATA: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <otherdata xmlns="http://linux.duke.edu/metadata/other" packages="1">
-  <package pkgid="6e46283a16954c9cecd3799246eb1a426d7d8a8b1bc8d57c55c3da4253e200e5" name="complex-package" arch="x86_64">
+  <package pkgid="bbb7b0e9350a0f75b923bdd0ef4f9af39765c668a3e70bfd3486ea9f0f618aaf" name="complex-package" arch="x86_64">
     <version epoch="1" ver="2.3.4" rel="5.el8"/>
     <changelog author="Lucille Bluth &lt;lucille@bluthcompany.com&gt; - 1.1.1-1" date="1617192000">- It's a banana, Michael. How much could it cost, $10?</changelog>
     <changelog author="Job Bluth &lt;job@alliance-of-magicians.com&gt; - 2.2.2-2" date="1619352000">- I've made a huge mistake</changelog>

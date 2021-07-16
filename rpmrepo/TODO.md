@@ -13,6 +13,7 @@
   * download metadata + packages
   * sync optimization, repomd revision
   * allowlist/blocklist packages
+* downloading many repos, packing into ISO
 * create a repository from a directory of packages
   * configure metadata types, checksum types, signing, tags
 * sign repository in-place
@@ -27,6 +28,9 @@
 
 * error handling
 * parse customization callbacks?
+* location_base
+  * https://github.com/rpm-software-management/createrepo_c/blob/master/src/xml_dump_repomd.c#L85-L88
+  * https://github.com/rpm-software-management/createrepo_c/blob/master/src/xml_parser_repomd.c#L197-L203
 
 ### filelists.xml
 
@@ -52,7 +56,6 @@
 
 ### general
 
-* split up into multiple crates, one for working with metadata, one for downloading, etc.
 * download needs to download to tempdir and then move, for purpose of errors
 * error reporting back through the CLI
 * fancy allocation strategies

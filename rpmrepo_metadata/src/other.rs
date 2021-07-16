@@ -17,7 +17,7 @@ use quick_xml::escape::partial_escape;
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 
-use super::metadata::{Changelog, OtherXml, Package, RpmMetadata, XML_NS_OTHER};
+use super::metadata::{Changelog, OtherXml, Package, ParseState, RpmMetadata, XML_NS_OTHER};
 use super::{MetadataError, Repository, EVR};
 
 const TAG_OTHERDATA: &[u8] = b"otherdata";
@@ -139,7 +139,7 @@ impl<W: Write> OtherXmlWriter<W> {
             self.writer
                 .create_element(TAG_CHANGELOG)
                 .with_attribute(("author", changelog.author.as_str()))
-                .with_attribute(("date", format!("{}", changelog.date).as_str()))
+                .with_attribute(("date", changelog.date.to_string().as_str()))
                 .write_text_content(BytesText::from_escaped(partial_escape(
                     &changelog.description.as_bytes(),
                 )))?;
@@ -166,6 +166,9 @@ impl<W: Write> OtherXmlWriter<W> {
         // trailing newline
         self.writer
             .write_event(Event::Text(BytesText::from_plain_str("\n")))?;
+
+        // write everything out to disk - otherwise it won't happen until drop() which impedes debugging
+        self.writer.inner().flush()?;
 
         Ok(())
     }
@@ -213,7 +216,7 @@ pub fn parse_package<R: BufRead>(
         .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
         .unescape_and_decode_value(reader)?;
 
-    let mut package = repository
+    let package = repository
         .packages_mut()
         .entry(pkgid)
         .or_insert(Package::default()); // TODO
@@ -250,6 +253,7 @@ pub fn parse_package<R: BufRead>(
         }
     }
 
+    // package.parse_state |= ParseState::OTHER;
     Ok(())
 }
 

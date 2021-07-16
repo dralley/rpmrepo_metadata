@@ -4,7 +4,7 @@ use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 
 use super::metadata::{
-    FileType, FilelistsXml, Package, PackageFile, RpmMetadata, XML_NS_FILELISTS,
+    FileType, FilelistsXml, Package, PackageFile, ParseState, RpmMetadata, XML_NS_FILELISTS,
 };
 use super::{MetadataError, Repository, EVR};
 
@@ -133,6 +133,9 @@ impl<W: Write> FilelistsXmlWriter<W> {
         // trailing newline
         self.writer
             .write_event(Event::Text(BytesText::from_plain_str("\n")))?;
+
+        // write everything out to disk - otherwise it won't happen until drop() which impedes debugging
+        self.writer.inner().flush()?;
 
         Ok(())
     }
@@ -302,6 +305,8 @@ pub fn parse_package<R: BufRead>(
             _ => (),
         }
     }
+
+    // package.parse_state |= ParseState::FILELISTS;
     Ok(())
 }
 

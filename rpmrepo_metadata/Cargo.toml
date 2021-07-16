@@ -7,18 +7,26 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-quick-xml = { path = "../../quick-xml", default-features = false } # "0.22.0"
-flate2 = "1.0.19"
-rayon = "1.5.0"
-thiserror = "1.0.24"
-sha2 = "0.9.3"
-niffler = "2.3.1"
-once_cell = "1.7.2"
-rpm-rs = { path = "../../rpm-rs" }
+quick-xml = { path = "../../quick-xml", default-features = false }
+flate2 = "1.0.21"
+rayon = "1.5.1"
+thiserror = "1.0.28"
+sha2 = "0.10.0"
+niffler = "2.3.2"
+once_cell = "1.8.0"
+rpm-rs = "0.8.1"
 tempdir = "0.3.7"
 ring = "0.16.20"
+bitflags = "1.3.2"
+hex = "0.4.3"
 
 [dev-dependencies]
 tempdir = "0.3.7"
-pretty_assertions = "0.7.1"
-once_cell = "1.7.2"
+pretty_assertions = "1.0.0"
+once_cell = "1.8.0"
+
+
+
+# [patch.crates-io]
+# quick-xml = { path = "../quick-xml", default-features = false }
+# # rpm-rs = { path = "../rpm-rs" }

@@ -45,7 +45,7 @@ impl RpmMetadata for UpdateinfoXml {
         let mut writer = UpdateinfoXml::new_writer(writer);
         writer.write_header()?;
 
-        for record in &repository.advisories {
+        for record in repository.advisories() {
             writer.write_updaterecord(record)?;
         }
 
@@ -65,7 +65,7 @@ pub struct UpdateinfoXmlWriter<W: Write> {
 }
 
 impl<W: Write> UpdateinfoXmlWriter<W> {
-    fn write_header(&mut self) -> Result<(), MetadataError> {
+    pub fn write_header(&mut self) -> Result<(), MetadataError> {
         // <?xml version="1.0" encoding="UTF-8"?>
         self.writer
             .write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
@@ -78,11 +78,11 @@ impl<W: Write> UpdateinfoXmlWriter<W> {
         Ok(())
     }
 
-    fn write_updaterecord(&mut self, record: &UpdateRecord) -> Result<(), MetadataError> {
+    pub fn write_updaterecord(&mut self, record: &UpdateRecord) -> Result<(), MetadataError> {
         write_updaterecord(record, &mut self.writer)
     }
 
-    fn finish(&mut self) -> Result<(), MetadataError> {
+    pub fn finish(&mut self) -> Result<(), MetadataError> {
         // </updates>
         self.writer
             .write_event(Event::End(BytesEnd::borrowed(TAG_UPDATES)))?;
@@ -249,6 +249,12 @@ fn write_updaterecord<W: Write>(
 
     // </update>
     writer.write_event(Event::End(updates_tag.to_end()))?;
+
+    // trailing newline
+    writer.write_event(Event::Text(BytesText::from_plain_str("\n")))?;
+
+    // write everything out to disk - otherwise it won't happen until drop() which impedes debugging
+    writer.inner().flush()?;
 
     Ok(())
 }

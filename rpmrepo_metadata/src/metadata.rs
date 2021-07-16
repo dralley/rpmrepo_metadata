@@ -1,12 +1,17 @@
 use std::cmp::Ordering;
+use std::collections::BTreeMap;
+use std::convert::TryInto;
 use std::io::{BufRead, Write};
+use std::os::unix::prelude::MetadataExt;
+use std::path::{Path, PathBuf};
 
+use bitflags;
 use niffler;
 use quick_xml;
 use quick_xml::{Reader, Writer};
 use thiserror::Error;
 
-use crate::{Repository, EVR};
+use crate::{utils, Repository, EVR};
 
 pub struct RepomdXml;
 pub struct PrimaryXml;
@@ -81,6 +86,17 @@ pub enum CompressionType {
     Bz2,
 }
 
+impl CompressionType {
+    pub fn to_file_extension(&self) -> &str {
+        match self {
+            CompressionType::None => "",
+            CompressionType::Gzip => ".gz",
+            CompressionType::Xz => ".xz",
+            CompressionType::Bz2 => ".bz2",
+        }
+    }
+}
+
 impl TryInto<CompressionType> for &str {
     type Error = MetadataError;
 
@@ -102,8 +118,20 @@ impl TryInto<CompressionType> for &str {
 //     }
 // }
 
+bitflags::bitflags! {
+    #[derive(Default)]
+    pub struct ParseState: u8 {
+        const NONE = 0b00000000;
+        const PRIMARY = 0b00000001;
+        const FILELISTS = 0b00000010;
+        const OTHER = 0b00000100;
+        const PRIMARY_WITH_FILES = 0b00001001;
+    }
+}
+
 #[derive(Debug, PartialEq, Default)]
 pub struct Package {
+    // pub(crate) parse_state: ParseState,
     name: String,
     arch: String,
     evr: EVR,
@@ -194,6 +222,11 @@ impl Package {
 
     pub fn checksum(&self) -> &Checksum {
         &self.checksum
+    }
+
+    pub fn pkgid(&self) -> &str {
+        // TODO: better way to do this
+        &self.checksum.to_values().unwrap().1
     }
 
     pub fn set_location_href(&mut self, location_href: &str) -> &mut Self {
@@ -441,6 +474,12 @@ pub enum ChecksumType {
     Unknown,
 }
 
+impl Default for ChecksumType {
+    fn default() -> Self {
+        ChecksumType::Sha256
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Checksum {
     Sha1(String),
@@ -637,14 +676,121 @@ impl DistroTag {
 }
 
 #[derive(Debug, PartialEq, Default)]
+pub struct RepoMdData {
+    revision: Option<String>,
+    // metadata_files: BTreeMap<String, RepoMdRecord>,
+    metadata_files: Vec<RepoMdRecord>,
+
+    // checksum_type: ChecksumType,
+    repo_tags: Vec<String>,
+    content_tags: Vec<String>,
+    distro_tags: Vec<DistroTag>,
+}
+
+impl RepoMdData {
+    pub fn add_record(&mut self, record: RepoMdRecord) {
+        self.metadata_files.push(record);
+    }
+
+    pub fn get_record(&self, rectype: &str) -> Option<&RepoMdRecord> {
+        self.metadata_files
+            .iter()
+            .find(|r| &r.metadata_name == rectype)
+    }
+
+    pub fn records(&self) -> &Vec<RepoMdRecord> {
+        &self.metadata_files
+    }
+
+    // pub fn records(&self) -> &BTreeMap<String, RepoMdRecord> {
+    //     &self.metadata_files
+    // }
+
+    // pub fn records_mut(&self) -> &mut BTreeMap<String, RepoMdRecord> {
+    //     &mut self.metadata_files
+    // }
+
+    // pub fn remove_record(&mut self, rectype: &str) {
+    //     self.metadata_files.retain(|r| &r.mdtype != rectype);
+    // }
+
+    pub fn add_repo_tag(&mut self, repo: String) {
+        self.repo_tags.push(repo)
+    }
+
+    pub fn repo_tags(&self) -> &Vec<String> {
+        &self.repo_tags
+    }
+
+    pub fn add_content_tag(&mut self, content: String) {
+        self.content_tags.push(content)
+    }
+
+    pub fn content_tags(&self) -> &Vec<String> {
+        &self.content_tags
+    }
+
+    pub fn add_distro_tag(&mut self, name: String, cpeid: Option<String>) {
+        let distro = DistroTag { name, cpeid };
+        self.distro_tags.push(distro)
+    }
+
+    pub fn distro_tags(&self) -> &Vec<DistroTag> {
+        &self.distro_tags
+    }
+
+    pub fn set_revision(&mut self, revision: &str) {
+        self.revision = Some(revision.to_owned());
+    }
+
+    pub fn revision(&self) -> Option<&str> {
+        self.revision.as_deref()
+    }
+
+    pub fn sort_records(&mut self) {
+        fn value(item: &RepoMdRecord) -> u32 {
+            let mdtype = MetadataType::from(item.metadata_name.as_str());
+            match mdtype {
+                MetadataType::Primary => 1,
+                MetadataType::Filelists => 2,
+                MetadataType::Other => 3,
+                MetadataType::PrimaryDb => 4,
+                MetadataType::FilelistsDb => 5,
+                MetadataType::OtherDb => 6,
+                MetadataType::PrimaryZck => 7,
+                MetadataType::FilelistsZck => 8,
+                MetadataType::OtherZck => 9,
+                MetadataType::Unknown => 10,
+            }
+        }
+        self.metadata_files.sort_by(|a, b| value(a).cmp(&value(b)));
+    }
+
+    pub fn get_primary_data(&self) -> &RepoMdRecord {
+        self.get_record(METADATA_PRIMARY)
+            .expect("Cannot find primary.xml")
+    }
+
+    pub fn get_filelist_data(&self) -> &RepoMdRecord {
+        self.get_record(METADATA_FILELISTS)
+            .expect("Cannot find filelists.xml")
+    }
+
+    pub fn get_other_data(&self) -> &RepoMdRecord {
+        self.get_record(METADATA_OTHER)
+            .expect("Cannot find other.xml")
+    }
+}
+
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct RepoMdRecord {
     // TODO: location real? location base?  https://github.com/rpm-software-management/createrepo_c/commit/7e4ba3de1e9792f9d65f68c0d1cb18ed14ce1b68#diff-26e7fd2fdd746961fa628b1e9e42175640ec8d269c17e1608628d3377e0c07d4R371
     /// Record type
-    pub mdtype: String,
+    pub metadata_name: String,
     /// Relative location of the file in a repository
-    pub location_href: String,
+    pub location_href: PathBuf,
     /// Mtime of the file
-    pub timestamp: u64,
+    pub timestamp: i64,
     /// Size of the file
     pub size: Option<u64>,
     /// Checksum of the file
@@ -662,6 +808,30 @@ pub struct RepoMdRecord {
 
     /// Database version (used only for sqlite databases like primary.sqlite etc.)
     pub database_version: Option<u32>,
+}
+
+impl RepoMdRecord {
+    pub fn new(name: &str, path: &Path) -> Result<Self, MetadataError> {
+        let file_metadata = path.metadata()?;
+
+        let mut record = RepoMdRecord::default();
+        record.metadata_name = name.to_owned();
+        record.location_href = {
+            let href = path
+                .strip_prefix(path.ancestors().nth(2).unwrap())
+                .unwrap()
+                .to_owned();
+            assert!(href.starts_with("repodata/"));
+            href
+        };
+        record.timestamp = file_metadata.mtime();
+        record.size = Some(file_metadata.size());
+        record.checksum = utils::checksum_file(path, ChecksumType::default())?;
+        record.open_checksum = utils::checksum_inner_file(path, ChecksumType::default())?;
+        record.open_size = utils::size_inner_file(path)?;
+
+        Ok(record)
+    }
 }
 
 #[derive(Debug, PartialEq, Default)]
@@ -722,53 +892,4 @@ pub struct UpdateCollectionModule {
     pub version: u64,
     pub context: String,
     pub arch: String,
-}
-
-use rpm::{self, Header};
-use std::convert::TryInto;
-
-impl TryInto<Package> for rpm::RPMPackage {
-    type Error = rpm::RPMError;
-
-    fn try_into(self) -> Result<Package, Self::Error> {
-        let pkg = Package {
-            name: self.metadata.header.get_name()?.to_owned(),
-            arch: self.metadata.header.get_arch()?.to_owned(),
-            evr: {
-                let epoch = self.metadata.header.get_epoch()?.to_string(); // TODO evaluate epoch type
-                let version = self.metadata.header.get_version()?;
-                let release = self.metadata.header.get_release()?;
-                EVR::new(epoch.as_str(), version, release)
-            },
-            checksum: todo!(),
-            location_href: todo!(),
-            summary: todo!(),
-            description: todo!(),
-            packager: todo!(),
-            url: todo!(),
-            time: todo!(),
-            size: todo!(),
-
-            rpm_license: todo!(),
-            rpm_vendor: todo!(),
-            rpm_group: todo!(),
-            rpm_buildhost: todo!(),
-            rpm_sourcerpm: todo!(),
-            rpm_header_range: todo!(),
-
-            rpm_requires: todo!(),
-            rpm_provides: todo!(),
-            rpm_conflicts: todo!(),
-            rpm_obsoletes: todo!(),
-            rpm_suggests: todo!(),
-            rpm_enhances: todo!(),
-            rpm_recommends: todo!(),
-            rpm_supplements: todo!(),
-
-            rpm_changelogs: todo!(),
-            rpm_files: todo!(),
-        };
-
-        Ok(pkg)
-    }
 }

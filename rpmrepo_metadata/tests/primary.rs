@@ -1,11 +1,11 @@
 extern crate rpmrepo_metadata;
 
+use pretty_assertions::assert_eq;
+use quick_xml;
+use rpmrepo_metadata::*;
 use std::fs::OpenOptions;
 use std::io::{Cursor, Read, Seek, SeekFrom};
-use quick_xml;
 use tempdir::TempDir;
-use pretty_assertions::assert_eq;
-use rpmrepo_metadata::*;
 
 mod common;
 
@@ -20,13 +20,13 @@ static COMPLEX_PRIMARY: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
     <name>complex-package</name>
     <arch>x86_64</arch>
     <version epoch="1" ver="2.3.4" rel="5.el8"/>
-    <checksum type="sha256" pkgid="YES">6e46283a16954c9cecd3799246eb1a426d7d8a8b1bc8d57c55c3da4253e200e5</checksum>
+    <checksum type="sha256" pkgid="YES">bbb7b0e9350a0f75b923bdd0ef4f9af39765c668a3e70bfd3486ea9f0f618aaf</checksum>
     <summary>A package for exercising many different features of RPM metadata</summary>
     <description>Complex package</description>
     <packager>Michael Bluth</packager>
     <url>http://bobloblaw.com</url>
-    <time file="1624680154" build="1624680153"/>
-    <size package="8641" installed="117" archive="932"/>
+    <time file="1627052744" build="1627052743"/>
+    <size package="8680" installed="117" archive="932"/>
     <location href="complex-package-2.3.4-5.el8.x86_64.rpm"/>
     <format>
       <rpm:license>MPLv2</rpm:license>
@@ -34,14 +34,16 @@ static COMPLEX_PRIMARY: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
       <rpm:group>Development/Tools</rpm:group>
       <rpm:buildhost>localhost</rpm:buildhost>
       <rpm:sourcerpm>complex-package-2.3.4-5.el8.src.rpm</rpm:sourcerpm>
-      <rpm:header-range start="4504" end="8377"/>
+      <rpm:header-range start="4504" end="8413"/>
       <rpm:provides>
+        <rpm:entry name="/usr/bin/ls"/>
         <rpm:entry name="complex-package" flags="EQ" epoch="1" ver="2.3.4" rel="5.el8"/>
         <rpm:entry name="complex-package(x86-64)" flags="EQ" epoch="1" ver="2.3.4" rel="5.el8"/>
         <rpm:entry name="laughter" flags="EQ" epoch="0" ver="33"/>
         <rpm:entry name="narration(ronhoward)"/>
       </rpm:provides>
       <rpm:requires>
+        <rpm:entry name="/usr/bin/bash"/>
         <rpm:entry name="/usr/sbin/useradd" pre="1"/>
         <rpm:entry name="arson" flags="GE" epoch="0" ver="1.0.0" rel="1"/>
         <rpm:entry name="fur" flags="LE" epoch="0" ver="2"/>

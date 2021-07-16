@@ -4,8 +4,8 @@ use std::fs::OpenOptions;
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
 use pretty_assertions::assert_eq;
-use tempdir::TempDir;
 use quick_xml;
+use tempdir::TempDir;
 
 use rpmrepo_metadata::*;
 
@@ -18,7 +18,7 @@ static EMPTY_FILELISTS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 static COMPLEX_FILELISTS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="1">
-  <package pkgid="6e46283a16954c9cecd3799246eb1a426d7d8a8b1bc8d57c55c3da4253e200e5" name="complex-package" arch="x86_64">
+  <package pkgid="bbb7b0e9350a0f75b923bdd0ef4f9af39765c668a3e70bfd3486ea9f0f618aaf" name="complex-package" arch="x86_64">
     <version epoch="1" ver="2.3.4" rel="5.el8"/>
     <file>/etc/complex/pkg.cfg</file>
     <file>/usr/bin/complex_a</file>
@@ -39,7 +39,7 @@ fn test_filelists_xml_writer_empty() -> Result<(), MetadataError> {
     writer.write_header(0)?;
     writer.finish()?;
 
-    let buffer= writer.into_inner().into_inner();
+    let buffer = writer.into_inner().into_inner();
 
     let actual = std::str::from_utf8(buffer)?;
     let expected = EMPTY_FILELISTS;

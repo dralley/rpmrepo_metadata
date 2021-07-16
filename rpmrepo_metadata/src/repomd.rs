@@ -1,11 +1,14 @@
 use std::convert::{TryFrom, TryInto};
 use std::io::{BufRead, Write};
+use std::os::unix::prelude::OsStrExt;
+use std::path::PathBuf;
 use std::time::SystemTime;
 
 // use super::metadata::RpmMetadata;
 use quick_xml::events::{BytesDecl, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 
+use super::metadata::RepoMdData;
 use super::metadata::{
     Checksum, MetadataError, RepoMdRecord, RepomdXml, RpmMetadata, XML_NS_REPO, XML_NS_RPM,
 };
@@ -40,7 +43,7 @@ impl RpmMetadata for RepomdXml {
         repository: &mut Repository,
         reader: &mut Reader<R>,
     ) -> Result<(), MetadataError> {
-        read_repomd_xml(repository, reader)?;
+        read_repomd_xml(repository.repomd_mut(), reader)?;
         Ok(())
     }
 
@@ -49,7 +52,7 @@ impl RpmMetadata for RepomdXml {
         writer: Writer<W>,
     ) -> Result<(), MetadataError> {
         let mut writer = writer;
-        write_repomd_xml(repository, &mut writer)?;
+        write_repomd_xml(repository.repomd(), &mut writer)?;
         Ok(())
     }
 }
@@ -60,7 +63,7 @@ impl RpmMetadata for RepomdXml {
 // }
 
 fn read_repomd_xml<R: BufRead>(
-    repository: &mut Repository,
+    repomd_data: &mut RepoMdData,
     reader: &mut Reader<R>,
 ) -> Result<(), MetadataError> {
     let mut event_buf = Vec::new();
@@ -75,11 +78,12 @@ fn read_repomd_xml<R: BufRead>(
                     found_metadata_tag = true;
                 }
                 TAG_REVISION => {
-                    repository.revision = Some(reader.read_text(e.name(), &mut text_buf)?);
+                    let revision = reader.read_text(e.name(), &mut text_buf)?;
+                    repomd_data.set_revision(&revision);
                 }
                 TAG_DATA => {
                     let data = parse_repomdrecord(reader, &e)?;
-                    repository.add_record(data);
+                    repomd_data.add_record(data);
                 }
                 TAG_TAGS => {
                     //   <tags>
@@ -95,15 +99,15 @@ fn read_repomd_xml<R: BufRead>(
                                         .try_get_attribute("cpeid")?
                                         .and_then(|a| a.unescape_and_decode_value(reader).ok());
                                     let name = reader.read_text(TAG_DISTRO, &mut text_buf)?;
-                                    repository.add_distro_tag(name, cpeid);
+                                    repomd_data.add_distro_tag(name, cpeid);
                                 }
                                 TAG_REPO => {
                                     let repo = reader.read_text(e.name(), &mut text_buf)?;
-                                    repository.add_repo_tag(repo);
+                                    repomd_data.add_repo_tag(repo);
                                 }
                                 TAG_CONTENT => {
                                     let content = reader.read_text(e.name(), &mut text_buf)?;
-                                    repository.add_content_tag(content);
+                                    repomd_data.add_content_tag(content);
                                 }
                                 _ => (),
                             },
@@ -111,7 +115,7 @@ fn read_repomd_xml<R: BufRead>(
                             Event::End(e) if e.name() == TAG_TAGS => break,
                             _ => (),
                         }
-                        &text_buf.clear();
+                        text_buf.clear();
                     }
                 }
                 _ => (),
@@ -128,8 +132,17 @@ fn read_repomd_xml<R: BufRead>(
     Ok(())
 }
 
+impl RepomdXml {
+    pub fn write_data<W: Write>(
+        writer: &mut Writer<W>,
+        repomd_data: &RepoMdData,
+    ) -> Result<(), MetadataError> {
+        write_repomd_xml(repomd_data, writer)
+    }
+}
+
 fn write_repomd_xml<W: Write>(
-    repository: &Repository,
+    repomd_data: &RepoMdData,
     writer: &mut Writer<W>,
 ) -> Result<(), MetadataError> {
     // <?xml version="1.0" encoding="UTF-8"?>
@@ -150,7 +163,7 @@ fn write_repomd_xml<W: Write>(
             .as_secs()
             .to_string()
     };
-    let revision = if let Some(revision) = &repository.revision {
+    let revision = if let Some(revision) = repomd_data.revision() {
         revision.to_owned()
     } else {
         get_current_time()
@@ -159,9 +172,9 @@ fn write_repomd_xml<W: Write>(
         .create_element(TAG_REVISION)
         .write_text_content(BytesText::from_plain_str(revision.as_str()))?;
 
-    write_tags(repository, writer)?;
-    for data in repository.records() {
-        write_data(writer, data)?;
+    write_tags(repomd_data, writer)?;
+    for data in repomd_data.records() {
+        write_data(data, writer)?;
     }
 
     // </repomd>
@@ -187,9 +200,9 @@ pub fn parse_repomdrecord<R: BufRead>(
 ) -> Result<RepoMdRecord, MetadataError> {
     #[derive(Debug, PartialEq, Default)]
     struct RepoMdRecordBuilder {
-        mdtype: String,
-        location_href: Option<String>,
-        timestamp: Option<u64>,
+        metadata_name: String,
+        location_href: Option<PathBuf>,
+        timestamp: Option<i64>,
         size: Option<u64>,
         checksum: Option<Checksum>,
         open_size: Option<u64>,
@@ -204,7 +217,7 @@ pub fn parse_repomdrecord<R: BufRead>(
 
         fn try_from(builder: RepoMdRecordBuilder) -> Result<Self, Self::Error> {
             let record = RepoMdRecord {
-                mdtype: builder.mdtype,
+                metadata_name: builder.metadata_name,
                 location_href: builder
                     .location_href
                     .ok_or_else(|| MetadataError::MissingFieldError("location_href"))?,
@@ -234,7 +247,7 @@ pub fn parse_repomdrecord<R: BufRead>(
         .iter()
         .cloned()
         .collect();
-    record_builder.mdtype = String::from_utf8(record_type).map_err(|e| e.utf8_error())?; // TODO weird conversion
+    record_builder.metadata_name = String::from_utf8(record_type).map_err(|e| e.utf8_error())?; // TODO weird conversion
 
     let mut buf = Vec::new();
     let mut record_buf = Vec::new();
@@ -279,7 +292,8 @@ pub fn parse_repomdrecord<R: BufRead>(
                     let location = e
                         .try_get_attribute("href")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("href"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_and_decode_value(reader)?
+                        .into();
                     record_builder.location_href = Some(location);
                 }
                 TAG_TIMESTAMP => {
@@ -318,33 +332,33 @@ pub fn parse_repomdrecord<R: BufRead>(
 ///   <content>binary-x86_64</content>
 //// </tags>
 fn write_tags<W: Write>(
-    repository: &Repository,
+    repomd_data: &RepoMdData,
     writer: &mut Writer<W>,
 ) -> Result<(), MetadataError> {
-    let has_distro_tags = !repository.distro_tags().is_empty();
-    let has_repo_tags = !repository.repo_tags().is_empty();
-    let has_content_tags = !repository.content_tags().is_empty();
+    let has_distro_tags = !repomd_data.distro_tags().is_empty();
+    let has_repo_tags = !repomd_data.repo_tags().is_empty();
+    let has_content_tags = !repomd_data.content_tags().is_empty();
 
     if has_distro_tags || has_repo_tags || has_content_tags {
         // <tags>
         let tags_tag = BytesStart::borrowed_name(TAG_TAGS);
         writer.write_event(Event::Start(tags_tag.to_borrowed()))?;
 
-        for item in repository.content_tags() {
+        for item in repomd_data.content_tags() {
             // <content>binary-x86_64</content>
             writer
                 .create_element(TAG_CONTENT)
-                .write_text_content(BytesText::from_plain_str(&item))?;
+                .write_text_content(BytesText::from_plain_str(item))?;
         }
 
-        for item in repository.repo_tags() {
+        for item in repomd_data.repo_tags() {
             // <repo>Fedora</repo>
             writer
                 .create_element(TAG_REPO)
-                .write_text_content(BytesText::from_plain_str(&item))?;
+                .write_text_content(BytesText::from_plain_str(item))?;
         }
 
-        for item in repository.distro_tags() {
+        for item in repomd_data.distro_tags() {
             // <distro cpeid="cpe:/o:fedoraproject:fedora:33">Fedora 33</distro>
             let mut distro_tag = BytesStart::borrowed_name(TAG_DISTRO);
             if let Some(cpeid) = &item.cpeid {
@@ -368,10 +382,10 @@ fn write_tags<W: Write>(
 ///    <size>5830735</size>
 ///    <open-size>53965949</open-size>
 ///  </data>
-fn write_data<W: Write>(writer: &mut Writer<W>, data: &RepoMdRecord) -> Result<(), MetadataError> {
+fn write_data<W: Write>(data: &RepoMdRecord, writer: &mut Writer<W>) -> Result<(), MetadataError> {
     // <data>
     let mut data_tag = BytesStart::borrowed_name(TAG_DATA);
-    data_tag.push_attribute(("type".as_bytes(), data.mdtype.as_bytes()));
+    data_tag.push_attribute(("type".as_bytes(), data.metadata_name.as_bytes()));
     writer.write_event(Event::Start(data_tag.to_borrowed()))?;
 
     // <checksum type="sha256">afdc6dc379e58d097ed0b350536812bc6a604bbce50c5c109d8d98e28301dc4b</checksum>
@@ -402,7 +416,7 @@ fn write_data<W: Write>(writer: &mut Writer<W>, data: &RepoMdRecord) -> Result<(
     // <location href="repodata/primary.xml.gz">
     writer
         .create_element(TAG_LOCATION)
-        .with_attribute(("href", data.location_href.as_str()))
+        .with_attribute(("href".as_bytes(), data.location_href.as_os_str().as_bytes()))
         .write_empty()?;
 
     // <timestamp>1602869947</timestamp>

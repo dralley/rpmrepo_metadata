@@ -4,8 +4,8 @@ use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 
 use super::metadata::{
-    Checksum, MetadataError, Package, PrimaryXml, Requirement, RpmMetadata, XML_NS_COMMON,
-    XML_NS_RPM,
+    Checksum, MetadataError, Package, ParseState, PrimaryXml, Requirement, RpmMetadata,
+    XML_NS_COMMON, XML_NS_RPM,
 };
 use super::{FileType, PackageFile, Repository, EVR};
 
@@ -107,7 +107,7 @@ impl<W: Write> PrimaryXmlWriter<W> {
     }
 
     pub fn write_package(&mut self, package: &Package) -> Result<(), MetadataError> {
-        write_package(package, &mut self.writer)?;
+        write_package(&mut self.writer, package)?;
         self.packages_written += 1;
         Ok(())
     }
@@ -126,6 +126,9 @@ impl<W: Write> PrimaryXmlWriter<W> {
         // trailing newline
         self.writer
             .write_event(Event::Text(BytesText::from_plain_str("\n")))?;
+
+        // write everything out to disk - otherwise it won't happen until drop() which impedes debugging
+        self.writer.inner().flush()?;
 
         Ok(())
     }
@@ -172,7 +175,7 @@ fn read_primary_xml<R: BufRead>(
                     // TODO: in theory, other or filelists could be parsed first, and in that case this is wrong
                     // need to at least enforce order w/ a state machine, or just handle it.
                     let mut package = Package::default();
-
+                    // TODO: need to do something with the data if it already existed
                     parse_package(&mut package, reader)?;
                     let (_, pkgid) = package.checksum().to_values()?;
                     repository
@@ -195,8 +198,8 @@ fn read_primary_xml<R: BufRead>(
 }
 
 pub fn write_package<W: Write>(
-    package: &Package,
     writer: &mut Writer<W>,
+    package: &Package,
 ) -> Result<(), MetadataError> {
     // <package type="rpm">
     let mut package_tag = BytesStart::borrowed_name(TAG_PACKAGE);
@@ -321,17 +324,17 @@ pub fn write_package<W: Write>(
     write_requirement_section(writer, TAG_RPM_RECOMMENDS, package.recommends())?;
     write_requirement_section(writer, TAG_RPM_SUPPLEMENTS, package.supplements())?;
 
+    // TODO: check this logic
+    fn include_file(f: &PackageFile) -> bool {
+        // strange algorithm, but it's what the original uses
+        f.path.starts_with("/etc/")
+            || f.path.contains("bin/")
+            || f.path.starts_with("/usr/lib/sendmail")
+    }
+
     // <file>/usr/bin/bash</file>
     for file in package.files() {
-        // TODO: check this logic
-        let include = |f: &PackageFile| -> bool {
-            // strange algorithm, but it's what the original uses
-            f.path.starts_with("/etc/")
-                || f.path.contains("bin/")
-                || f.path.starts_with("/usr/lib/sendmail")
-        };
-
-        if file.filetype == FileType::File && include(file) {
+        if file.filetype == FileType::File && include_file(file) {
             writer
                 .create_element(TAG_FILE)
                 .write_text_content(BytesText::from_plain_str(&file.path))?;
@@ -409,6 +412,7 @@ pub fn parse_package<R: BufRead>(
                     package.set_name(reader.read_text(TAG_NAME, &mut text_buf)?.as_str());
                 }
                 TAG_VERSION => {
+                    // TODO: unescape_and_decode_value allocates, that can probably be avoided
                     let epoch = e
                         .try_get_attribute("epoch")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("epoch"))?
@@ -597,6 +601,8 @@ pub fn parse_package<R: BufRead>(
         buf.clear();
         text_buf.clear();
     }
+
+    // package.parse_state |= ParseState::PRIMARY;
     Ok(())
 }
 
