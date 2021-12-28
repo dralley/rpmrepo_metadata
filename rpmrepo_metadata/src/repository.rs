@@ -127,7 +127,7 @@ impl Repository {
         Ok(repo)
     }
 
-    pub(crate) fn load_metadata_file<M: RpmMetadata>(
+    pub fn load_metadata_file<M: RpmMetadata>(
         &mut self,
         path: &Path,
     ) -> Result<(), MetadataError> {
@@ -139,10 +139,7 @@ impl Repository {
         M::load_metadata(self, &mut reader)
     }
 
-    pub fn load_metadata_str<M: RpmMetadata>(
-        &mut self,
-        str: &str,
-    ) -> Result<(), MetadataError> {
+    pub fn load_metadata_str<M: RpmMetadata>(&mut self, str: &str) -> Result<(), MetadataError> {
         let mut reader = Reader::from_str(str);
         configure_reader(&mut reader);
 
@@ -154,8 +151,7 @@ impl Repository {
         bytes: &[u8],
     ) -> Result<(), MetadataError> {
         let (reader, _compression) = niffler::get_reader(Box::new(bytes))?;
-        let reader = Reader::from_reader(BufReader::new(reader));
-        let mut reader = Reader::from_reader(bytes);
+        let mut reader = Reader::from_reader(BufReader::new(reader));
         configure_reader(&mut reader);
 
         M::load_metadata(self, &mut reader)
@@ -173,12 +169,12 @@ impl Repository {
         Ok(())
     }
 
-    pub fn to_string<M: RpmMetadata>(&self) -> Result<String, MetadataError> {
-        let bytes = self.to_bytes::<M>()?;
+    pub fn write_metadata_string<M: RpmMetadata>(&self) -> Result<String, MetadataError> {
+        let bytes = self.write_metadata_bytes::<M>()?;
         Ok(String::from_utf8(bytes).map_err(|e| e.utf8_error())?)
     }
 
-    pub fn to_bytes<M: RpmMetadata>(&self) -> Result<Vec<u8>, MetadataError> {
+    pub fn write_metadata_bytes<M: RpmMetadata>(&self) -> Result<Vec<u8>, MetadataError> {
         let mut buf = Vec::new();
         let writer = Writer::new_with_indent(Cursor::new(&mut buf), b' ', 2);
         M::write_metadata(self, writer)?;
@@ -326,7 +322,6 @@ impl RepositoryWriter {
             options.metadata_compression_type,
         )?;
 
-        // TODO: make sure this is buffered
         let mut primary_xml_writer = PrimaryXml::new_writer(primary_writer);
         let mut filelists_xml_writer = FilelistsXml::new_writer(filelists_writer);
         let mut other_xml_writer = OtherXml::new_writer(other_writer);

@@ -24,8 +24,11 @@ hex = "0.4.3"
 tempdir = "0.3.7"
 pretty_assertions = "1.0.0"
 once_cell = "1.8.0"
+criterion = "0.3"
 
-
+[[bench]]
+name = "repository"
+harness = false
 
 # [patch.crates-io]
 # quick-xml = { path = "../quick-xml", default-features = false }
