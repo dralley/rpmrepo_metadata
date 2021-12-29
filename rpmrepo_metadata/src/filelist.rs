@@ -47,14 +47,13 @@ impl FilelistsXml {
         }
     }
 
-    // pub fn new_reader<'a, R: BufRead>(reader: &'a mut Reader<R>) -> FilelistsXmlReader<'a, R> {
-    //     FilelistsXmlReader {
-    //         reader,
-    //         num_packages: 0,
-    //         packages_read: 0,
-    //         buffer: Vec::new(),
-    //     }
-    // }
+    pub fn new_reader<R: BufRead>(reader: Reader<R>) -> FilelistsXmlReader<R> {
+        FilelistsXmlReader {
+            reader,
+            num_packages: 0,
+            packages_parsed: 0,
+        }
+    }
 }
 
 pub struct FilelistsXmlWriter<W: Write> {
@@ -145,68 +144,46 @@ impl<W: Write> FilelistsXmlWriter<W> {
     }
 }
 
-// pub struct FilelistsXmlReader<'a, R: BufRead> {
-//     reader: &'a mut Reader<R>,
-//     num_packages: usize,
-//     packages_read: usize,
-//     buffer: Vec<u8>,
-// }
+pub struct FilelistsXmlReader<R: BufRead> {
+    reader: Reader<R>,
+    num_packages: u32,
+    packages_parsed: u32,
+}
 
-// impl<'a, R: BufRead> FilelistsXmlReader<'a, R> {
-//     pub fn read_header(&mut self) -> Result<(), MetadataError> {
-//         let mut found_metadata_tag = false;
+impl<R: BufRead> FilelistsXmlReader<R> {
+    pub fn read_header(&mut self) -> Result<usize, MetadataError> {
+        parse_header(&mut self.reader)
+    }
+    pub fn read_package(&mut self, package: &mut Option<Package>) -> Result<(), MetadataError> {
+        parse_package_new(package, &mut self.reader)
+    }
+    pub fn finish(&mut self) -> Result<(), MetadataError> {
+        Ok(())
+    }
+}
 
-//         loop {
-//             match self.reader.read_event(&mut self.buffer)? {
-//                 Event::Start(e) => match e.name() {
-//                     TAG_FILELISTS => {
-//                         found_metadata_tag = true;
-//                         self.num_packages = e
-//                             .try_get_attribute("packages")?
-//                             .ok_or_else(|| MetadataError::MissingAttributeError("packages"))?
-//                             .unescape_and_decode_value(self.reader)?
-//                             .parse()?;
-//                     }
-//                     _ => (),
-//                 },
-//                 Event::Eof => break,
-//                 Event::Decl(_) => (),
-//                 _ => break,
-//             }
-//         }
-//         if !found_metadata_tag {
-//             return Err(MetadataError::MissingHeaderError)
-//         }
+// <?xml version="1.0" encoding="UTF-8"?>
+// <filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="35">
+fn parse_header<R: BufRead>(reader: &mut Reader<R>) -> Result<usize, MetadataError> {
+    let mut buf = Vec::new();
 
-//         self.buffer.clear();
-//         Ok(())
-//     }
-
-//     pub fn read_into_package(&mut self, package: &mut Package) -> Result<(), MetadataError> {
-//         loop {
-//             match self.reader.read_event(&mut self.buffer)? {
-//                 Event::Start(e) => match e.name() {
-//                     TAG_PACKAGE => {
-//                         found_metadata_tag = true;
-//                         self.num_packages = e
-//                             .try_get_attribute("packages")?
-//                             .ok_or_else(|| MetadataError::MissingAttributeError("packages"))?
-//                             .unescape_and_decode_value(self.reader)?
-//                             .parse()?;
-//                     }
-//                     _ => (),
-//                 },
-//                 Event::Eof => break,
-//                 Event::Decl(_) => (),
-//                 _ => break,
-//             }
-//         // TAG_PACKAGE => {
-//         //     self.current_element = Some(e)
-//         // }
-//         parse_package(repository, self.reader, &self.current_package_element);
-//         Ok(())
-//     }
-// }
+    // TODO: get rid of this buffer
+    loop {
+        match reader.read_event(&mut buf)? {
+            Event::Decl(_) => (),
+            Event::Start(e) if e.name() == TAG_FILELISTS => {
+                let count = e
+                    .attributes()
+                    .filter_map(|a| a.ok())
+                    .find(|a| a.key == b"packages")
+                    .unwrap()
+                    .value;
+                return Ok(std::str::from_utf8(&count)?.parse()?);
+            }
+            _ => return Err(MetadataError::MissingHeaderError),
+        }
+    }
+}
 
 // <?xml version="1.0" encoding="UTF-8"?>
 // <filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="1">
@@ -244,6 +221,67 @@ fn read_filelists_xml<R: BufRead>(
     if !found_metadata_tag {
         // TODO
     }
+    Ok(())
+}
+
+//   <package pkgid="a2d3bce512f79b0bc840ca7912a86bbc0016cf06d5c363ffbb6fd5e1ef03de1b" name="fontconfig" arch="x86_64">
+//     <version epoch="0" ver="2.8.0" rel="5.fc33"/>
+//     <file type="dir">/etc/fonts/conf.avail</file>
+//     ...
+//     <file>/etc/fonts/conf.avail/10-autohint.conf</file>
+//   </package>
+pub fn parse_package_new<R: BufRead>(
+    package: &mut Option<Package>,
+    reader: &mut Reader<R>,
+) -> Result<(), MetadataError> {
+    let mut buf = Vec::new();
+
+    loop {
+        match reader.read_event(&mut buf)? {
+            Event::End(e) if e.name() == TAG_PACKAGE => break,
+
+            Event::Start(e) => match e.name() {
+                TAG_PACKAGE => {
+                    let pkgid = e
+                        .try_get_attribute("pkgid")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("pkgid"))?
+                        .unescape_and_decode_value(reader)?;
+                    let name = e
+                        .try_get_attribute("name")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("name"))?
+                        .unescape_and_decode_value(reader)?;
+                    let arch = e
+                        .try_get_attribute("arch")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
+                        .unescape_and_decode_value(reader)?;
+
+                    if let Some(pkg) = package {
+                        assert!(pkg.pkgid() == &pkgid); // TODO err instead of assert
+                    } else {
+                        let mut pkg = Package::default();
+                        pkg.set_name(&name).set_arch(&arch);
+                        *package = Some(pkg);
+                    };
+                }
+                TAG_VERSION => {
+                    package.as_mut().unwrap().set_evr(parse_evr(reader, &e)?);
+                }
+                TAG_FILE => {
+                    let file = parse_file(reader, &e)?;
+                    // TODO: temporary PackageFile?
+                    package
+                        .as_mut()
+                        .unwrap()
+                        .add_file(file.filetype, &file.path);
+                }
+                _ => (),
+            },
+            Event::Eof => break,
+            _ => (),
+        }
+    }
+
+    // package.parse_state |= ParseState::FILELISTS;
     Ok(())
 }
 

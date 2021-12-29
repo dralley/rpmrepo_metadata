@@ -1,9 +1,13 @@
 use std::path::Path;
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use rpmrepo_metadata::{Repository, RepositoryOptions, PrimaryXml, FilelistsXml, OtherXml, RepomdXml};
-use tempdir::TempDir;
+use criterion::{self, criterion_group, criterion_main, Criterion};
+use rpmrepo_metadata::{
+    utils, FilelistsXml, OtherXml, PackageParser, PrimaryXml, RepomdXml, Repository,
+    RepositoryOptions, RepositoryWriter,
+};
 use std::fs;
+use std::io::Cursor;
+use tempdir::TempDir;
 
 // fn repository_write_benchmark(c: &mut Criterion) {
 //     let mut group = c.benchmark_group("repository_write");
@@ -26,99 +30,143 @@ use std::fs;
 //     });
 // }
 
-const F35_REPO_PATH: &str = "./tests/assets/external_repos/fedora35-updates/";
+const REPO_PATH: &str = "./tests/assets/external_repos/fedora35-updates/";
 
 /// Test parsing metadata
 ///
 /// Benchmark does not perform any IO
 fn metadata_parse_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("metadata_parse");
-    group.sample_size(12);
+    group.sample_size(20);
 
-    let path = Path::new(F35_REPO_PATH);
+    let path = Path::new(REPO_PATH);
     let mut repo = Repository::new();
-    repo.load_metadata_file::<RepomdXml>(&path.join("repodata/repomd.xml")).unwrap();
+    repo.load_metadata_file::<RepomdXml>(&path.join("repodata/repomd.xml"))
+        .unwrap();
 
     // Load metadata files to memory, then parse from memory, to avoid IO interactions.
-    // Do it in a block to avoid keeping the entire metadata in memory.
 
-    {
-        let primary_href = path.join(
-            &repo
-                .repomd()
-                .get_record("primary")
-                .unwrap()
-                .location_href,
-        );
-        let primary = fs::read(primary_href).unwrap();
-        group.bench_function("primary_xml", |b| {
-            b.iter(|| {
-                let mut repo = Repository::new();
-                repo.load_metadata_bytes::<PrimaryXml>(&primary).unwrap();
-            })
-        });
-    }
+    let primary_href = path.join(&repo.repomd().get_record("primary").unwrap().location_href);
+    let primary = fs::read(&primary_href).unwrap();
+    group.bench_function("primary_xml", |b| {
+        b.iter(|| {
+            let mut repo = Repository::new();
+            repo.load_metadata_bytes::<PrimaryXml>(&primary).unwrap();
+        })
+    });
 
-    {
-        let filelists_href = path.join(
-            &repo
-                .repomd()
-                .get_record("filelists")
-                .unwrap()
-                .location_href,
-        );
-        let filelists = fs::read(filelists_href).unwrap();
-        group.bench_function("filelists_xml", |b| {
-            b.iter(|| {
-                let mut repo = Repository::new();
-                repo.load_metadata_bytes::<FilelistsXml>(&filelists).unwrap();
-            })
-        });
-    }
+    let filelists_href = path.join(&repo.repomd().get_record("filelists").unwrap().location_href);
+    let filelists = fs::read(&filelists_href).unwrap();
+    group.bench_function("filelists_xml", |b| {
+        b.iter(|| {
+            let mut repo = Repository::new();
+            repo.load_metadata_bytes::<FilelistsXml>(&filelists)
+                .unwrap();
+        })
+    });
 
-    {
-        let other_href = path.join(
-            &repo
-                .repomd()
-                .get_record("other")
-                .unwrap()
-                .location_href,
-        );
-        let other = fs::read(other_href).unwrap();
-        group.bench_function("other_xml", |b| {
-            b.iter(|| {
-                let mut repo = Repository::new();
-                repo.load_metadata_bytes::<OtherXml>(&other).unwrap();
-            })
-        });
-    }
+    let other_href = path.join(&repo.repomd().get_record("other").unwrap().location_href);
+    let other = fs::read(&other_href).unwrap();
+    group.bench_function("other_xml", |b| {
+        b.iter(|| {
+            let mut repo = Repository::new();
+            repo.load_metadata_bytes::<OtherXml>(&other).unwrap();
+        })
+    });
+
+    group.bench_function("all_together", |b| {
+        b.iter(|| {
+            let mut repo = Repository::new();
+            repo.load_metadata_bytes::<PrimaryXml>(&primary).unwrap();
+            repo.load_metadata_bytes::<FilelistsXml>(&filelists)
+                .unwrap();
+            repo.load_metadata_bytes::<OtherXml>(&other).unwrap();
+        })
+    });
+
+    group.bench_function("iterative_all_together", |b| {
+        b.iter(|| {
+            let primary_xml =
+                PrimaryXml::new_reader(utils::xml_reader_from_path(&primary_href).unwrap());
+            let filelists_xml =
+                FilelistsXml::new_reader(utils::xml_reader_from_path(&filelists_href).unwrap());
+            let other_xml = OtherXml::new_reader(utils::xml_reader_from_path(&other_href).unwrap());
+
+            let mut parser =
+                PackageParser::from_readers(primary_xml, filelists_xml, other_xml).unwrap();
+            while let Some(pkg) = parser.parse_package().unwrap() {
+                criterion::black_box(pkg);
+            }
+        })
+    });
 }
-
 
 /// Test writing metadata out to a memory-backed Vec<u8>
 ///
 /// Benchmark code performs no IO
 fn metadata_write_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("metadata_write");
-    group.sample_size(12);
+    group.sample_size(20);
 
-    let repo = Repository::load_from_directory(Path::new(F35_REPO_PATH)).unwrap();
+    let repo = Repository::load_from_directory(Path::new(REPO_PATH)).unwrap();
 
     group.bench_function("primary_xml", |b| {
-        b.iter(|| {
-            repo.write_metadata_bytes::<PrimaryXml>()
-        })
+        b.iter(|| repo.write_metadata_bytes::<PrimaryXml>())
     });
 
     group.bench_function("filelists_xml", |b| {
-        b.iter(|| {
-            repo.write_metadata_bytes::<FilelistsXml>()
-        })
+        b.iter(|| repo.write_metadata_bytes::<FilelistsXml>())
     });
 
     group.bench_function("other_xml", |b| {
+        b.iter(|| repo.write_metadata_bytes::<OtherXml>())
+    });
+
+    group.bench_function("all_together", |b| {
         b.iter(|| {
-            repo.write_metadata_bytes::<OtherXml>()
+            repo.write_metadata_bytes::<PrimaryXml>().unwrap();
+            repo.write_metadata_bytes::<FilelistsXml>().unwrap();
+            repo.write_metadata_bytes::<OtherXml>().unwrap();
+        })
+    });
+
+    group.bench_function("iterative_all_together", |b| {
+        let tmp_dir = TempDir::new("prof_repo_write").unwrap();
+        let num_pkgs = repo.packages().len();
+        let mut repo_writer =
+            RepositoryWriter::new(&tmp_dir.path(), num_pkgs).unwrap();
+
+        b.iter(|| {
+            // replace the existing writers w/ memory backed ones
+            repo_writer.primary_xml_writer = Some(PrimaryXml::new_writer(
+                quick_xml::Writer::new_with_indent(
+                    Box::new(Cursor::new(Vec::new())),
+                    b' ',
+                    2,
+                ),
+            ));
+            repo_writer.primary_xml_writer.as_mut().unwrap().write_header(num_pkgs).unwrap();
+            repo_writer.filelists_xml_writer = Some(FilelistsXml::new_writer(
+                quick_xml::Writer::new_with_indent(
+                    Box::new(Cursor::new(Vec::new())),
+                    b' ',
+                    2,
+                ),
+            ));
+            repo_writer.filelists_xml_writer.as_mut().unwrap().write_header(num_pkgs).unwrap();
+            repo_writer.other_xml_writer = Some(OtherXml::new_writer(
+                quick_xml::Writer::new_with_indent(
+                    Box::new(Cursor::new(Vec::new())),
+                    b' ',
+                    2,
+                ),
+            ));
+            repo_writer.other_xml_writer.as_mut().unwrap().write_header(num_pkgs).unwrap();
+
+            for package in repo.packages().values() {
+                repo_writer.add_package(package).unwrap();
+            }
+            repo_writer.finish().unwrap();
         })
     });
 }

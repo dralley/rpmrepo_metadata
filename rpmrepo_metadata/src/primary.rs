@@ -76,9 +76,365 @@ impl PrimaryXml {
         }
     }
 
-    pub fn new_reader<'a, R: BufRead>(reader: &'a mut Reader<R>) -> PrimaryXmlReader<'a, R> {
+    pub fn new_reader<R: BufRead>(reader: Reader<R>) -> PrimaryXmlReader<R> {
         PrimaryXmlReader { reader }
     }
+}
+
+pub struct PrimaryXmlReader<R: BufRead> {
+    reader: Reader<R>,
+}
+
+impl<R: BufRead> PrimaryXmlReader<R> {
+    pub fn read_header(&mut self) -> Result<usize, MetadataError> {
+        parse_header(&mut self.reader)
+    }
+
+    pub fn read_package(&mut self, package: &mut Option<Package>) -> Result<(), MetadataError> {
+        parse_package_new(package, &mut self.reader)
+    }
+}
+
+// <?xml version="1.0" encoding="UTF-8"?>
+// <metadata xmlns="http://linux.duke.edu/metadata/common" xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="35">
+fn parse_header<R: BufRead>(reader: &mut Reader<R>) -> Result<usize, MetadataError> {
+    let mut buf = Vec::new();
+
+    // TODO: get rid of this buffer
+    loop {
+        match reader.read_event(&mut buf)? {
+            Event::Decl(_) => (),
+            Event::Start(e) if e.name() == TAG_METADATA => {
+                let count = e
+                    .attributes()
+                    .filter_map(|a| a.ok())
+                    .find(|a| a.key == b"packages")
+                    .unwrap()
+                    .value;
+                return Ok(std::str::from_utf8(&count)?.parse()?);
+            }
+            _ => return Err(MetadataError::MissingHeaderError),
+        }
+    }
+}
+
+pub fn parse_package_new<R: BufRead>(
+    package: &mut Option<Package>,
+    reader: &mut Reader<R>,
+) -> Result<(), MetadataError> {
+    let mut buf = vec![];
+    let mut text_buf = vec![];
+
+    loop {
+        match reader.read_event(&mut buf)? {
+            Event::End(e) if e.name() == TAG_PACKAGE => break,
+            Event::Start(e) => match e.name() {
+                TAG_PACKAGE => {
+                    let ptype = e
+                        .try_get_attribute(b"type")?
+                        .unwrap()
+                        .unescape_and_decode_value(reader)?;
+
+                    assert_eq!(&ptype, "rpm"); // TODO: better error handling
+
+                    if let Some(pkg) = package {
+                        // TODO: need a temporary place to store this since we don't know the pkgid yet
+                        unimplemented!("package must be parsed from primary.xml first");
+                        // assert!(pkg.pkgid() == &pkgid); // TODO err instead of assert
+                    } else {
+                        let mut pkg = Package::default();
+                        *package = Some(pkg);
+                    };
+                }
+                TAG_NAME => {
+                    package
+                        .as_mut()
+                        .unwrap()
+                        .set_name(reader.read_text(TAG_NAME, &mut text_buf)?.as_str());
+                }
+                TAG_VERSION => {
+                    // TODO: unescape_and_decode_value allocates, that can probably be avoided
+                    let epoch = e
+                        .try_get_attribute("epoch")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("epoch"))?
+                        .unescape_and_decode_value(reader)?;
+
+                    let version = e
+                        .try_get_attribute("ver")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("ver"))?
+                        .unescape_and_decode_value(reader)?;
+
+                    let release = e
+                        .try_get_attribute("rel")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("rel"))?
+                        .unescape_and_decode_value(reader)?;
+
+                    // TODO: temporary conversions
+                    let evr = EVR::new(epoch.as_str(), version.as_str(), release.as_str());
+                    package.as_mut().unwrap().set_evr(evr);
+                }
+                TAG_CHECKSUM => {
+                    let checksum_type = e
+                        .try_get_attribute("type")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
+                        .unescape_and_decode_value(reader)?;
+                    let checksum_value = reader.read_text(TAG_CHECKSUM, &mut text_buf)?;
+                    package
+                        .as_mut()
+                        .unwrap()
+                        .set_checksum(Checksum::try_create(checksum_type, checksum_value)?);
+                }
+                TAG_ARCH => {
+                    package
+                        .as_mut()
+                        .unwrap()
+                        .set_arch(reader.read_text(TAG_ARCH, &mut text_buf)?.as_str());
+                }
+                TAG_SUMMARY => {
+                    package
+                        .as_mut()
+                        .unwrap()
+                        .set_summary(reader.read_text(TAG_SUMMARY, &mut text_buf)?.as_str());
+                }
+                TAG_DESCRIPTION => {
+                    package.as_mut().unwrap().set_description(
+                        reader.read_text(TAG_DESCRIPTION, &mut text_buf)?.as_str(),
+                    );
+                }
+                TAG_PACKAGER => {
+                    package
+                        .as_mut()
+                        .unwrap()
+                        .set_packager(reader.read_text(TAG_PACKAGER, &mut text_buf)?.as_str());
+                }
+                TAG_URL => {
+                    package
+                        .as_mut()
+                        .unwrap()
+                        .set_url(reader.read_text(TAG_URL, &mut text_buf)?.as_str());
+                }
+                TAG_TIME => {
+                    let time_file = e
+                        .try_get_attribute("file")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("file"))?
+                        .unescape_and_decode_value(reader)?
+                        .parse()?;
+
+                    let time_build = e
+                        .try_get_attribute("build")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("build"))?
+                        .unescape_and_decode_value(reader)?
+                        .parse()?;
+
+                    package.as_mut().unwrap().set_time(time_file, time_build);
+                }
+                TAG_SIZE => {
+                    let package_size = e
+                        .try_get_attribute("package")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("package"))?
+                        .unescape_and_decode_value(reader)?
+                        .parse()?;
+
+                    let installed_size = e
+                        .try_get_attribute("installed")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("installed"))?
+                        .unescape_and_decode_value(reader)?
+                        .parse()?;
+
+                    let archive_size = e
+                        .try_get_attribute("archive")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("archive"))?
+                        .unescape_and_decode_value(reader)?
+                        .parse()?;
+
+                    package
+                        .as_mut()
+                        .unwrap()
+                        .set_size(package_size, installed_size, archive_size);
+                }
+                TAG_LOCATION => {
+                    let location_href = e
+                        .try_get_attribute("href")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("href"))?
+                        .unescape_and_decode_value(reader)?;
+                    package.as_mut().unwrap().set_location_href(&location_href);
+                }
+                TAG_FORMAT => {
+                    // TODO: allocations
+                    let mut format_buf = vec![];
+                    let mut format_text_buf = vec![];
+                    loop {
+                        match reader.read_event(&mut format_buf)? {
+                            Event::End(e) if e.name() == TAG_FORMAT => break,
+                            Event::Start(e) => match e.name() {
+                                TAG_RPM_LICENSE => {
+                                    package.as_mut().unwrap().set_rpm_license(
+                                        reader
+                                            .read_text(TAG_RPM_LICENSE, &mut format_text_buf)?
+                                            .as_str(),
+                                    );
+                                }
+                                TAG_RPM_VENDOR => {
+                                    package.as_mut().unwrap().set_rpm_vendor(
+                                        reader
+                                            .read_text(TAG_RPM_VENDOR, &mut format_text_buf)?
+                                            .as_str(),
+                                    );
+                                }
+                                TAG_RPM_GROUP => {
+                                    package.as_mut().unwrap().set_rpm_group(
+                                        reader
+                                            .read_text(TAG_RPM_GROUP, &mut format_text_buf)?
+                                            .as_str(),
+                                    );
+                                }
+                                TAG_RPM_BUILDHOST => {
+                                    package.as_mut().unwrap().set_rpm_buildhost(
+                                        reader
+                                            .read_text(TAG_RPM_BUILDHOST, &mut format_text_buf)?
+                                            .as_str(),
+                                    );
+                                }
+                                TAG_RPM_SOURCERPM => {
+                                    package.as_mut().unwrap().set_rpm_sourcerpm(
+                                        reader
+                                            .read_text(TAG_RPM_SOURCERPM, &mut format_text_buf)?
+                                            .as_str(),
+                                    );
+                                }
+                                TAG_RPM_HEADER_RANGE => {
+                                    let start = e
+                                        .try_get_attribute("start")?
+                                        .ok_or_else(|| {
+                                            MetadataError::MissingAttributeError("start")
+                                        })?
+                                        .unescape_and_decode_value(reader)?
+                                        .parse()?;
+
+                                    let end = e
+                                        .try_get_attribute("end")?
+                                        .ok_or_else(|| MetadataError::MissingAttributeError("end"))?
+                                        .unescape_and_decode_value(reader)?
+                                        .parse()?;
+
+                                    package.as_mut().unwrap().set_rpm_header_range(start, end);
+                                }
+                                TAG_RPM_PROVIDES => {
+                                    package
+                                        .as_mut()
+                                        .unwrap()
+                                        .set_provides(parse_requirement_list(reader, &e)?);
+                                }
+                                TAG_RPM_REQUIRES => {
+                                    package
+                                        .as_mut()
+                                        .unwrap()
+                                        .set_requires(parse_requirement_list(reader, &e)?);
+                                }
+                                TAG_RPM_CONFLICTS => {
+                                    package
+                                        .as_mut()
+                                        .unwrap()
+                                        .set_conflicts(parse_requirement_list(reader, &e)?);
+                                }
+                                TAG_RPM_OBSOLETES => {
+                                    package
+                                        .as_mut()
+                                        .unwrap()
+                                        .set_obsoletes(parse_requirement_list(reader, &e)?);
+                                }
+                                TAG_RPM_SUGGESTS => {
+                                    package
+                                        .as_mut()
+                                        .unwrap()
+                                        .set_suggests(parse_requirement_list(reader, &e)?);
+                                }
+                                TAG_RPM_ENHANCES => {
+                                    package
+                                        .as_mut()
+                                        .unwrap()
+                                        .set_enhances(parse_requirement_list(reader, &e)?);
+                                }
+                                TAG_RPM_RECOMMENDS => {
+                                    package
+                                        .as_mut()
+                                        .unwrap()
+                                        .set_recommends(parse_requirement_list(reader, &e)?);
+                                }
+                                TAG_RPM_SUPPLEMENTS => {
+                                    package
+                                        .as_mut()
+                                        .unwrap()
+                                        .set_supplements(parse_requirement_list(reader, &e)?);
+                                }
+                                TAG_FILE => (), // TODO: share implementation w/ filelists, but don't parse twice.
+                                _ => (),
+                            },
+                            _ => (),
+                        }
+                        format_buf.clear();
+                        format_text_buf.clear();
+                    }
+                }
+                _ => (),
+            },
+            Event::Eof => break,
+            _ => (),
+            // TODO: match arms, make sure nothing falls through
+        }
+        buf.clear();
+        text_buf.clear();
+    }
+
+    // package.parse_state |= ParseState::PRIMARY;
+    Ok(())
+}
+
+fn read_primary_xml<R: BufRead>(
+    repository: &mut Repository,
+    reader: &mut Reader<R>,
+) -> Result<(), MetadataError> {
+    let mut buf = Vec::new();
+    let mut found_metadata_tag = false;
+
+    // TODO: less buffers, less allocation
+    loop {
+        match reader.read_event(&mut buf)? {
+            Event::Start(e) => match e.name() {
+                TAG_METADATA => {
+                    found_metadata_tag = true;
+                }
+                TAG_PACKAGE => {
+                    let ptype = e
+                        .try_get_attribute(b"type")?
+                        .unwrap()
+                        .unescape_and_decode_value(reader)?;
+
+                    assert_eq!(&ptype, "rpm"); // TODO: better error handling
+
+                    // TODO: in theory, other or filelists could be parsed first, and in that case this is wrong
+                    // need to at least enforce order w/ a state machine, or just handle it.
+                    let mut package = Package::default();
+                    // TODO: need to do something with the data if it already existed
+                    parse_package(&mut package, reader)?;
+                    let (_, pkgid) = package.checksum().to_values()?;
+                    repository
+                        .packages_mut()
+                        .entry(pkgid.to_owned())
+                        .or_insert(package);
+                }
+                _ => (),
+            },
+            Event::Eof => break,
+            Event::Decl(_) => (), // TODO
+            _ => (),
+        }
+    }
+    if !found_metadata_tag {
+        // TODO
+    }
+
+    Ok(())
 }
 
 pub struct PrimaryXmlWriter<W: Write> {
@@ -136,65 +492,6 @@ impl<W: Write> PrimaryXmlWriter<W> {
     pub fn into_inner(self) -> W {
         self.writer.into_inner()
     }
-}
-
-pub struct PrimaryXmlReader<'a, R: BufRead> {
-    reader: &'a mut Reader<R>,
-}
-
-impl<'a, R: BufRead> PrimaryXmlReader<'a, R> {
-    pub fn read_header(&mut self) {}
-
-    pub fn read_package(&mut self, package: &mut Package) {}
-
-    pub fn finish(&mut self) {}
-}
-
-fn read_primary_xml<R: BufRead>(
-    repository: &mut Repository,
-    reader: &mut Reader<R>,
-) -> Result<(), MetadataError> {
-    let mut buf = Vec::new();
-    let mut found_metadata_tag = false;
-
-    // TODO: less buffers, less allocation
-    loop {
-        match reader.read_event(&mut buf)? {
-            Event::Start(e) => match e.name() {
-                TAG_METADATA => {
-                    found_metadata_tag = true;
-                }
-                TAG_PACKAGE => {
-                    let ptype = e
-                        .try_get_attribute(b"type")?
-                        .unwrap()
-                        .unescape_and_decode_value(reader)?;
-
-                    assert_eq!(&ptype, "rpm"); // TODO: better error handling
-
-                    // TODO: in theory, other or filelists could be parsed first, and in that case this is wrong
-                    // need to at least enforce order w/ a state machine, or just handle it.
-                    let mut package = Package::default();
-                    // TODO: need to do something with the data if it already existed
-                    parse_package(&mut package, reader)?;
-                    let (_, pkgid) = package.checksum().to_values()?;
-                    repository
-                        .packages_mut()
-                        .entry(pkgid.to_owned())
-                        .or_insert(package);
-                }
-                _ => (),
-            },
-            Event::Eof => break,
-            Event::Decl(_) => (), // TODO
-            _ => (),
-        }
-    }
-    if !found_metadata_tag {
-        // TODO
-    }
-
-    Ok(())
 }
 
 pub fn write_package<W: Write>(

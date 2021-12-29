@@ -8,13 +8,12 @@ use tempdir::TempDir;
 
 mod common;
 
+static COMPLEX_REPO_PATH: &str = "./tests/assets/fixture_repos/complex_repo/";
+
 #[test]
-fn complex_repo() -> Result<(), MetadataError> {
+fn test_repository_complex_repo() -> Result<(), MetadataError> {
     use pretty_assertions::assert_eq;
-
-    let fixture_path = "./tests/assets/fixture_repos/complex_repo/";
-
-    let repo = Repository::load_from_directory(fixture_path.as_ref())?;
+    let repo = Repository::load_from_directory(COMPLEX_REPO_PATH.as_ref())?;
 
     assert_eq!(repo.packages().len(), 4);
     // let packages: Vec<&Package> = repo.packages().into_iter().map(|(_, y)| y).collect();
@@ -43,6 +42,36 @@ fn complex_repo() -> Result<(), MetadataError> {
     );
 
     // repo.to_directory("./tests/assets/test_repo/".as_ref())?;
+
+    Ok(())
+}
+
+#[test]
+fn test_repository_reader_iter_packages() -> Result<(), MetadataError> {
+    use pretty_assertions::assert_eq;
+
+    let repo = RepositoryReader::new_from_directory(COMPLEX_REPO_PATH.as_ref())?;
+    let mut package_iter = repo.iter_packages()?;
+
+    assert_eq!(package_iter.remaining_packages(), 4);
+    assert_eq!(package_iter.total_packages(), 4);
+
+    assert_eq!(
+        &package_iter.parse_package()?.unwrap(),
+        &*common::COMPLEX_PACKAGE
+    );
+    assert_eq!(&package_iter.parse_package()?.unwrap(), &*common::RPM_EMPTY);
+    assert_eq!(
+        &package_iter.parse_package()?.unwrap(),
+        &*common::RPM_WITH_INVALID_CHARS
+    );
+    assert_eq!(
+        &package_iter.parse_package()?.unwrap(),
+        &*common::RPM_WITH_NON_ASCII
+    );
+
+    assert_eq!(package_iter.remaining_packages(), 0);
+    assert_eq!(package_iter.total_packages(), 4);
 
     Ok(())
 }
