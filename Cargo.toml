@@ -1,2 +1,9 @@
 [workspace]
 members = ["rpmrepo", "rpmrepo_metadata", "rpmrepo_download"]
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+debuginfo = 1
+lto = "thin"

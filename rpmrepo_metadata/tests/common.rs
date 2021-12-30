@@ -1,5 +1,3 @@
-extern crate rpmrepo_metadata;
-
 use once_cell::sync::Lazy;
 use rpmrepo_metadata::{Checksum, FileType, Package, Requirement, EVR};
 

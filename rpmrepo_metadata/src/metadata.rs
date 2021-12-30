@@ -1,5 +1,3 @@
-use std::cmp::Ordering;
-use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::io::{BufRead, Write};
 use std::os::unix::prelude::MetadataExt;
@@ -67,7 +65,7 @@ pub trait RpmMetadata {
 
     fn load_metadata<R: BufRead>(
         repository: &mut Repository,
-        buffer: &mut Reader<R>,
+        buffer: Reader<R>,
     ) -> Result<(), MetadataError>;
 
     fn write_metadata<W: Write>(
@@ -137,6 +135,7 @@ pub struct Package {
     evr: EVR,
     checksum: Checksum,
     location_href: String,
+    location_base: Option<String>,
     summary: String,
     description: String,
     packager: String,
@@ -160,8 +159,9 @@ pub struct Package {
     rpm_recommends: Vec<Requirement>,  // rpm:recommends
     rpm_supplements: Vec<Requirement>, // rpm:supplements
 
-    rpm_changelogs: Vec<Changelog>,
-    rpm_files: Vec<PackageFile>,
+    // TODO
+    pub rpm_changelogs: Vec<Changelog>,
+    pub rpm_files: Vec<PackageFile>,
 }
 
 impl Package {
@@ -236,6 +236,15 @@ impl Package {
 
     pub fn location_href(&self) -> &str {
         &self.location_href
+    }
+
+    pub fn set_location_base(&mut self, location_base: Option<&str>) -> &mut Self {
+        self.location_base = location_base.and_then(|a| Some(a.to_owned()));
+        self
+    }
+
+    pub fn location_base(&self) -> Option<&str> {
+        self.location_base.as_ref().and_then(|a| Some(a.as_ref()))
     }
 
     pub fn set_summary(&mut self, summary: &str) -> &mut Self {
@@ -486,12 +495,13 @@ pub enum Checksum {
     Sha256(String),
     Sha384(String),
     Sha512(String),
-    Unknown,
+    Unknown(String),
+    Empty,
 }
 
 impl Default for Checksum {
     fn default() -> Self {
-        Checksum::Unknown
+        Checksum::Empty
     }
 }
 
@@ -523,7 +533,8 @@ impl Checksum {
             Checksum::Sha256(c) => ("sha256", c.as_str()),
             Checksum::Sha384(c) => ("sha384", c.as_str()),
             Checksum::Sha512(c) => ("sha512", c.as_str()),
-            Checksum::Unknown => panic!("Cannot take value of a checksum of unknown type"),
+            Checksum::Unknown(c) => ("unknown", c.as_str()), // TODO: need to fix this - if filelists is loaded w/o metadata the pkgid is known but the type is not
+            Checksum::Empty => panic!("Cannot take value of empty checksum"),
         };
         Ok(values)
     }
@@ -676,10 +687,10 @@ impl DistroTag {
 }
 
 #[derive(Debug, PartialEq, Default)]
-pub struct RepoMdData {
+pub struct RepomdData {
     revision: Option<String>,
-    // metadata_files: BTreeMap<String, RepoMdRecord>,
-    metadata_files: Vec<RepoMdRecord>,
+    // metadata_files: BTreeMap<String, RepomdRecord>,
+    metadata_files: Vec<RepomdRecord>,
 
     // checksum_type: ChecksumType,
     repo_tags: Vec<String>,
@@ -687,26 +698,26 @@ pub struct RepoMdData {
     distro_tags: Vec<DistroTag>,
 }
 
-impl RepoMdData {
-    pub fn add_record(&mut self, record: RepoMdRecord) {
+impl RepomdData {
+    pub fn add_record(&mut self, record: RepomdRecord) {
         self.metadata_files.push(record);
     }
 
-    pub fn get_record(&self, rectype: &str) -> Option<&RepoMdRecord> {
+    pub fn get_record(&self, rectype: &str) -> Option<&RepomdRecord> {
         self.metadata_files
             .iter()
             .find(|r| &r.metadata_name == rectype)
     }
 
-    pub fn records(&self) -> &Vec<RepoMdRecord> {
+    pub fn records(&self) -> &Vec<RepomdRecord> {
         &self.metadata_files
     }
 
-    // pub fn records(&self) -> &BTreeMap<String, RepoMdRecord> {
+    // pub fn records(&self) -> &BTreeMap<String, RepomdRecord> {
     //     &self.metadata_files
     // }
 
-    // pub fn records_mut(&self) -> &mut BTreeMap<String, RepoMdRecord> {
+    // pub fn records_mut(&self) -> &mut BTreeMap<String, RepomdRecord> {
     //     &mut self.metadata_files
     // }
 
@@ -748,7 +759,7 @@ impl RepoMdData {
     }
 
     pub fn sort_records(&mut self) {
-        fn value(item: &RepoMdRecord) -> u32 {
+        fn value(item: &RepomdRecord) -> u32 {
             let mdtype = MetadataType::from(item.metadata_name.as_str());
             match mdtype {
                 MetadataType::Primary => 1,
@@ -766,29 +777,30 @@ impl RepoMdData {
         self.metadata_files.sort_by(|a, b| value(a).cmp(&value(b)));
     }
 
-    pub fn get_primary_data(&self) -> &RepoMdRecord {
+    pub fn get_primary_data(&self) -> &RepomdRecord {
         self.get_record(METADATA_PRIMARY)
             .expect("Cannot find primary.xml")
     }
 
-    pub fn get_filelist_data(&self) -> &RepoMdRecord {
+    pub fn get_filelist_data(&self) -> &RepomdRecord {
         self.get_record(METADATA_FILELISTS)
             .expect("Cannot find filelists.xml")
     }
 
-    pub fn get_other_data(&self) -> &RepoMdRecord {
+    pub fn get_other_data(&self) -> &RepomdRecord {
         self.get_record(METADATA_OTHER)
             .expect("Cannot find other.xml")
     }
 }
 
 #[derive(Debug, PartialEq, Default, Clone)]
-pub struct RepoMdRecord {
-    // TODO: location real? location base?  https://github.com/rpm-software-management/createrepo_c/commit/7e4ba3de1e9792f9d65f68c0d1cb18ed14ce1b68#diff-26e7fd2fdd746961fa628b1e9e42175640ec8d269c17e1608628d3377e0c07d4R371
+pub struct RepomdRecord {
     /// Record type
     pub metadata_name: String,
     /// Relative location of the file in a repository
     pub location_href: PathBuf,
+    /// URL at which the location_href is relative - if it is not the current one
+    pub location_base: Option<String>,
     /// Mtime of the file
     pub timestamp: i64,
     /// Size of the file
@@ -810,11 +822,9 @@ pub struct RepoMdRecord {
     pub database_version: Option<u32>,
 }
 
-impl RepoMdRecord {
+impl RepomdRecord {
     pub fn new(name: &str, path: &Path) -> Result<Self, MetadataError> {
-        let file_metadata = path.metadata()?;
-
-        let mut record = RepoMdRecord::default();
+        let mut record = RepomdRecord::default();
         record.metadata_name = name.to_owned();
         record.location_href = {
             let href = path
@@ -824,13 +834,19 @@ impl RepoMdRecord {
             assert!(href.starts_with("repodata/"));
             href
         };
-        record.timestamp = file_metadata.mtime();
-        record.size = Some(file_metadata.size());
-        record.checksum = utils::checksum_file(path, ChecksumType::default())?;
-        record.open_checksum = utils::checksum_inner_file(path, ChecksumType::default())?;
-        record.open_size = utils::size_inner_file(path)?;
-
+        record.fill()?;
         Ok(record)
+    }
+
+    pub fn fill(&mut self) -> Result<(), MetadataError> {
+        let file_metadata = self.location_href.metadata()?;
+        self.timestamp = file_metadata.mtime();
+        self.size = Some(file_metadata.size());
+        self.checksum = utils::checksum_file(&self.location_href, ChecksumType::Sha256)?;
+        self.open_checksum = utils::checksum_inner_file(&self.location_href, ChecksumType::Sha256)?;
+        self.open_size = utils::size_inner_file(&self.location_href)?;
+
+        Ok(())
     }
 }
 
@@ -851,7 +867,8 @@ pub struct UpdateRecord {
     pub summary: String,
     pub description: String,
     pub solution: String,
-    pub reboot_suggested: bool,
+    // It's not clear that any metadata actually uses this
+    // pub reboot_suggested: bool,
     pub references: Vec<UpdateReference>,
     pub pkglist: Vec<UpdateCollection>,
 }
@@ -861,6 +878,7 @@ pub struct UpdateCollection {
     pub name: String,
     pub shortname: String,
     pub packages: Vec<UpdateCollectionPackage>,
+    pub module: Option<UpdateCollectionModule>,
 }
 
 #[derive(Debug, PartialEq, Default)]
@@ -881,7 +899,8 @@ pub struct UpdateCollectionPackage {
     pub relogin_suggested: bool,
     pub release: String,
     pub src: String,
-    pub checksum: Checksum,
+    pub arch: String,
+    pub checksum: Option<Checksum>,
     pub version: String,
 }
 

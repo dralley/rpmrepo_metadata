@@ -13,7 +13,8 @@ pub mod utils;
 pub use common::EVR;
 pub use metadata::{
     Checksum, ChecksumType, CompressionType, FileType, FilelistsXml, MetadataError, OtherXml,
-    Package, PackageFile, PrimaryXml, RepoMdData, RepomdXml, Requirement, UpdateinfoXml,
+    Package, PackageFile, PrimaryXml, RepomdData, RepomdRecord, RepomdXml, Requirement,
+    UpdateinfoXml,
 };
 pub use package::PackageParser;
 pub use repository::{Repository, RepositoryOptions, RepositoryReader, RepositoryWriter};

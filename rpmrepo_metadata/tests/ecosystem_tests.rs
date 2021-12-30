@@ -1,5 +1,3 @@
-extern crate rpmrepo_metadata;
-
 use pretty_assertions::assert_eq;
 use rpmrepo_metadata::{
     MetadataError, Package, Repository, RepositoryOptions, RepositoryReader, RepositoryWriter,

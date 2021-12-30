@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::rc::Rc;
 
 use criterion::{self, criterion_group, criterion_main, Criterion};
 use rpmrepo_metadata::{
@@ -6,7 +7,7 @@ use rpmrepo_metadata::{
     RepositoryOptions, RepositoryWriter,
 };
 use std::fs;
-use std::io::Cursor;
+use std::io::{BufReader, Cursor, Read};
 use tempdir::TempDir;
 
 // fn repository_write_benchmark(c: &mut Criterion) {
@@ -46,8 +47,13 @@ fn metadata_parse_benchmark(c: &mut Criterion) {
 
     // Load metadata files to memory, then parse from memory, to avoid IO interactions.
 
-    let primary_href = path.join(&repo.repomd().get_record("primary").unwrap().location_href);
-    let primary = fs::read(&primary_href).unwrap();
+    let primary_path = path.join(&repo.repomd().get_record("primary").unwrap().location_href);
+    let mut primary = Vec::new();
+    utils::reader_from_file(&primary_path)
+        .unwrap()
+        .read_to_end(&mut primary)
+        .unwrap();
+    let primary: Rc<[u8]> = primary.into_boxed_slice().into();
     group.bench_function("primary_xml", |b| {
         b.iter(|| {
             let mut repo = Repository::new();
@@ -55,18 +61,27 @@ fn metadata_parse_benchmark(c: &mut Criterion) {
         })
     });
 
-    let filelists_href = path.join(&repo.repomd().get_record("filelists").unwrap().location_href);
-    let filelists = fs::read(&filelists_href).unwrap();
+    let filelists_path = path.join(&repo.repomd().get_record("filelists").unwrap().location_href);
+    let mut filelists = Vec::new();
+    utils::reader_from_file(&filelists_path)
+        .unwrap()
+        .read_to_end(&mut filelists)
+        .unwrap();
+    let filelists: Rc<[u8]> = filelists.into_boxed_slice().into();
     group.bench_function("filelists_xml", |b| {
         b.iter(|| {
             let mut repo = Repository::new();
-            repo.load_metadata_bytes::<FilelistsXml>(&filelists)
-                .unwrap();
+            repo.load_metadata_bytes::<FilelistsXml>(&filelists).unwrap();
         })
     });
 
-    let other_href = path.join(&repo.repomd().get_record("other").unwrap().location_href);
-    let other = fs::read(&other_href).unwrap();
+    let other_path = path.join(&repo.repomd().get_record("other").unwrap().location_href);
+    let mut other = Vec::new();
+    utils::reader_from_file(&other_path)
+        .unwrap()
+        .read_to_end(&mut other)
+        .unwrap();
+    let other: Rc<[u8]> = other.into_boxed_slice().into();
     group.bench_function("other_xml", |b| {
         b.iter(|| {
             let mut repo = Repository::new();
@@ -78,19 +93,22 @@ fn metadata_parse_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let mut repo = Repository::new();
             repo.load_metadata_bytes::<PrimaryXml>(&primary).unwrap();
-            repo.load_metadata_bytes::<FilelistsXml>(&filelists)
-                .unwrap();
+            repo.load_metadata_bytes::<FilelistsXml>(&filelists).unwrap();
             repo.load_metadata_bytes::<OtherXml>(&other).unwrap();
         })
     });
 
     group.bench_function("iterative_all_together", |b| {
         b.iter(|| {
-            let primary_xml =
-                PrimaryXml::new_reader(utils::xml_reader_from_path(&primary_href).unwrap());
-            let filelists_xml =
-                FilelistsXml::new_reader(utils::xml_reader_from_path(&filelists_href).unwrap());
-            let other_xml = OtherXml::new_reader(utils::xml_reader_from_path(&other_href).unwrap());
+            let primary_xml = PrimaryXml::new_reader(utils::create_xml_reader(BufReader::new(
+                Box::new(Cursor::new(primary.clone())) as Box<dyn Read>,
+            )));
+            let filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(BufReader::new(
+                Box::new(Cursor::new(filelists.clone())) as Box<dyn Read>,
+            )));
+            let other_xml = OtherXml::new_reader(utils::create_xml_reader(BufReader::new(
+                Box::new(Cursor::new(other.clone())) as Box<dyn Read>,
+            )));
 
             let mut parser =
                 PackageParser::from_readers(primary_xml, filelists_xml, other_xml).unwrap();
@@ -133,35 +151,37 @@ fn metadata_write_benchmark(c: &mut Criterion) {
     group.bench_function("iterative_all_together", |b| {
         let tmp_dir = TempDir::new("prof_repo_write").unwrap();
         let num_pkgs = repo.packages().len();
-        let mut repo_writer =
-            RepositoryWriter::new(&tmp_dir.path(), num_pkgs).unwrap();
+        let mut repo_writer = RepositoryWriter::new(&tmp_dir.path(), num_pkgs).unwrap();
 
         b.iter(|| {
             // replace the existing writers w/ memory backed ones
             repo_writer.primary_xml_writer = Some(PrimaryXml::new_writer(
-                quick_xml::Writer::new_with_indent(
-                    Box::new(Cursor::new(Vec::new())),
-                    b' ',
-                    2,
-                ),
+                quick_xml::Writer::new_with_indent(Box::new(Cursor::new(Vec::new())), b' ', 2),
             ));
-            repo_writer.primary_xml_writer.as_mut().unwrap().write_header(num_pkgs).unwrap();
+            repo_writer
+                .primary_xml_writer
+                .as_mut()
+                .unwrap()
+                .write_header(num_pkgs)
+                .unwrap();
             repo_writer.filelists_xml_writer = Some(FilelistsXml::new_writer(
-                quick_xml::Writer::new_with_indent(
-                    Box::new(Cursor::new(Vec::new())),
-                    b' ',
-                    2,
-                ),
+                quick_xml::Writer::new_with_indent(Box::new(Cursor::new(Vec::new())), b' ', 2),
             ));
-            repo_writer.filelists_xml_writer.as_mut().unwrap().write_header(num_pkgs).unwrap();
+            repo_writer
+                .filelists_xml_writer
+                .as_mut()
+                .unwrap()
+                .write_header(num_pkgs)
+                .unwrap();
             repo_writer.other_xml_writer = Some(OtherXml::new_writer(
-                quick_xml::Writer::new_with_indent(
-                    Box::new(Cursor::new(Vec::new())),
-                    b' ',
-                    2,
-                ),
+                quick_xml::Writer::new_with_indent(Box::new(Cursor::new(Vec::new())), b' ', 2),
             ));
-            repo_writer.other_xml_writer.as_mut().unwrap().write_header(num_pkgs).unwrap();
+            repo_writer
+                .other_xml_writer
+                .as_mut()
+                .unwrap()
+                .write_header(num_pkgs)
+                .unwrap();
 
             for package in repo.packages().values() {
                 repo_writer.add_package(package).unwrap();

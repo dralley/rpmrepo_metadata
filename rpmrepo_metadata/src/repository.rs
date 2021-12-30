@@ -12,7 +12,7 @@ use crate::{utils, PackageParser};
 use super::filelist::FilelistsXmlWriter;
 use super::metadata::{
     ChecksumType, CompressionType, DistroTag, FilelistsXml, MetadataType, OtherXml, Package,
-    PrimaryXml, RepoMdData, RepoMdRecord, RepomdXml, RpmMetadata, UpdateRecord, METADATA_FILELISTS,
+    PrimaryXml, RepomdData, RepomdRecord, RepomdXml, RpmMetadata, UpdateRecord, METADATA_FILELISTS,
     METADATA_OTHER, METADATA_PRIMARY,
 };
 use super::other::OtherXmlWriter;
@@ -25,9 +25,9 @@ use indexmap::IndexMap;
 // b) no duplicate NEVRA (normalized for epoch)
 #[derive(Debug, PartialEq, Default)]
 pub struct Repository {
-    repomd_data: RepoMdData,
+    repomd_data: RepomdData,
     packages: IndexMap<String, Package>,
-    advisories: Vec<UpdateRecord>,
+    advisories: IndexMap<String, UpdateRecord>,
 }
 
 impl Repository {
@@ -35,11 +35,11 @@ impl Repository {
         Self::default()
     }
 
-    pub fn repomd<'repo>(&'repo self) -> &'repo RepoMdData {
+    pub fn repomd<'repo>(&'repo self) -> &'repo RepomdData {
         &self.repomd_data
     }
 
-    pub fn repomd_mut<'repo>(&'repo mut self) -> &'repo mut RepoMdData {
+    pub fn repomd_mut<'repo>(&'repo mut self) -> &'repo mut RepomdData {
         &mut self.repomd_data
     }
 
@@ -52,47 +52,41 @@ impl Repository {
         &mut self.packages
     }
 
-    pub fn advisories(&self) -> &Vec<UpdateRecord> {
+    pub fn advisories(&self) -> &IndexMap<String, UpdateRecord> {
         &self.advisories
     }
 
     // TODO: better API for package access (entry-like)
-    pub fn advisories_mut(&mut self) -> &mut Vec<UpdateRecord> {
+    pub fn advisories_mut(&mut self) -> &mut IndexMap<String, UpdateRecord> {
         &mut self.advisories
     }
 
+    pub fn sort(&mut self) {
+        self.packages
+            .sort_by(|_k1, v1, _k2, v2| v1.location_href().cmp(v2.location_href()));
+    }
+
     pub fn load_from_directory(path: &Path) -> Result<Self, MetadataError> {
-        let mut repo = Repository::new();
+        let reader = RepositoryReader::new_from_directory(path)?;
+        Ok(reader.into_repo()?)
+    }
 
-        repo.load_metadata_file::<RepomdXml>(&path.join("repodata/repomd.xml"))?;
+    pub fn load_metadata_file<M: RpmMetadata>(&mut self, path: &Path) -> Result<(), MetadataError> {
+        let reader = utils::xml_reader_from_file(path)?;
+        M::load_metadata(self, reader)
+    }
 
-        let primary_href = path.join(
-            &repo
-                .repomd()
-                .get_record(METADATA_PRIMARY)
-                .unwrap()
-                .location_href,
-        );
-        let filelists_href = path.join(
-            &repo
-                .repomd()
-                .get_record(METADATA_FILELISTS)
-                .unwrap()
-                .location_href,
-        );
-        let other_href = path.join(
-            &repo
-                .repomd()
-                .get_record(METADATA_OTHER)
-                .unwrap()
-                .location_href,
-        );
+    pub fn load_metadata_str<M: RpmMetadata>(&mut self, str: &str) -> Result<(), MetadataError> {
+        let reader = utils::create_xml_reader(str.as_bytes());
+        M::load_metadata(self, reader)
+    }
 
-        repo.load_metadata_file::<PrimaryXml>(&primary_href)?;
-        repo.load_metadata_file::<FilelistsXml>(&filelists_href)?;
-        repo.load_metadata_file::<OtherXml>(&other_href)?;
-
-        Ok(repo)
+    pub fn load_metadata_bytes<M: RpmMetadata>(
+        &mut self,
+        bytes: &[u8],
+    ) -> Result<(), MetadataError> {
+        let reader = utils::create_xml_reader(bytes);
+        M::load_metadata(self, reader)
     }
 
     pub fn write_to_directory(
@@ -100,62 +94,19 @@ impl Repository {
         path: &Path,
         options: RepositoryOptions,
     ) -> Result<(), MetadataError> {
-        let mut repo_writer =
-            RepositoryWriter::new_with_options(&path, self.packages().len(), options)?;
-        for (_, pkg) in self.packages() {
-            repo_writer.add_package(pkg)?;
-        }
-        repo_writer.finish()?;
-
-        Ok(())
-    }
-
-    pub fn load_from_files(
-        primary_xml: &Path,
-        filelists_xml: &Path,
-        other_xml: &Path,
-    ) -> Result<Self, MetadataError> {
-        let mut repo = Repository::new();
-
-        repo.load_metadata_file::<PrimaryXml>(primary_xml)?;
-        repo.load_metadata_file::<FilelistsXml>(filelists_xml)?;
-        repo.load_metadata_file::<OtherXml>(other_xml)?;
-
-        Ok(repo)
-    }
-
-    pub fn load_metadata_file<M: RpmMetadata>(&mut self, path: &Path) -> Result<(), MetadataError> {
-        let mut reader = utils::xml_reader_from_path(path)?;
-        M::load_metadata(self, &mut reader)
-    }
-
-    pub fn load_metadata_str<M: RpmMetadata>(&mut self, str: &str) -> Result<(), MetadataError> {
-        let mut reader = quick_xml::Reader::from_str(str);
-        utils::configure_xml_reader(&mut reader);
-        M::load_metadata(self, &mut reader)
-    }
-
-    pub fn load_metadata_bytes<M: RpmMetadata>(
-        &mut self,
-        bytes: &[u8],
-    ) -> Result<(), MetadataError> {
-        let (reader, _compression) = niffler::get_reader(Box::new(bytes))?;
-        let mut reader = quick_xml::Reader::from_reader(BufReader::new(reader));
-        utils::configure_xml_reader(&mut reader);
-
-        M::load_metadata(self, &mut reader)
+        RepositoryWriter::write_repository(self, &path, options)
     }
 
     pub fn write_metadata_file<M: RpmMetadata>(
         &self,
         path: &Path,
         compression: CompressionType,
-    ) -> Result<(), MetadataError> {
+    ) -> Result<PathBuf, MetadataError> {
         let new_path = PathBuf::from(path);
         let new_path = new_path.join(M::filename());
-        let (_, writer) = utils::create_xml_writer(&new_path, compression)?;
+        let (fname, writer) = utils::xml_writer_for_path(&new_path, compression)?;
         M::write_metadata(self, writer)?;
-        Ok(())
+        Ok(fname)
     }
 
     pub fn write_metadata_string<M: RpmMetadata>(&self) -> Result<String, MetadataError> {
@@ -165,7 +116,7 @@ impl Repository {
 
     pub fn write_metadata_bytes<M: RpmMetadata>(&self) -> Result<Vec<u8>, MetadataError> {
         let mut buf = Vec::new();
-        let writer = quick_xml::Writer::new_with_indent(Cursor::new(&mut buf), b' ', 2);
+        let writer = utils::create_xml_writer(Cursor::new(&mut buf));
         M::write_metadata(self, writer)?;
         Ok(buf)
     }
@@ -242,7 +193,7 @@ pub struct RepositoryWriter {
 
     // TODO
     // sqlite_data_writer: Option<SqliteDataWriter>,
-    repomd_data: RepoMdData,
+    repomd_data: RepomdData,
 
     updateinfo_xml_writer: Option<UpdateinfoXmlWriter<Box<dyn Write>>>,
 }
@@ -250,6 +201,28 @@ pub struct RepositoryWriter {
 impl RepositoryWriter {
     pub fn new(path: &Path, num_pkgs: usize) -> Result<Self, MetadataError> {
         Self::new_with_options(path, num_pkgs, RepositoryOptions::default())
+    }
+
+    pub fn write_repository(
+        repo: &Repository,
+        path: &Path,
+        options: RepositoryOptions,
+    ) -> Result<(), MetadataError> {
+        let mut writer = Self::new_with_options(path, repo.packages().len(), options)?;
+
+        for (_, pkg) in repo.packages() {
+            writer.add_package(pkg)?;
+        }
+
+        if !repo.advisories().is_empty() {
+            for advisory in repo.advisories().values() {
+                writer.add_advisory(advisory)?;
+            }
+        }
+
+        writer.finish()?;
+
+        Ok(())
     }
 
     pub fn new_with_options(
@@ -260,15 +233,15 @@ impl RepositoryWriter {
         let repodata_dir = path.join("repodata");
         std::fs::create_dir_all(&repodata_dir)?;
 
-        let (primary_path, primary_writer) = utils::create_xml_writer(
+        let (primary_path, primary_writer) = utils::xml_writer_for_path(
             &repodata_dir.join("primary.xml"),
             options.metadata_compression_type,
         )?;
-        let (filelists_path, filelists_writer) = utils::create_xml_writer(
+        let (filelists_path, filelists_writer) = utils::xml_writer_for_path(
             &repodata_dir.join("filelists.xml"),
             options.metadata_compression_type,
         )?;
-        let (other_path, other_writer) = utils::create_xml_writer(
+        let (other_path, other_writer) = utils::xml_writer_for_path(
             &repodata_dir.join("other.xml"),
             options.metadata_compression_type,
         )?;
@@ -289,13 +262,13 @@ impl RepositoryWriter {
             filelists_xml_writer: Some(filelists_xml_writer),
             other_xml_writer: Some(other_xml_writer),
 
-            repomd_data: RepoMdData::default(),
+            repomd_data: RepomdData::default(),
 
             updateinfo_xml_writer: None,
         })
     }
 
-    pub fn repomd_mut(&mut self) -> &mut RepoMdData {
+    pub fn repomd_mut(&mut self) -> &mut RepomdData {
         &mut self.repomd_data
     }
 
@@ -322,7 +295,7 @@ impl RepositoryWriter {
         // TODO: clean this up
         if self.updateinfo_xml_writer.is_none() {
             let repodata_dir = self.path.join("repodata");
-            let (updateinfo_path, updateinfo_writer) = utils::create_xml_writer(
+            let (updateinfo_path, updateinfo_writer) = utils::xml_writer_for_path(
                 &repodata_dir.join("updateinfo.xml"),
                 self.options.metadata_compression_type,
             )?;
@@ -370,11 +343,11 @@ impl RepositoryWriter {
         self.other_xml_writer = None;
 
         self.repomd_mut()
-            .add_record(RepoMdRecord::new("primary", &primary_path.as_ref())?);
+            .add_record(RepomdRecord::new("primary", &primary_path.as_ref())?);
         self.repomd_mut()
-            .add_record(RepoMdRecord::new("filelists", &filelists_path.as_ref())?);
+            .add_record(RepomdRecord::new("filelists", &filelists_path.as_ref())?);
         self.repomd_mut()
-            .add_record(RepoMdRecord::new("other", &other_path.as_ref())?);
+            .add_record(RepomdRecord::new("other", &other_path.as_ref())?);
 
         if let Some(updateinfo_xml_writer) = &mut self.updateinfo_xml_writer {
             updateinfo_xml_writer.finish()?;
@@ -382,7 +355,7 @@ impl RepositoryWriter {
         }
 
         let (_, mut repomd_writer) =
-            utils::create_xml_writer(&repodata_dir.join("repomd.xml"), CompressionType::None)?;
+            utils::xml_writer_for_path(&repodata_dir.join("repomd.xml"), CompressionType::None)?;
         RepomdXml::write_data(&mut repomd_writer, &self.repomd_data)?;
 
         // TODO: a report of the files created?
@@ -444,8 +417,16 @@ impl RepositoryReader {
 
     // }
 
-    pub fn into_repo(self) -> Repository {
-        // TODO: load everything
+    pub fn into_repo(mut self) -> Result<Repository, MetadataError> {
+        let parser = self.iter_packages()?;
         self.repository
+            .packages_mut()
+            .reserve(parser.total_packages());
+        self.repository.packages_mut().extend(
+            parser
+                .filter_map(|r| r.ok())
+                .map(|p| (p.pkgid().to_owned(), p)),
+        );
+        Ok(self.repository)
     }
 }

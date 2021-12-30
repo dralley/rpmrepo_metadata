@@ -4,7 +4,6 @@ use std::fs::OpenOptions;
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
 use pretty_assertions::assert_eq;
-use quick_xml;
 use tempdir::TempDir;
 
 use rpmrepo_metadata::*;
@@ -32,16 +31,14 @@ static COMPLEX_FILELISTS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 #[test]
 fn test_filelists_xml_writer_empty() -> Result<(), MetadataError> {
-    let mut buf = Vec::new();
+    let mut writer = FilelistsXml::new_writer(utils::create_xml_writer(Cursor::new(Vec::new())));
 
-    let xml_writer = quick_xml::Writer::new_with_indent(Cursor::new(&mut buf), b' ', 2);
-    let mut writer = FilelistsXml::new_writer(xml_writer);
     writer.write_header(0)?;
     writer.finish()?;
 
     let buffer = writer.into_inner().into_inner();
 
-    let actual = std::str::from_utf8(buffer)?;
+    let actual = std::str::from_utf8(&buffer)?;
     let expected = EMPTY_FILELISTS;
     assert_eq!(&actual, &expected);
 
@@ -50,10 +47,7 @@ fn test_filelists_xml_writer_empty() -> Result<(), MetadataError> {
 
 #[test]
 fn test_filelists_xml_writer_complex_pkg() -> Result<(), MetadataError> {
-    let mut buf = Vec::new();
-
-    let xml_writer = quick_xml::Writer::new_with_indent(Cursor::new(&mut buf), b' ', 2);
-    let mut writer = FilelistsXml::new_writer(xml_writer);
+    let mut writer = FilelistsXml::new_writer(utils::create_xml_writer(Cursor::new(Vec::new())));
 
     writer.write_header(1)?;
     writer.write_package(&common::COMPLEX_PACKAGE)?;
@@ -61,7 +55,7 @@ fn test_filelists_xml_writer_complex_pkg() -> Result<(), MetadataError> {
 
     let buffer = writer.into_inner().into_inner();
 
-    let actual = std::str::from_utf8(buffer)?;
+    let actual = std::str::from_utf8(&buffer)?;
     let expected = COMPLEX_FILELISTS;
 
     assert_eq!(&actual, &expected);
@@ -72,10 +66,7 @@ fn test_filelists_xml_writer_complex_pkg() -> Result<(), MetadataError> {
 #[test]
 #[should_panic]
 fn test_filelists_xml_writer_not_enough_packages() {
-    let mut buf = Vec::new();
-
-    let xml_writer = quick_xml::Writer::new_with_indent(Cursor::new(&mut buf), b' ', 2);
-    let mut writer = FilelistsXml::new_writer(xml_writer);
+    let mut writer = FilelistsXml::new_writer(utils::create_xml_writer(Cursor::new(Vec::new())));
 
     writer.write_header(1).unwrap();
     writer.finish().unwrap();
@@ -84,10 +75,7 @@ fn test_filelists_xml_writer_not_enough_packages() {
 #[test]
 #[should_panic]
 fn test_filelists_xml_writer_too_many_packages() {
-    let mut buf = Vec::new();
-
-    let xml_writer = quick_xml::Writer::new_with_indent(Cursor::new(&mut buf), b' ', 2);
-    let mut writer = FilelistsXml::new_writer(xml_writer);
+    let mut writer = FilelistsXml::new_writer(utils::create_xml_writer(Cursor::new(Vec::new())));
 
     writer.write_header(1).unwrap();
     writer.write_package(&common::RPM_EMPTY).unwrap();
@@ -106,9 +94,7 @@ fn test_filelists_xml_writer_file() -> Result<(), MetadataError> {
         .create(true)
         .open(filelists_name)
         .unwrap();
-
-    let xml_writer = quick_xml::Writer::new_with_indent(f, b' ', 2);
-    let mut writer = FilelistsXml::new_writer(xml_writer);
+    let mut writer = FilelistsXml::new_writer(utils::create_xml_writer(f));
 
     writer.write_header(0).unwrap();
     // TODO: actually test something here

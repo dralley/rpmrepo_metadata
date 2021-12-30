@@ -1,16 +1,11 @@
-use std::collections::HashMap;
 // use rpm::{self, Header};
-use std::convert::TryInto;
-use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
-
-use quick_xml::Reader;
 
 use crate::filelist::FilelistsXmlReader;
 use crate::other::OtherXmlReader;
 use crate::primary::PrimaryXmlReader;
-use crate::{utils, RepoMdData};
+use crate::{utils, RepomdData};
 use crate::{FilelistsXml, MetadataError, OtherXml, Package, PrimaryXml, EVR};
 
 // impl TryInto<Package> for rpm::RPMPackage {
@@ -77,9 +72,9 @@ impl PackageParser {
         filelists_path: &Path,
         other_path: &Path,
     ) -> Result<Self, MetadataError> {
-        let primary_xml = PrimaryXml::new_reader(utils::xml_reader_from_path(primary_path)?);
-        let filelists_xml = FilelistsXml::new_reader(utils::xml_reader_from_path(filelists_path)?);
-        let other_xml = OtherXml::new_reader(utils::xml_reader_from_path(other_path)?);
+        let primary_xml = PrimaryXml::new_reader(utils::xml_reader_from_file(primary_path)?);
+        let filelists_xml = FilelistsXml::new_reader(utils::xml_reader_from_file(filelists_path)?);
+        let other_xml = OtherXml::new_reader(utils::xml_reader_from_file(other_path)?);
 
         Self::from_readers(primary_xml, filelists_xml, other_xml)
     }

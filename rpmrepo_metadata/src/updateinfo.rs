@@ -3,7 +3,7 @@ use quick_xml::{Reader, Writer};
 use std::io::{BufRead, Write};
 
 use super::metadata::{RpmMetadata, UpdateRecord, UpdateinfoXml};
-use super::{MetadataError, Package, Repository};
+use super::{MetadataError, Repository};
 
 const TAG_UPDATES: &[u8] = b"updates";
 const TAG_UPDATE: &[u8] = b"update";
@@ -20,6 +20,7 @@ const TAG_SOLUTION: &[u8] = b"solution";
 const TAG_PKGLIST: &[u8] = b"pkglist";
 const TAG_COLLECTION: &[u8] = b"collection";
 const TAG_NAME: &[u8] = b"name";
+const TAG_MODULE: &[u8] = b"module";
 const TAG_PACKAGE: &[u8] = b"package";
 const TAG_FILENAME: &[u8] = b"filename";
 const TAG_REBOOT_SUGGESTED: &[u8] = b"reboot_suggested";
@@ -33,9 +34,15 @@ impl RpmMetadata for UpdateinfoXml {
 
     fn load_metadata<R: BufRead>(
         repository: &mut Repository,
-        reader: &mut Reader<R>,
+        reader: Reader<R>,
     ) -> Result<(), MetadataError> {
-        read_updateinfo_xml(repository, reader)
+        let mut reader = UpdateinfoXml::new_reader(reader);
+        // reader.read_header()?;
+        loop {
+            let updaterecord = reader.read_update()?;
+            repository.advisories_mut().entry(updaterecord.id.clone()).or_insert(updaterecord);
+        }
+        Ok(())
     }
 
     fn write_metadata<W: Write>(
@@ -44,20 +51,12 @@ impl RpmMetadata for UpdateinfoXml {
     ) -> Result<(), MetadataError> {
         let mut writer = UpdateinfoXml::new_writer(writer);
         writer.write_header()?;
-
-        for record in repository.advisories() {
+        for (_, record) in repository.advisories() {
             writer.write_updaterecord(record)?;
         }
-
-        writer.finish()
+        writer.finish()?;
+        Ok(())
     }
-}
-
-fn read_updateinfo_xml<R: BufRead>(
-    repository: &mut Repository,
-    reader: &mut Reader<R>,
-) -> Result<(), MetadataError> {
-    Ok(())
 }
 
 pub struct UpdateinfoXmlWriter<W: Write> {
@@ -99,24 +98,30 @@ impl<W: Write> UpdateinfoXmlWriter<W> {
     }
 }
 
-pub struct UpdateinfoXmlReader<'a, R: BufRead> {
-    reader: &'a mut Reader<R>,
+pub struct UpdateinfoXmlReader<R: BufRead> {
+    reader: Reader<R>,
 }
 
-impl<'a, R: BufRead> UpdateinfoXmlReader<'a, R> {
-    pub fn read_header(&mut self) {}
-
-    pub fn read_package(&mut self, package: &mut Package) {}
-
-    pub fn finish(&mut self) {}
+impl<R: BufRead> UpdateinfoXmlReader<R> {
+    pub fn read_update(&mut self) -> Result<UpdateRecord, MetadataError> {
+        Ok(UpdateRecord::default())
+    }
 }
+
+
+// impl Iterator for PackageParser {
+//     type Item = Result<Package, MetadataError>;
+//     fn next(&mut self) -> Option<Self::Item> {
+//         self.parse_package().transpose()
+//     }
+// }
 
 impl UpdateinfoXml {
     pub fn new_writer<W: Write>(writer: Writer<W>) -> UpdateinfoXmlWriter<W> {
         UpdateinfoXmlWriter { writer }
     }
 
-    pub fn new_reader<'a, R: BufRead>(reader: &'a mut Reader<R>) -> UpdateinfoXmlReader<'a, R> {
+    pub fn new_reader<R: BufRead>(reader: Reader<R>) -> UpdateinfoXmlReader<R> {
         UpdateinfoXmlReader { reader }
     }
 }
@@ -125,10 +130,10 @@ fn write_updaterecord<W: Write>(
     record: &UpdateRecord,
     writer: &mut Writer<W>,
 ) -> Result<(), MetadataError> {
-    //   <update from="updates@fedoraproject.org" status="stable" type="bugfix" version="2.0">
+    // <update from="updates@fedoraproject.org" status="stable" type="bugfix" version="2.0">
     let mut updates_tag = BytesStart::borrowed_name(TAG_UPDATE);
-    updates_tag.push_attribute(("from", record.from.as_str()));
     updates_tag.push_attribute(("status", record.status.as_str()));
+    updates_tag.push_attribute(("from", record.from.as_str()));
     updates_tag.push_attribute(("type", record.update_type.as_str()));
     updates_tag.push_attribute(("version", record.version.as_str()));
     writer.write_event(Event::Start(updates_tag.to_borrowed()))?;
@@ -157,7 +162,7 @@ fn write_updaterecord<W: Write>(
             .write_text_content(BytesText::from_plain_str(updated_date.as_str()))?;
     }
 
-    // <rights>Copyright (C) 2021 Red Hat, Inc. and others.</rights>
+    // <rights>Copyright (C) 2021 blah blah blah.</rights>
     writer
         .create_element(TAG_COPYRIGHT)
         .write_text_content(BytesText::from_plain_str(record.rights.as_str()))?;
@@ -182,10 +187,18 @@ fn write_updaterecord<W: Write>(
         .create_element(TAG_DESCRIPTION)
         .write_text_content(BytesText::from_plain_str(record.description.as_str()))?;
 
-    // TODO: find example
+    // <solution>Another description, usually about how the update should be applied</solution>
     writer
         .create_element(TAG_SOLUTION)
         .write_cdata_content(BytesText::from_plain_str(record.solution.as_str()))?;
+
+    // It's not clear that any metadata actually uses this
+    // // <reboot_suggested>True</reboot_suggestion> (optional)
+    // if record.reboot_suggested {
+    //     writer
+    //         .create_element(TAG_REBOOT_SUGGESTED)
+    //         .write_text_content(BytesText::from_plain_str("True"))?;
+    // }
 
     let tag_references = BytesStart::borrowed_name(TAG_REFERENCES);
     if !record.references.is_empty() {
@@ -210,31 +223,78 @@ fn write_updaterecord<W: Write>(
         writer.write_event(Event::Empty(tag_references.to_borrowed()))?;
     }
 
-    let tag_pkglist = BytesStart::borrowed_name(TAG_PKGLIST);
 
+    let tag_pkglist = BytesStart::borrowed_name(TAG_PKGLIST);
     if !record.pkglist.is_empty() {
         // <pkglist>
         writer.write_event(Event::Start(tag_pkglist.to_borrowed()))?;
 
         for collection in &record.pkglist {
-            // <collection short="F32">
+            // <collection short="F35">
             let mut tag_collection = BytesStart::borrowed_name(TAG_COLLECTION);
             tag_collection.push_attribute(("short", collection.shortname.as_str()));
             writer.write_event(Event::Start(tag_collection.to_borrowed()))?;
 
-            // updatecollectionmodule
+            // <name>Fedora 35</name>
+            writer
+                .create_element(TAG_NAME)
+                .write_text_content(BytesText::from_plain_str(&collection.name))?;
 
-            for package in &collection.packages {}
-            //     <name>Fedora 32</name>
-            //     <package name="fbzx" version="4.2.0" release="1.fc32" epoch="0" arch="src" src="https://download.fedoraproject.org/pub/fedora/linux/updates/32/SRPMS/f/fbzx-4.2.0-1.fc32.src.rpm">
-            //     <filename>fbzx-4.2.0-1.fc32.src.rpm</filename>
-            //     </package>
-            //     <package name="fbzx-debugsource" version="4.2.0" release="1.fc32" epoch="0" arch="armv7hl" src="https://download.fedoraproject.org/pub/fedora/linux/updates/32/armv7hl/f/fbzx-debugsource-4.2.0-1.fc32.armv7hl.rpm">
-            //     <filename>fbzx-debugsource-4.2.0-1.fc32.armv7hl.rpm</filename>
-            //     </package>
-            //     <package name="fbzx-debuginfo" version="4.2.0" release="1.fc32" epoch="0" arch="armv7hl" src="https://download.fedoraproject.org/pub/fedora/linux/updates/32/armv7hl/f/fbzx-debuginfo-4.2.0-1.fc32.armv7hl.rpm">
-            //     <filename>fbzx-debuginfo-4.2.0-1.fc32.armv7hl.rpm</filename>
-            //     </package>
+            // <module stream="3.0" version="8000020190425181943" arch="x86_64" name="freeradius" context="75ec4169" />
+            if let Some(module) = &collection.module {
+                writer
+                    .create_element(TAG_MODULE)
+                    .with_attribute(("name", module.name.as_str()))
+                    .with_attribute(("stream", module.stream.as_str()))
+                    .with_attribute(("version", module.version.to_string().as_str()))
+                    .with_attribute(("context", module.context.as_str()))
+                    .with_attribute(("arch", module.arch.as_str()))
+                    .write_empty()?;
+            }
+
+            for package in &collection.packages {
+                // <package src="kexec-tools-2.0.4-32.el7_0.1.src.rpm" name="kexec-tools" epoch="0" version="2.0.4" release="32.el7" arch="x86_64">
+                let mut package_tag = BytesStart::borrowed_name(TAG_PACKAGE);
+                package_tag.push_attribute(("name", package.name.as_str()));
+                package_tag.push_attribute(("version", package.version.as_str()));
+                package_tag.push_attribute(("release", package.release.as_str()));
+                package_tag.push_attribute(("epoch", package.epoch.to_string().as_str()));
+                package_tag.push_attribute(("arch", package.arch.as_str()));
+                package_tag.push_attribute(("src", package.src.as_str()));
+                writer.write_event(Event::Start(package_tag.to_borrowed()))?;
+
+                // <filename>pypy-7.3.6-1.fc35.src.rpm</filename>
+                writer
+                    .create_element(TAG_FILENAME)
+                    .write_text_content(BytesText::from_plain_str(&package.filename))?;
+
+                // <sum type="sha256">8e214681104e4ba73726e0ce11d21b963ec0390fd70458d439ddc72372082034</sum> (optional)
+                if let Some(checksum) = &package.checksum {
+                    let (checksum_type, value) = checksum.to_values()?;
+                    writer
+                        .create_element("sum")
+                        .with_attribute(("type", checksum_type))
+                        .write_text_content(BytesText::from_plain_str(value))?;
+                }
+                if package.reboot_suggested {
+                    writer
+                        .create_element("reboot_suggested")
+                        .write_text_content(BytesText::from_plain_str("1"))?;
+                }
+                if package.restart_suggested {
+                    writer
+                        .create_element("restart_suggested")
+                        .write_text_content(BytesText::from_plain_str("1"))?;
+                }
+                if package.relogin_suggested {
+                    writer
+                        .create_element("relogin_suggested")
+                        .write_text_content(BytesText::from_plain_str("1"))?;
+                }
+
+                // </package>
+                writer.write_event(Event::End(package_tag.to_end()))?;
+            }
 
             // </collection>
             writer.write_event(Event::End(tag_collection.to_end()))?;

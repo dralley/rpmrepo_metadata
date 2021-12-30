@@ -3,6 +3,8 @@ use std::io::{BufRead, Write};
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 
+use crate::Checksum;
+
 use super::metadata::{
     FileType, FilelistsXml, Package, PackageFile, ParseState, RpmMetadata, XML_NS_FILELISTS,
 };
@@ -20,9 +22,26 @@ impl RpmMetadata for FilelistsXml {
 
     fn load_metadata<R: BufRead>(
         repository: &mut Repository,
-        reader: &mut Reader<R>,
+        reader: Reader<R>,
     ) -> Result<(), MetadataError> {
-        read_filelists_xml(repository, reader)
+        let mut reader = FilelistsXml::new_reader(reader);
+        reader.read_header()?;
+        let mut package = None;
+        loop {
+            reader.read_package(&mut package)?;
+            if package == None {
+                break;
+            }
+            let pkgid = package.as_ref().unwrap().pkgid().to_owned();
+            repository
+                .packages_mut()
+                .entry(pkgid)
+                .and_modify(|p| {
+                    std::mem::swap(&mut p.rpm_files, &mut package.as_mut().unwrap().rpm_files)
+                })
+                .or_insert(package.take().unwrap());
+        }
+        Ok(())
     }
 
     fn write_metadata<W: Write>(
@@ -48,16 +67,12 @@ impl FilelistsXml {
     }
 
     pub fn new_reader<R: BufRead>(reader: Reader<R>) -> FilelistsXmlReader<R> {
-        FilelistsXmlReader {
-            reader,
-            num_packages: 0,
-            packages_parsed: 0,
-        }
+        FilelistsXmlReader { reader }
     }
 }
 
 pub struct FilelistsXmlWriter<W: Write> {
-    pub writer: Writer<W>,
+    writer: Writer<W>,
     num_packages: usize,
     packages_written: usize,
 }
@@ -83,7 +98,7 @@ impl<W: Write> FilelistsXmlWriter<W> {
     pub fn write_package(&mut self, package: &Package) -> Result<(), MetadataError> {
         // <package pkgid="a2d3bce512f79b0bc840ca7912a86bbc0016cf06d5c363ffbb6fd5e1ef03de1b" name="fontconfig" arch="x86_64">
         let mut package_tag = BytesStart::borrowed_name(TAG_PACKAGE);
-        let (_, pkgid) = package.checksum().to_values()?;
+        let pkgid = package.pkgid();
         package_tag.push_attribute(("pkgid", pkgid));
         package_tag.push_attribute(("name", package.name()));
         package_tag.push_attribute(("arch", package.arch()));
@@ -146,8 +161,6 @@ impl<W: Write> FilelistsXmlWriter<W> {
 
 pub struct FilelistsXmlReader<R: BufRead> {
     reader: Reader<R>,
-    num_packages: u32,
-    packages_parsed: u32,
 }
 
 impl<R: BufRead> FilelistsXmlReader<R> {
@@ -155,7 +168,7 @@ impl<R: BufRead> FilelistsXmlReader<R> {
         parse_header(&mut self.reader)
     }
     pub fn read_package(&mut self, package: &mut Option<Package>) -> Result<(), MetadataError> {
-        parse_package_new(package, &mut self.reader)
+        parse_package(package, &mut self.reader)
     }
     pub fn finish(&mut self) -> Result<(), MetadataError> {
         Ok(())
@@ -172,56 +185,12 @@ fn parse_header<R: BufRead>(reader: &mut Reader<R>) -> Result<usize, MetadataErr
         match reader.read_event(&mut buf)? {
             Event::Decl(_) => (),
             Event::Start(e) if e.name() == TAG_FILELISTS => {
-                let count = e
-                    .attributes()
-                    .filter_map(|a| a.ok())
-                    .find(|a| a.key == b"packages")
-                    .unwrap()
-                    .value;
+                let count = e.try_get_attribute("packages")?.unwrap().value;
                 return Ok(std::str::from_utf8(&count)?.parse()?);
             }
             _ => return Err(MetadataError::MissingHeaderError),
         }
     }
-}
-
-// <?xml version="1.0" encoding="UTF-8"?>
-// <filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="1">
-//   <package pkgid="6a915b6e1ad740994aa9688d70a67ff2b6b72e0ced668794aeb27b2d0f2e237b" name="fontconfig" arch="x86_64">
-//     <version epoch="0" ver="2.8.0" rel="5.el6"/>
-//     <file type="dir">/etc/fonts/conf.avail</file>
-//     ...
-//     <file>/etc/fonts/conf.avail/10-autohint.conf</file>
-//   </package>
-// </filelists>
-fn read_filelists_xml<R: BufRead>(
-    repository: &mut Repository,
-    reader: &mut Reader<R>,
-) -> Result<(), MetadataError> {
-    let mut buf = Vec::new();
-
-    let mut found_metadata_tag = false;
-
-    loop {
-        match reader.read_event(&mut buf)? {
-            Event::Start(e) => match e.name() {
-                TAG_FILELISTS => {
-                    found_metadata_tag = true;
-                }
-                TAG_PACKAGE => {
-                    parse_package(repository, reader, &e)?;
-                }
-                _ => (),
-            },
-            Event::Eof => break,
-            Event::Decl(_) => (), // TOOD
-            _ => (),
-        }
-    }
-    if !found_metadata_tag {
-        // TODO
-    }
-    Ok(())
 }
 
 //   <package pkgid="a2d3bce512f79b0bc840ca7912a86bbc0016cf06d5c363ffbb6fd5e1ef03de1b" name="fontconfig" arch="x86_64">
@@ -230,7 +199,7 @@ fn read_filelists_xml<R: BufRead>(
 //     ...
 //     <file>/etc/fonts/conf.avail/10-autohint.conf</file>
 //   </package>
-pub fn parse_package_new<R: BufRead>(
+pub fn parse_package<R: BufRead>(
     package: &mut Option<Package>,
     reader: &mut Reader<R>,
 ) -> Result<(), MetadataError> {
@@ -259,7 +228,9 @@ pub fn parse_package_new<R: BufRead>(
                         assert!(pkg.pkgid() == &pkgid); // TODO err instead of assert
                     } else {
                         let mut pkg = Package::default();
-                        pkg.set_name(&name).set_arch(&arch);
+                        pkg.set_name(&name)
+                            .set_arch(&arch)
+                            .set_checksum(Checksum::Unknown(pkgid));
                         *package = Some(pkg);
                     };
                 }
@@ -277,69 +248,6 @@ pub fn parse_package_new<R: BufRead>(
                 _ => (),
             },
             Event::Eof => break,
-            _ => (),
-        }
-    }
-
-    // package.parse_state |= ParseState::FILELISTS;
-    Ok(())
-}
-
-//   <package pkgid="a2d3bce512f79b0bc840ca7912a86bbc0016cf06d5c363ffbb6fd5e1ef03de1b" name="fontconfig" arch="x86_64">
-//     <version epoch="0" ver="2.8.0" rel="5.fc33"/>
-//     <file type="dir">/etc/fonts/conf.avail</file>
-//     ...
-//     <file>/etc/fonts/conf.avail/10-autohint.conf</file>
-//   </package>
-pub fn parse_package<R: BufRead>(
-    repository: &mut Repository,
-    reader: &mut Reader<R>,
-    open_tag: &BytesStart,
-) -> Result<(), MetadataError> {
-    let mut buf = Vec::new();
-
-    let pkgid = open_tag
-        .try_get_attribute("pkgid")?
-        .ok_or_else(|| MetadataError::MissingAttributeError("pkgid"))?
-        .unescape_and_decode_value(reader)?;
-    let name = open_tag
-        .try_get_attribute("name")?
-        .ok_or_else(|| MetadataError::MissingAttributeError("name"))?
-        .unescape_and_decode_value(reader)?;
-    let arch = open_tag
-        .try_get_attribute("arch")?
-        .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
-        .unescape_and_decode_value(reader)?;
-
-    let package = repository
-        .packages_mut()
-        .entry(pkgid)
-        .or_insert(Package::default()); // TODO
-
-    // TODO: using empty strings as null value is slightly questionable
-    if package.name().is_empty() {
-        package.set_name(&name);
-    }
-
-    if package.arch().is_empty() {
-        package.set_arch(&arch);
-    }
-
-    loop {
-        match reader.read_event(&mut buf)? {
-            Event::End(e) if e.name() == TAG_PACKAGE => break,
-
-            Event::Start(e) => match e.name() {
-                TAG_VERSION => {
-                    package.set_evr(parse_evr(reader, &e)?);
-                }
-                TAG_FILE => {
-                    let file = parse_file(reader, &e)?;
-                    // TODO: temporary PackageFile?
-                    package.add_file(file.filetype, &file.path);
-                }
-                _ => (),
-            },
             _ => (),
         }
     }

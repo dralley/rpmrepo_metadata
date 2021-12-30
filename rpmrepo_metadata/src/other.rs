@@ -1,21 +1,10 @@
-// <?xml version="1.0" encoding="UTF-8"?>
-// <otherdata xmlns="http://linux.duke.edu/metadata/other" packages="1">
-// <package pkgid="a2d3bce512f79b0bc840ca7912a86bbc0016cf06d5c363ffbb6fd5e1ef03de1b" name="deadbeef-devel" arch="x86_64">
-//   <version epoch="0" ver="1.8.4" rel="2.fc33"/>
-//   <changelog author="RPM Fusion Release Engineering &lt;leigh123linux@gmail.com&gt; - 0.7.3-0.2.20190209git373f556" date="1551700800">- Rebuilt for https://fedoraproject.org/wiki/Fedora_30_Mass_Rebuild</changelog>
-//   <changelog author="Vasiliy N. Glazov &lt;vascom2@gmail.com&gt; - 1.8.0-1" date="1554724800">- Update to 1.8.0</changelog>
-//   <changelog author="Vasiliy N. Glazov &lt;vascom2@gmail.com&gt; - 1.8.1-1" date="1561723200">- Update to 1.8.1</changelog>
-//   <changelog author="Leigh Scott &lt;leigh123linux@gmail.com&gt; - 1.8.1-2" date="1565179200">- Rebuild for new ffmpeg version</changelog>
-//   <changelog author="Vasiliy N. Glazov &lt;vascom2@gmail.com&gt; - 1.8.2-1" date="1565352000">- Update to 1.8.2</changelog>
-// </package>
-// </package>
-// </otherdata>
-
 use std::io::{BufRead, Write};
 
 use quick_xml::escape::partial_escape;
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
+
+use crate::Checksum;
 
 use super::metadata::{Changelog, OtherXml, Package, ParseState, RpmMetadata, XML_NS_OTHER};
 use super::{MetadataError, Repository, EVR};
@@ -32,9 +21,29 @@ impl RpmMetadata for OtherXml {
 
     fn load_metadata<R: BufRead>(
         repository: &mut Repository,
-        reader: &mut Reader<R>,
+        reader: Reader<R>,
     ) -> Result<(), MetadataError> {
-        read_other_xml(repository, reader)
+        let mut reader = OtherXml::new_reader(reader);
+        reader.read_header()?;
+        let mut package = None;
+        loop {
+            reader.read_package(&mut package)?;
+            if package == None {
+                break;
+            }
+            let pkgid = package.as_ref().unwrap().pkgid().to_owned();
+            repository
+                .packages_mut()
+                .entry(pkgid)
+                .and_modify(|p| {
+                    std::mem::swap(
+                        &mut p.rpm_changelogs,
+                        &mut package.as_mut().unwrap().rpm_changelogs,
+                    )
+                })
+                .or_insert(package.take().unwrap());
+        }
+        Ok(())
     }
 
     fn write_metadata<W: Write>(
@@ -60,11 +69,7 @@ impl OtherXml {
     }
 
     pub fn new_reader<R: BufRead>(reader: Reader<R>) -> OtherXmlReader<R> {
-        OtherXmlReader {
-            reader,
-            num_packages: 0,
-            packages_parsed: 0,
-        }
+        OtherXmlReader { reader }
     }
 }
 
@@ -154,8 +159,6 @@ impl<W: Write> OtherXmlWriter<W> {
 
 pub struct OtherXmlReader<R: BufRead> {
     reader: Reader<R>,
-    num_packages: usize,
-    packages_parsed: usize,
 }
 
 impl<R: BufRead> OtherXmlReader<R> {
@@ -164,7 +167,7 @@ impl<R: BufRead> OtherXmlReader<R> {
     }
 
     pub fn read_package(&mut self, package: &mut Option<Package>) -> Result<(), MetadataError> {
-        parse_package_new(package, &mut self.reader)
+        parse_package(package, &mut self.reader)
     }
 }
 
@@ -178,47 +181,12 @@ fn parse_header<R: BufRead>(reader: &mut Reader<R>) -> Result<usize, MetadataErr
         match reader.read_event(&mut buf)? {
             Event::Decl(_) => (),
             Event::Start(e) if e.name() == TAG_OTHERDATA => {
-                let count = e
-                    .attributes()
-                    .filter_map(|a| a.ok())
-                    .find(|a| a.key == b"packages")
-                    .unwrap()
-                    .value;
+                let count = e.try_get_attribute("packages")?.unwrap().value;
                 return Ok(std::str::from_utf8(&count)?.parse()?);
             }
             _ => return Err(MetadataError::MissingHeaderError),
         }
     }
-}
-
-fn read_other_xml<R: BufRead>(
-    repository: &mut Repository,
-    reader: &mut Reader<R>,
-) -> Result<(), MetadataError> {
-    let mut buf = Vec::new();
-
-    let mut found_metadata_tag = false;
-
-    loop {
-        match reader.read_event(&mut buf)? {
-            Event::Start(e) => match e.name() {
-                TAG_OTHERDATA => {
-                    found_metadata_tag = true;
-                }
-                TAG_PACKAGE => {
-                    parse_package(repository, reader, &e)?;
-                }
-                _ => (),
-            },
-            Event::Eof => break,
-            Event::Decl(_) => (), // TOOD
-            _ => (),
-        }
-    }
-    if !found_metadata_tag {
-        // TODO
-    }
-    Ok(())
 }
 
 //   <package pkgid="6a915b6e1ad740994aa9688d70a67ff2b6b72e0ced668794aeb27b2d0f2e237b" name="fontconfig" arch="x86_64">
@@ -227,7 +195,7 @@ fn read_other_xml<R: BufRead>(
 //     <changelog author="Behdad Esfahbod &lt;besfahbo@redhat.com&gt; - 2.7.3-1" date="1252411200">- Update to 2.7.3</changelog>
 //     <changelog author="Behdad Esfahbod &lt;besfahbo@redhat.com&gt; - 2.8.0-1" date="1259841600">- Update to 2.8.0</changelog>
 //   </package>
-pub fn parse_package_new<R: BufRead>(
+pub fn parse_package<R: BufRead>(
     package: &mut Option<Package>,
     reader: &mut Reader<R>,
 ) -> Result<(), MetadataError> {
@@ -256,7 +224,9 @@ pub fn parse_package_new<R: BufRead>(
                         assert!(pkg.pkgid() == &pkgid); // TODO err instead of assert
                     } else {
                         let mut pkg = Package::default();
-                        pkg.set_name(&name).set_arch(&arch);
+                        pkg.set_name(&name)
+                            .set_arch(&arch)
+                            .set_checksum(Checksum::Unknown(pkgid));
                         *package = Some(pkg);
                     };
                 }
@@ -275,73 +245,6 @@ pub fn parse_package_new<R: BufRead>(
                 _ => (),
             },
             Event::Eof => break,
-            _ => (),
-        }
-    }
-
-    // package.parse_state |= ParseState::OTHER;
-    Ok(())
-}
-
-//   <package pkgid="6a915b6e1ad740994aa9688d70a67ff2b6b72e0ced668794aeb27b2d0f2e237b" name="fontconfig" arch="x86_64">
-//     <version epoch="0" ver="2.8.0" rel="5.el6"/>
-//     <changelog author="Behdad Esfahbod &lt;besfahbo@redhat.com&gt; - 2.7.2-1" date="1251720000">- Update to 2.7.2</changelog>
-//     <changelog author="Behdad Esfahbod &lt;besfahbo@redhat.com&gt; - 2.7.3-1" date="1252411200">- Update to 2.7.3</changelog>
-//     <changelog author="Behdad Esfahbod &lt;besfahbo@redhat.com&gt; - 2.8.0-1" date="1259841600">- Update to 2.8.0</changelog>
-//   </package>
-pub fn parse_package<R: BufRead>(
-    repository: &mut Repository,
-    reader: &mut Reader<R>,
-    open_tag: &BytesStart,
-) -> Result<(), MetadataError> {
-    let mut buf = Vec::new();
-
-    let pkgid = open_tag
-        .try_get_attribute("pkgid")?
-        .ok_or_else(|| MetadataError::MissingAttributeError("pkgid"))?
-        .unescape_and_decode_value(reader)?;
-    let name = open_tag
-        .try_get_attribute("name")?
-        .ok_or_else(|| MetadataError::MissingAttributeError("name"))?
-        .unescape_and_decode_value(reader)?;
-    let arch = open_tag
-        .try_get_attribute("arch")?
-        .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
-        .unescape_and_decode_value(reader)?;
-
-    let package = repository
-        .packages_mut()
-        .entry(pkgid)
-        .or_insert(Package::default()); // TODO
-
-    // TODO: using empty strings as null value is slightly questionable
-    if package.name().is_empty() {
-        package.set_name(&name);
-    }
-
-    if package.arch().is_empty() {
-        package.set_arch(&arch);
-    }
-
-    loop {
-        match reader.read_event(&mut buf)? {
-            Event::End(e) if e.name() == TAG_PACKAGE => break,
-
-            Event::Start(e) => match e.name() {
-                TAG_VERSION => {
-                    package.set_evr(parse_evr(reader, &e)?);
-                }
-                TAG_CHANGELOG => {
-                    let changelog = parse_changelog(reader, &e)?;
-                    // TODO: Temporary changelog?
-                    package.add_changelog(
-                        &changelog.author,
-                        &changelog.description,
-                        changelog.date,
-                    );
-                }
-                _ => (),
-            },
             _ => (),
         }
     }

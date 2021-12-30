@@ -1,11 +1,8 @@
-extern crate rpmrepo_metadata;
-
 use pretty_assertions::assert_eq;
 use rpmrepo_metadata::{
     MetadataError, Package, Repository, RepositoryOptions, RepositoryReader, RepositoryWriter,
 };
 use tempdir::TempDir;
-
 mod common;
 
 static COMPLEX_REPO_PATH: &str = "./tests/assets/fixture_repos/complex_repo/";
@@ -16,7 +13,6 @@ fn test_repository_complex_repo() -> Result<(), MetadataError> {
     let repo = Repository::load_from_directory(COMPLEX_REPO_PATH.as_ref())?;
 
     assert_eq!(repo.packages().len(), 4);
-    // let packages: Vec<&Package> = repo.packages().into_iter().map(|(_, y)| y).collect();
 
     assert_eq!(
         repo.packages()

@@ -12,7 +12,7 @@ flate2 = "1.0.21"
 rayon = "1.5.1"
 thiserror = "1.0.28"
 sha2 = "0.10.0"
-niffler = "2.3.2"
+niffler = { version = "2.4.0", features = ["bz2", "xz", "gz"], default-features = false }
 once_cell = "1.8.0"
 rpm-rs = "0.8.1"
 tempdir = "0.3.7"

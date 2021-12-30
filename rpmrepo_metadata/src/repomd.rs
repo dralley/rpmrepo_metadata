@@ -8,9 +8,9 @@ use std::time::SystemTime;
 use quick_xml::events::{BytesDecl, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 
-use super::metadata::RepoMdData;
+use super::metadata::RepomdData;
 use super::metadata::{
-    Checksum, MetadataError, RepoMdRecord, RepomdXml, RpmMetadata, XML_NS_REPO, XML_NS_RPM,
+    Checksum, MetadataError, RepomdRecord, RepomdXml, RpmMetadata, XML_NS_REPO, XML_NS_RPM,
 };
 use super::Repository;
 
@@ -41,7 +41,7 @@ impl RpmMetadata for RepomdXml {
 
     fn load_metadata<R: BufRead>(
         repository: &mut Repository,
-        reader: &mut Reader<R>,
+        reader: Reader<R>,
     ) -> Result<(), MetadataError> {
         read_repomd_xml(repository.repomd_mut(), reader)?;
         Ok(())
@@ -57,15 +57,58 @@ impl RpmMetadata for RepomdXml {
     }
 }
 
+#[derive(Debug, PartialEq, Default)]
+struct RepomdRecordBuilder {
+    metadata_name: String,
+    location_href: Option<PathBuf>,
+    location_base: Option<String>,
+    timestamp: Option<i64>,
+    size: Option<u64>,
+    checksum: Option<Checksum>,
+    open_size: Option<u64>,
+    open_checksum: Option<Checksum>,
+    header_size: Option<u64>,
+    header_checksum: Option<Checksum>,
+    database_version: Option<u32>,
+}
+
+impl TryFrom<RepomdRecordBuilder> for RepomdRecord {
+    type Error = MetadataError;
+
+    fn try_from(builder: RepomdRecordBuilder) -> Result<Self, Self::Error> {
+        let record = RepomdRecord {
+            metadata_name: builder.metadata_name,
+            location_href: builder
+                .location_href
+                .ok_or_else(|| MetadataError::MissingFieldError("location_href"))?,
+            location_base: builder.location_base,
+            timestamp: builder
+                .timestamp
+                .ok_or_else(|| MetadataError::MissingFieldError("timestamp"))?,
+            size: builder.size,
+            checksum: builder
+                .checksum
+                .ok_or_else(|| MetadataError::MissingFieldError("checksum"))?,
+            open_size: builder.open_size,
+            open_checksum: builder.open_checksum, // TODO: do these need to be conditionally required?
+            header_size: builder.header_size,
+            header_checksum: builder.header_checksum,
+            database_version: builder.database_version,
+        };
+        Ok(record)
+    }
+}
+
 // struct RepomdXmlWriter<'a, W: Write> {
 //     repository: &'a mut Repository,
 //     writer: Writer<W>
 // }
 
 fn read_repomd_xml<R: BufRead>(
-    repomd_data: &mut RepoMdData,
-    reader: &mut Reader<R>,
+    repomd_data: &mut RepomdData,
+    reader: Reader<R>,
 ) -> Result<(), MetadataError> {
+    let mut reader = reader;
     let mut event_buf = Vec::new();
     let mut text_buf = Vec::new();
 
@@ -82,7 +125,7 @@ fn read_repomd_xml<R: BufRead>(
                     repomd_data.set_revision(&revision);
                 }
                 TAG_DATA => {
-                    let data = parse_repomdrecord(reader, &e)?;
+                    let data = parse_repomdrecord(&mut reader, &e)?;
                     repomd_data.add_record(data);
                 }
                 TAG_TAGS => {
@@ -95,9 +138,9 @@ fn read_repomd_xml<R: BufRead>(
                         match reader.read_event(&mut event_buf)? {
                             Event::Start(e) => match e.name() {
                                 TAG_DISTRO => {
-                                    let cpeid = (&e)
-                                        .try_get_attribute("cpeid")?
-                                        .and_then(|a| a.unescape_and_decode_value(reader).ok());
+                                    let cpeid = (&e).try_get_attribute("cpeid")?.and_then(|a| {
+                                        a.unescape_and_decode_value(&mut reader).ok()
+                                    });
                                     let name = reader.read_text(TAG_DISTRO, &mut text_buf)?;
                                     repomd_data.add_distro_tag(name, cpeid);
                                 }
@@ -135,14 +178,20 @@ fn read_repomd_xml<R: BufRead>(
 impl RepomdXml {
     pub fn write_data<W: Write>(
         writer: &mut Writer<W>,
-        repomd_data: &RepoMdData,
+        repomd_data: &RepomdData,
     ) -> Result<(), MetadataError> {
         write_repomd_xml(repomd_data, writer)
+    }
+
+    pub fn read_data<R: BufRead>(reader: Reader<R>) -> Result<RepomdData, MetadataError> {
+        let mut repomd = RepomdData::default();
+        read_repomd_xml(&mut repomd, reader)?;
+        Ok(repomd)
     }
 }
 
 fn write_repomd_xml<W: Write>(
-    repomd_data: &RepoMdData,
+    repomd_data: &RepomdData,
     writer: &mut Writer<W>,
 ) -> Result<(), MetadataError> {
     // <?xml version="1.0" encoding="UTF-8"?>
@@ -155,7 +204,6 @@ fn write_repomd_xml<W: Write>(
     writer.write_event(Event::Start(repomd_tag.to_borrowed()))?;
 
     // <revision>123897</revision>
-    // TODO, find a less messy way  to do this.
     let get_current_time = || {
         SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -173,8 +221,8 @@ fn write_repomd_xml<W: Write>(
         .write_text_content(BytesText::from_plain_str(revision.as_str()))?;
 
     write_tags(repomd_data, writer)?;
-    for data in repomd_data.records() {
-        write_data(data, writer)?;
+    for record in repomd_data.records() {
+        write_data(record, writer)?;
     }
 
     // </repomd>
@@ -197,48 +245,8 @@ fn write_repomd_xml<W: Write>(
 pub fn parse_repomdrecord<R: BufRead>(
     reader: &mut Reader<R>,
     open_tag: &BytesStart,
-) -> Result<RepoMdRecord, MetadataError> {
-    #[derive(Debug, PartialEq, Default)]
-    struct RepoMdRecordBuilder {
-        metadata_name: String,
-        location_href: Option<PathBuf>,
-        timestamp: Option<i64>,
-        size: Option<u64>,
-        checksum: Option<Checksum>,
-        open_size: Option<u64>,
-        open_checksum: Option<Checksum>,
-        header_size: Option<u64>,
-        header_checksum: Option<Checksum>,
-        database_version: Option<u32>,
-    }
-
-    impl TryFrom<RepoMdRecordBuilder> for RepoMdRecord {
-        type Error = MetadataError;
-
-        fn try_from(builder: RepoMdRecordBuilder) -> Result<Self, Self::Error> {
-            let record = RepoMdRecord {
-                metadata_name: builder.metadata_name,
-                location_href: builder
-                    .location_href
-                    .ok_or_else(|| MetadataError::MissingFieldError("location_href"))?,
-                timestamp: builder
-                    .timestamp
-                    .ok_or_else(|| MetadataError::MissingFieldError("timestamp"))?,
-                size: builder.size,
-                checksum: builder
-                    .checksum
-                    .ok_or_else(|| MetadataError::MissingFieldError("checksum"))?,
-                open_size: builder.open_size,
-                open_checksum: builder.open_checksum, // TODO: do these need to be conditionally required?
-                header_size: builder.header_size,
-                header_checksum: builder.header_checksum,
-                database_version: builder.database_version,
-            };
-            Ok(record)
-        }
-    }
-
-    let mut record_builder = RepoMdRecordBuilder::default();
+) -> Result<RepomdRecord, MetadataError> {
+    let mut record_builder = RepomdRecordBuilder::default();
 
     let record_type = open_tag
         .try_get_attribute("type")?
@@ -332,7 +340,7 @@ pub fn parse_repomdrecord<R: BufRead>(
 ///   <content>binary-x86_64</content>
 //// </tags>
 fn write_tags<W: Write>(
-    repomd_data: &RepoMdData,
+    repomd_data: &RepomdData,
     writer: &mut Writer<W>,
 ) -> Result<(), MetadataError> {
     let has_distro_tags = !repomd_data.distro_tags().is_empty();
@@ -382,7 +390,7 @@ fn write_tags<W: Write>(
 ///    <size>5830735</size>
 ///    <open-size>53965949</open-size>
 ///  </data>
-fn write_data<W: Write>(data: &RepoMdRecord, writer: &mut Writer<W>) -> Result<(), MetadataError> {
+fn write_data<W: Write>(data: &RepomdRecord, writer: &mut Writer<W>) -> Result<(), MetadataError> {
     // <data>
     let mut data_tag = BytesStart::borrowed_name(TAG_DATA);
     data_tag.push_attribute(("type".as_bytes(), data.metadata_name.as_bytes()));

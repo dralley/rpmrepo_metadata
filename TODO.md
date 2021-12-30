@@ -3,11 +3,6 @@
 
 ## Use cases
 
-* Killer feature?  streaming API
-  * pull-based package parsing API, return one package at a time while streaming over metadata
-  * (probably) better alternative to the callback-based API of createrepo_c
-  * drawback: relies on the order of packages in primary.xml, filelists.xml, other.xml being the same
-  * upside: way less memory consumption, user has total control over how fast data is being pulled and when it is freed
 * download repository by providing URL
   * download metadata only
   * download metadata + packages
@@ -31,19 +26,6 @@
 * location_base
   * https://github.com/rpm-software-management/createrepo_c/blob/master/src/xml_dump_repomd.c#L85-L88
   * https://github.com/rpm-software-management/createrepo_c/blob/master/src/xml_parser_repomd.c#L197-L203
-
-### filelists.xml
-
-* tests
-
-### primary.xml
-
-* serialize tests
-* deserialize tests
-
-### other.xml
-
-* tests
 
 ### updateinfo.xml
 
