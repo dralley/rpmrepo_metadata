@@ -103,47 +103,67 @@ fn test_filelists_xml_writer_file() -> Result<(), MetadataError> {
 #[test]
 fn test_filelists_xml_read_header() -> Result<(), MetadataError> {
     // Test that the header parses correctly when there are no packages
-    let mut filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(EMPTY_FILELISTS.as_bytes()));
+    let mut filelists_xml =
+        FilelistsXml::new_reader(utils::create_xml_reader(EMPTY_FILELISTS.as_bytes()));
     assert_eq!(filelists_xml.read_header()?, 0);
-    assert!(matches!(filelists_xml.read_header(), Err(MetadataError::MissingHeaderError)));
+    assert!(matches!(
+        filelists_xml.read_header(),
+        Err(MetadataError::MissingHeaderError)
+    ));
 
     // Test that the header parses correctly when there are no packages and the footer element doesn't exist (EOF)
-    let mut filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(EMPTY_FILELISTS_NO_FOOTER.as_bytes()));
+    let mut filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(
+        EMPTY_FILELISTS_NO_FOOTER.as_bytes(),
+    ));
     assert_eq!(filelists_xml.read_header()?, 0);
-    assert!(matches!(filelists_xml.read_header(), Err(MetadataError::MissingHeaderError)));
+    assert!(matches!(
+        filelists_xml.read_header(),
+        Err(MetadataError::MissingHeaderError)
+    ));
 
     // Test that the header parses correctly when there is no XML declaration at the top
-    let mut filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(EMPTY_FILELISTS_NO_DECL.as_bytes()));
+    let mut filelists_xml =
+        FilelistsXml::new_reader(utils::create_xml_reader(EMPTY_FILELISTS_NO_DECL.as_bytes()));
     assert_eq!(filelists_xml.read_header()?, 0);
-    assert!(matches!(filelists_xml.read_header(), Err(MetadataError::MissingHeaderError)));
+    assert!(matches!(
+        filelists_xml.read_header(),
+        Err(MetadataError::MissingHeaderError)
+    ));
 
     // Test that the header parses correctly when there is packages
-    let mut filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(COMPLEX_FILELISTS.as_bytes()));
+    let mut filelists_xml =
+        FilelistsXml::new_reader(utils::create_xml_reader(COMPLEX_FILELISTS.as_bytes()));
     assert_eq!(filelists_xml.read_header()?, 1);
-    assert!(matches!(filelists_xml.read_header(), Err(MetadataError::MissingHeaderError)));
+    assert!(matches!(
+        filelists_xml.read_header(),
+        Err(MetadataError::MissingHeaderError)
+    ));
 
     Ok(())
 }
 
-
 #[test]
 fn test_filelists_xml_read_package() -> Result<(), MetadataError> {
     // Test that no package is returned if the xml has no packages
-    let mut filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(EMPTY_FILELISTS.as_bytes()));
+    let mut filelists_xml =
+        FilelistsXml::new_reader(utils::create_xml_reader(EMPTY_FILELISTS.as_bytes()));
     assert_eq!(filelists_xml.read_header()?, 0);
     let mut package = None;
     filelists_xml.read_package(&mut package)?;
     assert!(matches!(package, None));
 
     // Test that no packaged is parsed when there are no packages and the footer element doesn't exist (EOF)
-    let mut filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(EMPTY_FILELISTS_NO_FOOTER.as_bytes()));
+    let mut filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(
+        EMPTY_FILELISTS_NO_FOOTER.as_bytes(),
+    ));
     assert_eq!(filelists_xml.read_header()?, 0);
     let mut package = None;
     filelists_xml.read_package(&mut package)?;
     assert!(matches!(package, None));
 
     // Test that a package is parsed correctly when there is packages
-    let mut filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(COMPLEX_FILELISTS.as_bytes()));
+    let mut filelists_xml =
+        FilelistsXml::new_reader(utils::create_xml_reader(COMPLEX_FILELISTS.as_bytes()));
     assert_eq!(filelists_xml.read_header()?, 1);
     let mut package = None;
     filelists_xml.read_package(&mut package)?;

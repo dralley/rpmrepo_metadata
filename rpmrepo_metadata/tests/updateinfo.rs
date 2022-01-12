@@ -2,7 +2,7 @@ extern crate rpmrepo_metadata;
 
 use pretty_assertions::assert_eq;
 use rpmrepo_metadata::*;
-use std::fs::{OpenOptions, Metadata};
+use std::fs::{Metadata, OpenOptions};
 use std::io::{Cursor, Read, Seek, SeekFrom};
 use tempdir::TempDir;
 
@@ -80,4 +80,3 @@ fn test_updateinfo_xml_writer_file() -> Result<(), MetadataError> {
 
     Ok(())
 }
-

@@ -57,7 +57,6 @@ impl RpmMetadata for RepomdXml {
     }
 }
 
-
 impl RepomdXml {
     pub fn write_data<W: Write>(
         repomd_data: &RepomdData,
@@ -190,7 +189,6 @@ fn read_repomd_xml<R: BufRead>(
     }
     Ok(())
 }
-
 
 // <data type="other_db">
 //     <checksum type="sha256">fd2ff685b13d5b18b7c16d1316f7ccf299283cdf5db27ab780cb6b855b022000</checksum>

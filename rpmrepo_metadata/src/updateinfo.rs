@@ -1,7 +1,7 @@
 use std::io::{BufRead, Write};
 
-use quick_xml::{Reader, Writer};
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
+use quick_xml::{Reader, Writer};
 
 use super::metadata::{RpmMetadata, UpdateRecord, UpdateinfoXml};
 use super::{MetadataError, Repository};
