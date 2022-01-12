@@ -2,7 +2,7 @@ extern crate rpmrepo_metadata;
 
 use pretty_assertions::assert_eq;
 use rpmrepo_metadata::*;
-use std::fs::OpenOptions;
+use std::fs::{OpenOptions, Metadata};
 use std::io::{Cursor, Read, Seek, SeekFrom};
 use tempdir::TempDir;
 
@@ -12,6 +12,11 @@ static EMPTY_PRIMARY: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <metadata xmlns="http://linux.duke.edu/metadata/common" xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="0">
 </metadata>
 "#;
+
+static EMPTY_PRIMARY_NO_FOOTER: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<metadata xmlns="http://linux.duke.edu/metadata/common" xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="0">"#;
+
+static EMPTY_PRIMARY_NO_DECL: &str = r#"<metadata xmlns="http://linux.duke.edu/metadata/common" xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="0">"#;
 
 static COMPLEX_PRIMARY: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <metadata xmlns="http://linux.duke.edu/metadata/common" xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="1">
@@ -160,6 +165,60 @@ fn test_primary_xml_writer_file() -> Result<(), MetadataError> {
     f.read_to_string(&mut actual).unwrap();
 
     assert_eq!(actual, EMPTY_PRIMARY);
+
+    Ok(())
+}
+
+#[test]
+fn test_primary_xml_read_header() -> Result<(), MetadataError> {
+    // Test that the header parses correctly when there are no packages
+    let mut primary_xml = PrimaryXml::new_reader(utils::create_xml_reader(EMPTY_PRIMARY.as_bytes()));
+    assert_eq!(primary_xml.read_header()?, 0);
+    assert!(matches!(primary_xml.read_header(), Err(MetadataError::MissingHeaderError)));
+
+    // Test that the header parses correctly when there are no packages and the footer element doesn't exist (EOF)
+    let mut primary_xml = PrimaryXml::new_reader(utils::create_xml_reader(EMPTY_PRIMARY_NO_FOOTER.as_bytes()));
+    assert_eq!(primary_xml.read_header()?, 0);
+    assert!(matches!(primary_xml.read_header(), Err(MetadataError::MissingHeaderError)));
+
+    // Test that the header parses correctly when there is no XML declaration at the top
+    let mut primary_xml = PrimaryXml::new_reader(utils::create_xml_reader(EMPTY_PRIMARY_NO_DECL.as_bytes()));
+    assert_eq!(primary_xml.read_header()?, 0);
+    assert!(matches!(primary_xml.read_header(), Err(MetadataError::MissingHeaderError)));
+
+    // Test that the header parses correctly when there is packages
+    let mut primary_xml = PrimaryXml::new_reader(utils::create_xml_reader(COMPLEX_PRIMARY.as_bytes()));
+    assert_eq!(primary_xml.read_header()?, 1);
+    assert!(matches!(primary_xml.read_header(), Err(MetadataError::MissingHeaderError)));
+
+    Ok(())
+}
+
+#[test]
+fn test_primary_xml_read_package() -> Result<(), MetadataError> {
+    // Test that no package is returned if the xml has no packages
+    let mut primary_xml = PrimaryXml::new_reader(utils::create_xml_reader(EMPTY_PRIMARY.as_bytes()));
+    assert_eq!(primary_xml.read_header()?, 0);
+    let mut package = None;
+    primary_xml.read_package(&mut package)?;
+    assert!(matches!(package, None));
+
+    // Test that no packaged is parsed when there are no packages and the footer element doesn't exist (EOF)
+    let mut primary_xml = PrimaryXml::new_reader(utils::create_xml_reader(EMPTY_PRIMARY_NO_FOOTER.as_bytes()));
+    assert_eq!(primary_xml.read_header()?, 0);
+    let mut package = None;
+    primary_xml.read_package(&mut package)?;
+    assert!(matches!(package, None));
+
+    // Test that a package is parsed correctly when there is packages
+    let mut primary_xml = PrimaryXml::new_reader(utils::create_xml_reader(COMPLEX_PRIMARY.as_bytes()));
+    assert_eq!(primary_xml.read_header()?, 1);
+    let mut package = None;
+    primary_xml.read_package(&mut package)?;
+    assert!(matches!(package, Some(_)));
+    package.take();
+    primary_xml.read_package(&mut package)?;
+    assert!(matches!(package, None));
 
     Ok(())
 }

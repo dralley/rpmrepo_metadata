@@ -15,6 +15,13 @@ static EMPTY_FILELISTS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 </filelists>
 "#;
 
+static EMPTY_FILELISTS_NO_FOOTER: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="0">"#;
+
+static EMPTY_FILELISTS_NO_DECL: &str = r#"<filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="0">
+</filelists>
+"#;
+
 static COMPLEX_FILELISTS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="1">
   <package pkgid="bbb7b0e9350a0f75b923bdd0ef4f9af39765c668a3e70bfd3486ea9f0f618aaf" name="complex-package" arch="x86_64">
@@ -113,44 +120,57 @@ fn test_filelists_xml_writer_file() -> Result<(), MetadataError> {
     Ok(())
 }
 
-// pub(crate) fn to_string<M: RpmMetadata>(&self) -> Result<String, MetadataError> {
-//     let bytes = self.to_bytes::<M>()?;
-//     Ok(String::from_utf8(bytes).map_err(|e| e.utf8_error())?)
-// }
+#[test]
+fn test_filelists_xml_read_header() -> Result<(), MetadataError> {
+    // Test that the header parses correctly when there are no packages
+    let mut filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(EMPTY_FILELISTS.as_bytes()));
+    assert_eq!(filelists_xml.read_header()?, 0);
+    assert!(matches!(filelists_xml.read_header(), Err(MetadataError::MissingHeaderError)));
 
-// pub(crate) fn to_bytes<M: RpmMetadata>(&self) -> Result<Vec<u8>, MetadataError> {
-//     let mut buf = Vec::new();
-//     let mut writer = Writer::new_with_indent(Cursor::new(&mut buf), b' ', 2);
-//     M::write_metadata(self, &mut writer)?;
-//     Ok(writer.into_inner().into_inner().to_vec())
-// }
+    // Test that the header parses correctly when there are no packages and the footer element doesn't exist (EOF)
+    let mut filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(EMPTY_FILELISTS_NO_FOOTER.as_bytes()));
+    assert_eq!(filelists_xml.read_header()?, 0);
+    assert!(matches!(filelists_xml.read_header(), Err(MetadataError::MissingHeaderError)));
 
-// Test roundtrip (serialize + deserialize) on a real repomd.xml (Fedora 33 x86_64 release "everything")
-// #[test]
-// fn test_filelists_roundtrip() -> Result<(), MetadataError> {
-//     let first_deserialize = FilelistsXml::from_file(Path::new(FIXTURE_FILELIST_PATH))?;
-//     let first_serialize = first_deserialize.to_string()?;
+    // Test that the header parses correctly when there is no XML declaration at the top
+    let mut filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(EMPTY_FILELISTS_NO_DECL.as_bytes()));
+    assert_eq!(filelists_xml.read_header()?, 0);
+    assert!(matches!(filelists_xml.read_header(), Err(MetadataError::MissingHeaderError)));
 
-//     let second_deserialize = FilelistsXml::from_str(&first_serialize)?;
-//     let second_serialize = second_deserialize.to_string()?;
+    // Test that the header parses correctly when there is packages
+    let mut filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(COMPLEX_FILELISTS.as_bytes()));
+    assert_eq!(filelists_xml.read_header()?, 1);
+    assert!(matches!(filelists_xml.read_header(), Err(MetadataError::MissingHeaderError)));
 
-//     assert_eq!(first_deserialize, second_deserialize);
-//     assert_eq!(first_serialize, second_serialize);
+    Ok(())
+}
 
-//     Ok(())
-// }
 
-// #[test]
-// fn repomd() -> Result<(), MetadataError> {
-//     // let fixture_path = "./tests/assets/complex_repo/";
-//     let fixture_path = "../test_repo/";
+#[test]
+fn test_filelists_xml_read_package() -> Result<(), MetadataError> {
+    // Test that no package is returned if the xml has no packages
+    let mut filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(EMPTY_FILELISTS.as_bytes()));
+    assert_eq!(filelists_xml.read_header()?, 0);
+    let mut package = None;
+    filelists_xml.read_package(&mut package)?;
+    assert!(matches!(package, None));
 
-//     let repo = Repository::load_from_directory(fixture_path.as_ref())?;
+    // Test that no packaged is parsed when there are no packages and the footer element doesn't exist (EOF)
+    let mut filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(EMPTY_FILELISTS_NO_FOOTER.as_bytes()));
+    assert_eq!(filelists_xml.read_header()?, 0);
+    let mut package = None;
+    filelists_xml.read_package(&mut package)?;
+    assert!(matches!(package, None));
 
-//     assert_eq!(repo.packages().len(), 10700);
-//     // assert_eq!(repo.packages.len(), 3);
+    // Test that a package is parsed correctly when there is packages
+    let mut filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(COMPLEX_FILELISTS.as_bytes()));
+    assert_eq!(filelists_xml.read_header()?, 1);
+    let mut package = None;
+    filelists_xml.read_package(&mut package)?;
+    assert!(matches!(package, Some(_)));
+    package.take();
+    filelists_xml.read_package(&mut package)?;
+    assert!(matches!(package, None));
 
-//     // repo.to_directory("./tests/assets/test_repo/".as_ref())?;
-
-//     Ok(())
-// }
+    Ok(())
+}

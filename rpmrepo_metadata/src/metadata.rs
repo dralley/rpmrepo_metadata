@@ -689,7 +689,6 @@ impl DistroTag {
 #[derive(Debug, PartialEq, Default)]
 pub struct RepomdData {
     revision: Option<String>,
-    // metadata_files: BTreeMap<String, RepomdRecord>,
     metadata_files: Vec<RepomdRecord>,
 
     // checksum_type: ChecksumType,
@@ -777,19 +776,17 @@ impl RepomdData {
         self.metadata_files.sort_by(|a, b| value(a).cmp(&value(b)));
     }
 
+    // TODO error handling
     pub fn get_primary_data(&self) -> &RepomdRecord {
-        self.get_record(METADATA_PRIMARY)
-            .expect("Cannot find primary.xml")
+        self.get_record(METADATA_PRIMARY).expect("Cannot find primary metadata")
     }
 
     pub fn get_filelist_data(&self) -> &RepomdRecord {
-        self.get_record(METADATA_FILELISTS)
-            .expect("Cannot find filelists.xml")
+        self.get_record(METADATA_FILELISTS).expect("Cannot find filelists metadata")
     }
 
     pub fn get_other_data(&self) -> &RepomdRecord {
-        self.get_record(METADATA_OTHER)
-            .expect("Cannot find other.xml")
+        self.get_record(METADATA_OTHER).expect("Cannot find other metadata")
     }
 }
 
@@ -825,18 +822,18 @@ pub struct RepomdRecord {
 }
 
 impl RepomdRecord {
-    pub fn new(name: &str, path: &Path) -> Result<Self, MetadataError> {
+    pub fn new(name: &str, href: &Path, base: &Path) -> Result<Self, MetadataError> {
         let mut record = RepomdRecord::default();
         record.metadata_name = name.to_owned();
         record.location_href = {
-            let href = path
-                .strip_prefix(path.ancestors().nth(2).unwrap())
-                .unwrap()
-                .to_owned();
+            // let href = href
+            //     .strip_prefix(href.ancestors().nth(2).unwrap())
+            //     .unwrap()
+            //     .to_owned();
             assert!(href.starts_with("repodata/"));
-            href
+            href.to_owned()
         };
-        record.base_path = Some(path.to_owned());
+        record.base_path = Some(base.to_owned());
         record.fill()?;
         Ok(record)
     }

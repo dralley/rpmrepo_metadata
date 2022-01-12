@@ -312,10 +312,11 @@ impl RepositoryWriter {
 
     pub fn finish(&mut self) -> Result<(), MetadataError> {
         // TODO: this is a mess
+        let path = self.path.clone();
         let repodata_dir = self.path.join("repodata");
-        let primary_path = utils::apply_compression_suffix(&repodata_dir.join("primary.xml"), self.options.metadata_compression_type);
-        let filelists_path = utils::apply_compression_suffix(&repodata_dir.join("filelists.xml"), self.options.metadata_compression_type);
-        let other_path = utils::apply_compression_suffix(&repodata_dir.join("other.xml"), self.options.metadata_compression_type);
+        let primary_path = utils::apply_compression_suffix(&PathBuf::from("repodata").join("primary.xml"), self.options.metadata_compression_type);
+        let filelists_path = utils::apply_compression_suffix(&PathBuf::from("repodata").join("filelists.xml"), self.options.metadata_compression_type);
+        let other_path = utils::apply_compression_suffix(&PathBuf::from("repodata").join("other.xml"), self.options.metadata_compression_type);
 
         self.primary_xml_writer.as_mut().unwrap().finish()?;
         self.filelists_xml_writer.as_mut().unwrap().finish()?;
@@ -331,11 +332,11 @@ impl RepositoryWriter {
         drop(self.other_xml_writer.take());
 
         self.repomd_mut()
-            .add_record(RepomdRecord::new("primary", &primary_path.as_ref())?);
+            .add_record(RepomdRecord::new("primary", &primary_path.as_ref(), &path)?);
         self.repomd_mut()
-            .add_record(RepomdRecord::new("filelists", &filelists_path.as_ref())?);
+            .add_record(RepomdRecord::new("filelists", &filelists_path.as_ref(), &path)?);
         self.repomd_mut()
-            .add_record(RepomdRecord::new("other", &other_path.as_ref())?);
+            .add_record(RepomdRecord::new("other", &other_path.as_ref(), &path)?);
 
         if let Some(updateinfo_xml_writer) = &mut self.updateinfo_xml_writer {
             updateinfo_xml_writer.finish()?;

@@ -13,7 +13,7 @@ mod tests {
         path::{Path, PathBuf},
     };
 
-    const FIXTURE_REPOMD_PATH: &str =
+    static FIXTURE_REPOMD_PATH: &str =
         "./tests/assets/fixture_repos/complex_repo/repodata/repomd.xml";
 
     /// Fixture should cover all fields / tag types for repomd.xml

@@ -13,6 +13,13 @@ static EMPTY_OTHERDATA: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 </otherdata>
 "#;
 
+static EMPTY_OTHERDATA_NO_FOOTER: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<otherdata xmlns="http://linux.duke.edu/metadata/other" packages="0">"#;
+
+static EMPTY_OTHERDATA_NO_DECL: &str = r#"<otherdata xmlns="http://linux.duke.edu/metadata/other" packages="0">
+</otherdata>
+"#;
+
 static COMPLEX_OTHERDATA: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <otherdata xmlns="http://linux.duke.edu/metadata/other" packages="1">
   <package pkgid="bbb7b0e9350a0f75b923bdd0ef4f9af39765c668a3e70bfd3486ea9f0f618aaf" name="complex-package" arch="x86_64">
@@ -104,6 +111,61 @@ fn test_other_xml_writer_file() -> Result<(), MetadataError> {
     f.read_to_string(&mut actual).unwrap();
 
     assert_eq!(actual, EMPTY_OTHERDATA);
+
+    Ok(())
+}
+
+#[test]
+fn test_filelists_xml_read_header() -> Result<(), MetadataError> {
+    // Test that the header parses correctly when there are no packages
+    let mut other_xml = OtherXml::new_reader(utils::create_xml_reader(EMPTY_OTHERDATA.as_bytes()));
+    assert_eq!(other_xml.read_header()?, 0);
+    assert!(matches!(other_xml.read_header(), Err(MetadataError::MissingHeaderError)));
+
+    // Test that the header parses correctly when there are no packages and the footer element doesn't exist (EOF)
+    let mut other_xml = OtherXml::new_reader(utils::create_xml_reader(EMPTY_OTHERDATA_NO_FOOTER.as_bytes()));
+    assert_eq!(other_xml.read_header()?, 0);
+    assert!(matches!(other_xml.read_header(), Err(MetadataError::MissingHeaderError)));
+
+    // Test that the header parses correctly when there is no XML declaration at the top
+    let mut other_xml = OtherXml::new_reader(utils::create_xml_reader(EMPTY_OTHERDATA_NO_DECL.as_bytes()));
+    assert_eq!(other_xml.read_header()?, 0);
+    assert!(matches!(other_xml.read_header(), Err(MetadataError::MissingHeaderError)));
+
+    // Test that the header parses correctly when there is packages
+    let mut other_xml = OtherXml::new_reader(utils::create_xml_reader(COMPLEX_OTHERDATA.as_bytes()));
+    assert_eq!(other_xml.read_header()?, 1);
+    assert!(matches!(other_xml.read_header(), Err(MetadataError::MissingHeaderError)));
+
+    Ok(())
+}
+
+
+#[test]
+fn test_filelists_xml_read_package() -> Result<(), MetadataError> {
+    // Test that no package is returned if the xml has no packages
+    let mut other_xml = OtherXml::new_reader(utils::create_xml_reader(EMPTY_OTHERDATA.as_bytes()));
+    assert_eq!(other_xml.read_header()?, 0);
+    let mut package = None;
+    other_xml.read_package(&mut package)?;
+    assert!(matches!(package, None));
+
+    // Test that no packaged is parsed when there are no packages and the footer element doesn't exist (EOF)
+    let mut other_xml = OtherXml::new_reader(utils::create_xml_reader(EMPTY_OTHERDATA_NO_FOOTER.as_bytes()));
+    assert_eq!(other_xml.read_header()?, 0);
+    let mut package = None;
+    other_xml.read_package(&mut package)?;
+    assert!(matches!(package, None));
+
+    // Test that a package is parsed correctly when there is packages
+    let mut other_xml = OtherXml::new_reader(utils::create_xml_reader(COMPLEX_OTHERDATA.as_bytes()));
+    assert_eq!(other_xml.read_header()?, 1);
+    let mut package = None;
+    other_xml.read_package(&mut package)?;
+    assert!(matches!(package, Some(_)));
+    package.take();
+    other_xml.read_package(&mut package)?;
+    assert!(matches!(package, None));
 
     Ok(())
 }
