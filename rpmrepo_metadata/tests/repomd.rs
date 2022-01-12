@@ -33,15 +33,30 @@ mod tests {
             );
             let mut record = RepomdRecord::default();
             record.metadata_name = String::from("primary");
-            record.location_href = PathBuf::from("repomd/primary.xml");
+            record.checksum = Checksum::Sha256(String::from("e6104a05bf3101c01321a5af9098d569ff974a8e6a8f72c5982bf074efbaf036"));
+            record.open_checksum = Some(Checksum::Sha256(String::from("03fb79ab50c4ac35db2ca86964047c68a3561e0978e380be7f4fbc0ac4d6c530")));
+            record.timestamp = 1639195237;
+            record.size = Some(1971);
+            record.open_size = Some(6527);
+            record.location_href = PathBuf::from("repodata/primary.xml.gz");
             repomd.add_record(record);
             let mut record = RepomdRecord::default();
             record.metadata_name = String::from("filelists");
-            record.location_href = PathBuf::from("repomd/filelists.xml");
+            record.checksum = Checksum::Sha256(String::from("128398aea7338ada2735e3d9340c16e5915040133b77bd8f4498d22ace6e5a0e"));
+            record.open_checksum = Some(Checksum::Sha256(String::from("4077fb59f51db93dc3414850564d18e8ccd4ae6acb8358272e174a84d1b1ba1e")));
+            record.timestamp = 1639195237;
+            record.size = Some(524);
+            record.open_size = Some(1099);
+            record.location_href = PathBuf::from("repodata/filelists.xml.gz");
             repomd.add_record(record);
             let mut record = RepomdRecord::default();
             record.metadata_name = String::from("other");
-            record.location_href = PathBuf::from("repomd/other.xml");
+            record.checksum = Checksum::Sha256(String::from("9b34aaa221ed94e916f385c0b891c0114c394948140d736bd10ec5127c2ea4e5"));
+            record.open_checksum = Some(Checksum::Sha256(String::from("1851cd11e50372c89303851655ccc032b35468854e6c7401eb02d31fd7e77a6e")));
+            record.timestamp = 1639195237;
+            record.size = Some(680);
+            record.open_size = Some(1277);
+            record.location_href = PathBuf::from("repodata/other.xml.gz");
             repomd.add_record(record);
             repomd
         })
@@ -49,7 +64,8 @@ mod tests {
 
     #[test]
     fn test_deserialization() -> Result<(), MetadataError> {
-        let actual = RepomdXml::read_data(utils::xml_reader_from_file(Path::new(FIXTURE_REPOMD_PATH))?)?;
+        let actual =
+            RepomdXml::read_data(utils::xml_reader_from_file(Path::new(FIXTURE_REPOMD_PATH))?)?;
         let expected = fixture_data();
 
         assert_eq!(actual.revision(), expected.revision());
@@ -89,14 +105,12 @@ mod tests {
         Ok(())
     }
 
-    /// Test Serialization on a real repomd.xml (Fedora 33 x86_64 release "everything")
+    /// Test Serialization on a real repomd.xml
     #[test]
     fn test_serialization() -> Result<(), MetadataError> {
-        let inner = Vec::new();
-        let mut writer = utils::create_xml_writer(inner);
-        RepomdXml::write_data(&mut writer, fixture_data())?;
-        let inner = writer.into_inner();
-        let actual = std::str::from_utf8(&inner)?;
+        let mut buffer = Vec::new();
+        RepomdXml::write_data(fixture_data(), &mut utils::create_xml_writer(&mut buffer))?;
+        let actual = std::str::from_utf8(&buffer)?;
         let mut expected = String::new();
         File::open(FIXTURE_REPOMD_PATH)?.read_to_string(&mut expected)?;
 
@@ -105,17 +119,19 @@ mod tests {
         Ok(())
     }
 
-    // /// Test roundtrip (serialize + deserialize) on a real repomd.xml (Fedora 33 x86_64 release "everything")
-    // #[test]
-    // fn test_roundtrip() -> Result<(), MetadataError> {
-    //     let first_deserialize = RepomdXml::from_file(Path::new(FIXTURE_REPOMD_PATH))?;
-    //     let first_serialize = first_deserialize.to_string()?;
-    //     let second_deserialize = RepomdXml::from_str(&first_serialize)?;
-    //     let second_serialize = second_deserialize.to_string()?;
+    /// Test roundtrip (serialize + deserialize) on a real repomd.xml
+    #[test]
+    fn test_roundtrip() -> Result<(), MetadataError> {
+        let mut first_buffer = Vec::new();
+        let mut second_buffer = Vec::new();
+        let first_repomd = RepomdXml::read_data(utils::xml_reader_from_file(Path::new(FIXTURE_REPOMD_PATH))?)?;
+        RepomdXml::write_data(&first_repomd, &mut utils::create_xml_writer(&mut first_buffer))?;
+        let second_repomd = RepomdXml::read_data(utils::create_xml_reader(&*first_buffer))?;
+        RepomdXml::write_data(&second_repomd, &mut utils::create_xml_writer(&mut second_buffer))?;
 
-    //     assert_eq!(first_deserialize, second_deserialize);
-    //     assert_eq!(first_serialize, second_serialize);
+        assert_eq!(first_repomd, second_repomd);
+        assert_eq!(first_buffer, second_buffer);
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 }

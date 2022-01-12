@@ -1,9 +1,5 @@
-use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Cursor, Write};
-use std::path::Path;
-use std::{collections::HashMap, path::PathBuf};
-
-use quick_xml::{Reader, Writer};
+use std::io::{Cursor, Write};
+use std::path::{Path, PathBuf};
 
 use crate::updateinfo::UpdateinfoXmlWriter;
 use crate::UpdateinfoXml;
@@ -315,19 +311,11 @@ impl RepositoryWriter {
     }
 
     pub fn finish(&mut self) -> Result<(), MetadataError> {
-        let extension = self.options.metadata_compression_type.to_file_extension();
-
         // TODO: this is a mess
         let repodata_dir = self.path.join("repodata");
-        let mut primary_path = repodata_dir.join("primary.xml").as_os_str().to_owned();
-        let mut filelists_path = repodata_dir.join("filelists.xml").as_os_str().to_owned();
-        let mut other_path = repodata_dir.join("other.xml").as_os_str().to_owned();
-
-        if !extension.is_empty() {
-            primary_path.push(extension);
-            filelists_path.push(extension);
-            other_path.push(extension);
-        }
+        let primary_path = utils::apply_compression_suffix(&repodata_dir.join("primary.xml"), self.options.metadata_compression_type);
+        let filelists_path = utils::apply_compression_suffix(&repodata_dir.join("filelists.xml"), self.options.metadata_compression_type);
+        let other_path = utils::apply_compression_suffix(&repodata_dir.join("other.xml"), self.options.metadata_compression_type);
 
         self.primary_xml_writer.as_mut().unwrap().finish()?;
         self.filelists_xml_writer.as_mut().unwrap().finish()?;
@@ -338,9 +326,9 @@ impl RepositoryWriter {
         // be able to drop() the writers, because the underlying encoders do not finish their work unless
         // dropped. The underlying compression encoders do have methods to finish encoding, however, we
         // do not have access to those because it's behind Box<dyn Read>.
-        self.primary_xml_writer = None;
-        self.filelists_xml_writer = None;
-        self.other_xml_writer = None;
+        drop(self.primary_xml_writer.take());
+        drop(self.filelists_xml_writer.take());
+        drop(self.other_xml_writer.take());
 
         self.repomd_mut()
             .add_record(RepomdRecord::new("primary", &primary_path.as_ref())?);
@@ -356,7 +344,7 @@ impl RepositoryWriter {
 
         let (_, mut repomd_writer) =
             utils::xml_writer_for_path(&repodata_dir.join("repomd.xml"), CompressionType::None)?;
-        RepomdXml::write_data(&mut repomd_writer, &self.repomd_data)?;
+        RepomdXml::write_data(&self.repomd_data, &mut repomd_writer)?;
 
         // TODO: a report of the files created?
 
@@ -381,32 +369,7 @@ impl RepositoryReader {
     }
 
     pub fn iter_packages(&self) -> Result<PackageParser, MetadataError> {
-        let primary_path = self.path.join(
-            &self
-                .repository
-                .repomd()
-                .get_record(METADATA_PRIMARY)
-                .unwrap()
-                .location_href,
-        );
-        let filelists_path = self.path.join(
-            &self
-                .repository
-                .repomd()
-                .get_record(METADATA_FILELISTS)
-                .unwrap()
-                .location_href,
-        );
-        let other_path = self.path.join(
-            &self
-                .repository
-                .repomd()
-                .get_record(METADATA_OTHER)
-                .unwrap()
-                .location_href,
-        );
-
-        PackageParser::from_files(&primary_path, &filelists_path, &other_path)
+        PackageParser::from_repodata(&self.path, self.repository.repomd())
     }
 
     // pub fn iter_advisories(&self) -> Result<> {

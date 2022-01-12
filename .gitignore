@@ -14,7 +14,11 @@
 
 # Cargo flamegraph
 **/perf.data
+**/perf.data.old
 **/flamegraph.svg
 
 # Massif
 **/massif.out.*
+
+# Cargo timings
+**/*.html

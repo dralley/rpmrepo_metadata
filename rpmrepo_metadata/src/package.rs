@@ -7,6 +7,7 @@ use crate::other::OtherXmlReader;
 use crate::primary::PrimaryXmlReader;
 use crate::{utils, RepomdData};
 use crate::{FilelistsXml, MetadataError, OtherXml, Package, PrimaryXml, EVR};
+use crate::metadata::{METADATA_FILELISTS, METADATA_OTHER, METADATA_PRIMARY};
 
 // impl TryInto<Package> for rpm::RPMPackage {
 //     type Error = rpm::RPMError;
@@ -67,6 +68,28 @@ pub struct PackageParser {
 }
 
 impl PackageParser {
+    pub fn from_repodata(base: &Path, repomd: &RepomdData) -> Result<Self, MetadataError> {
+        let primary_path = base.join(
+                &repomd
+                .get_record(METADATA_PRIMARY)
+                .unwrap()
+                .location_href,
+        );
+        let filelists_path = base.join(
+                &repomd
+                .get_record(METADATA_FILELISTS)
+                .unwrap()
+                .location_href,
+        );
+        let other_path = base.join(
+            &repomd
+                .get_record(METADATA_OTHER)
+                .unwrap()
+                .location_href,
+        );
+        Self::from_files(&primary_path, &filelists_path, &other_path)
+    }
+
     pub fn from_files(
         primary_path: &Path,
         filelists_path: &Path,

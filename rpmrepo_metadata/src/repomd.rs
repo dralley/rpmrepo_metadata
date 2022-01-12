@@ -57,6 +57,22 @@ impl RpmMetadata for RepomdXml {
     }
 }
 
+
+impl RepomdXml {
+    pub fn write_data<W: Write>(
+        repomd_data: &RepomdData,
+        writer: &mut Writer<W>,
+    ) -> Result<(), MetadataError> {
+        write_repomd_xml(repomd_data, writer)
+    }
+
+    pub fn read_data<R: BufRead>(reader: Reader<R>) -> Result<RepomdData, MetadataError> {
+        let mut repomd = RepomdData::default();
+        read_repomd_xml(&mut repomd, reader)?;
+        Ok(repomd)
+    }
+}
+
 #[derive(Debug, PartialEq, Default)]
 struct RepomdRecordBuilder {
     metadata_name: String,
@@ -76,25 +92,25 @@ impl TryFrom<RepomdRecordBuilder> for RepomdRecord {
     type Error = MetadataError;
 
     fn try_from(builder: RepomdRecordBuilder) -> Result<Self, Self::Error> {
-        let record = RepomdRecord {
-            metadata_name: builder.metadata_name,
-            location_href: builder
-                .location_href
-                .ok_or_else(|| MetadataError::MissingFieldError("location_href"))?,
-            location_base: builder.location_base,
-            timestamp: builder
-                .timestamp
-                .ok_or_else(|| MetadataError::MissingFieldError("timestamp"))?,
-            size: builder.size,
-            checksum: builder
-                .checksum
-                .ok_or_else(|| MetadataError::MissingFieldError("checksum"))?,
-            open_size: builder.open_size,
-            open_checksum: builder.open_checksum, // TODO: do these need to be conditionally required?
-            header_size: builder.header_size,
-            header_checksum: builder.header_checksum,
-            database_version: builder.database_version,
-        };
+        let mut record = RepomdRecord::default();
+        record.metadata_name = builder.metadata_name;
+        record.location_href = builder
+            .location_href
+            .ok_or_else(|| MetadataError::MissingFieldError("location_href"))?;
+        record.location_base = builder.location_base;
+        record.timestamp = builder
+            .timestamp
+            .ok_or_else(|| MetadataError::MissingFieldError("timestamp"))?;
+        record.size = builder.size;
+        record.checksum = builder
+            .checksum
+            .ok_or_else(|| MetadataError::MissingFieldError("checksum"))?;
+        record.open_size = builder.open_size;
+        record.open_checksum = builder.open_checksum; // TODO: do these need to be conditionally required?
+        record.header_size = builder.header_size;
+        record.header_checksum = builder.header_checksum;
+        record.database_version = builder.database_version;
+
         Ok(record)
     }
 }
@@ -175,63 +191,6 @@ fn read_repomd_xml<R: BufRead>(
     Ok(())
 }
 
-impl RepomdXml {
-    pub fn write_data<W: Write>(
-        writer: &mut Writer<W>,
-        repomd_data: &RepomdData,
-    ) -> Result<(), MetadataError> {
-        write_repomd_xml(repomd_data, writer)
-    }
-
-    pub fn read_data<R: BufRead>(reader: Reader<R>) -> Result<RepomdData, MetadataError> {
-        let mut repomd = RepomdData::default();
-        read_repomd_xml(&mut repomd, reader)?;
-        Ok(repomd)
-    }
-}
-
-fn write_repomd_xml<W: Write>(
-    repomd_data: &RepomdData,
-    writer: &mut Writer<W>,
-) -> Result<(), MetadataError> {
-    // <?xml version="1.0" encoding="UTF-8"?>
-    writer.write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
-
-    // <repomd xmlns="http://linux.duke.edu/metadata/repo" xmlns:rpm="http://linux.duke.edu/metadata/rpm">
-    let mut repomd_tag = BytesStart::borrowed_name(TAG_REPOMD);
-    repomd_tag.push_attribute(("xmlns", XML_NS_REPO));
-    repomd_tag.push_attribute(("xmlns:rpm", XML_NS_RPM));
-    writer.write_event(Event::Start(repomd_tag.to_borrowed()))?;
-
-    // <revision>123897</revision>
-    let get_current_time = || {
-        SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .expect("system clock failure")
-            .as_secs()
-            .to_string()
-    };
-    let revision = if let Some(revision) = repomd_data.revision() {
-        revision.to_owned()
-    } else {
-        get_current_time()
-    };
-    writer
-        .create_element(TAG_REVISION)
-        .write_text_content(BytesText::from_plain_str(revision.as_str()))?;
-
-    write_tags(repomd_data, writer)?;
-    for record in repomd_data.records() {
-        write_data(record, writer)?;
-    }
-
-    // </repomd>
-    writer.write_event(Event::End(repomd_tag.to_end()))?;
-
-    // trailing newline
-    writer.write_event(Event::Text(BytesText::from_plain_str("\n")))?;
-    Ok(())
-}
 
 // <data type="other_db">
 //     <checksum type="sha256">fd2ff685b13d5b18b7c16d1316f7ccf299283cdf5db27ab780cb6b855b022000</checksum>
@@ -332,6 +291,49 @@ pub fn parse_repomdrecord<R: BufRead>(
         record_buf.clear();
     }
     Ok(record_builder.try_into()?)
+}
+
+fn write_repomd_xml<W: Write>(
+    repomd_data: &RepomdData,
+    writer: &mut Writer<W>,
+) -> Result<(), MetadataError> {
+    // <?xml version="1.0" encoding="UTF-8"?>
+    writer.write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
+
+    // <repomd xmlns="http://linux.duke.edu/metadata/repo" xmlns:rpm="http://linux.duke.edu/metadata/rpm">
+    let mut repomd_tag = BytesStart::borrowed_name(TAG_REPOMD);
+    repomd_tag.push_attribute(("xmlns", XML_NS_REPO));
+    repomd_tag.push_attribute(("xmlns:rpm", XML_NS_RPM));
+    writer.write_event(Event::Start(repomd_tag.to_borrowed()))?;
+
+    // <revision>123897</revision>
+    let get_current_time = || {
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("system clock failure")
+            .as_secs()
+            .to_string()
+    };
+    let revision = if let Some(revision) = repomd_data.revision() {
+        revision.to_owned()
+    } else {
+        get_current_time()
+    };
+    writer
+        .create_element(TAG_REVISION)
+        .write_text_content(BytesText::from_plain_str(revision.as_str()))?;
+
+    write_tags(repomd_data, writer)?;
+    for record in repomd_data.records() {
+        write_data(record, writer)?;
+    }
+
+    // </repomd>
+    writer.write_event(Event::End(repomd_tag.to_end()))?;
+
+    // trailing newline
+    writer.write_event(Event::Text(BytesText::from_plain_str("\n")))?;
+    Ok(())
 }
 
 /// <tags>

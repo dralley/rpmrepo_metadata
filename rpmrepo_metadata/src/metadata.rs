@@ -795,6 +795,8 @@ impl RepomdData {
 
 #[derive(Debug, PartialEq, Default, Clone)]
 pub struct RepomdRecord {
+    base_path: Option<PathBuf>,
+
     /// Record type
     pub metadata_name: String,
     /// Relative location of the file in a repository
@@ -834,17 +836,19 @@ impl RepomdRecord {
             assert!(href.starts_with("repodata/"));
             href
         };
+        record.base_path = Some(path.to_owned());
         record.fill()?;
         Ok(record)
     }
 
     pub fn fill(&mut self) -> Result<(), MetadataError> {
-        let file_metadata = self.location_href.metadata()?;
+        let file_path = self.base_path.as_ref().expect("cannot fill metadata if path not on disk").join(&self.location_href);
+        let file_metadata = file_path.metadata()?;
         self.timestamp = file_metadata.mtime();
         self.size = Some(file_metadata.size());
-        self.checksum = utils::checksum_file(&self.location_href, ChecksumType::Sha256)?;
-        self.open_checksum = utils::checksum_inner_file(&self.location_href, ChecksumType::Sha256)?;
-        self.open_size = utils::size_inner_file(&self.location_href)?;
+        self.checksum = utils::checksum_file(&file_path, ChecksumType::Sha256)?;
+        self.open_checksum = utils::checksum_inner_file(&file_path, ChecksumType::Sha256)?;
+        self.open_size = utils::size_inner_file(&file_path)?;
 
         Ok(())
     }

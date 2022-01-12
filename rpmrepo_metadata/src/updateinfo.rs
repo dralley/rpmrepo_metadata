@@ -1,6 +1,7 @@
-use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
-use quick_xml::{Reader, Writer};
 use std::io::{BufRead, Write};
+
+use quick_xml::{Reader, Writer};
+use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 
 use super::metadata::{RpmMetadata, UpdateRecord, UpdateinfoXml};
 use super::{MetadataError, Repository};
@@ -13,7 +14,7 @@ const TAG_RELEASE: &[u8] = b"release";
 const TAG_SEVERITY: &[u8] = b"severity";
 const TAG_ISSUED: &[u8] = b"issued";
 const TAG_UPDATED: &[u8] = b"updated";
-const TAG_COPYRIGHT: &[u8] = b"copyright";
+const TAG_RIGHTS: &[u8] = b"copyright";
 const TAG_SUMMARY: &[u8] = b"summary";
 const TAG_DESCRIPTION: &[u8] = b"description";
 const TAG_SOLUTION: &[u8] = b"solution";
@@ -38,9 +39,10 @@ impl RpmMetadata for UpdateinfoXml {
     ) -> Result<(), MetadataError> {
         let mut reader = UpdateinfoXml::new_reader(reader);
         // reader.read_header()?;
-        loop {
-            let updaterecord = reader.read_update()?;
-            repository.advisories_mut().entry(updaterecord.id.clone()).or_insert(updaterecord);
+        while let Some(updaterecord) = reader.read_update()? {
+            repository
+                .advisories_mut()
+                .insert(updaterecord.id.clone(), updaterecord);
         }
         Ok(())
     }
@@ -51,7 +53,7 @@ impl RpmMetadata for UpdateinfoXml {
     ) -> Result<(), MetadataError> {
         let mut writer = UpdateinfoXml::new_writer(writer);
         writer.write_header()?;
-        for (_, record) in repository.advisories() {
+        for record in repository.advisories().values() {
             writer.write_updaterecord(record)?;
         }
         writer.finish()?;
@@ -103,18 +105,10 @@ pub struct UpdateinfoXmlReader<R: BufRead> {
 }
 
 impl<R: BufRead> UpdateinfoXmlReader<R> {
-    pub fn read_update(&mut self) -> Result<UpdateRecord, MetadataError> {
-        Ok(UpdateRecord::default())
+    pub fn read_update(&mut self) -> Result<Option<UpdateRecord>, MetadataError> {
+        parse_updaterecord(&mut self.reader)
     }
 }
-
-
-// impl Iterator for PackageParser {
-//     type Item = Result<Package, MetadataError>;
-//     fn next(&mut self) -> Option<Self::Item> {
-//         self.parse_package().transpose()
-//     }
-// }
 
 impl UpdateinfoXml {
     pub fn new_writer<W: Write>(writer: Writer<W>) -> UpdateinfoXmlWriter<W> {
@@ -124,6 +118,87 @@ impl UpdateinfoXml {
     pub fn new_reader<R: BufRead>(reader: Reader<R>) -> UpdateinfoXmlReader<R> {
         UpdateinfoXmlReader { reader }
     }
+}
+
+fn parse_updaterecord<R: BufRead>(
+    reader: &mut Reader<R>,
+) -> Result<Option<UpdateRecord>, MetadataError> {
+    let mut buf = Vec::new();
+    let mut format_text_buf = Vec::new();
+
+    let mut record = UpdateRecord::default();
+
+    // TODO: get rid of unwraps, various branches could happen in wrong order
+    loop {
+        match reader.read_event(&mut buf)? {
+            Event::End(e) if e.name() == TAG_UPDATE => break,
+            Event::Start(e) => match e.name() {
+                TAG_UPDATE => {
+                    let status = e
+                        .try_get_attribute("status")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("status"))?
+                        .unescape_and_decode_value(reader)?;
+                    let from = e
+                        .try_get_attribute("from")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("from"))?
+                        .unescape_and_decode_value(reader)?;
+                    let update_type = e
+                        .try_get_attribute("type")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
+                        .unescape_and_decode_value(reader)?;
+                    let version = e
+                        .try_get_attribute("version")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("version"))?
+                        .unescape_and_decode_value(reader)?;
+                    record.status = status;
+                    record.from = from;
+                    record.update_type = update_type;
+                    record.version = version;
+                }
+                TAG_ID => {
+                    record.id = reader.read_text(TAG_ID, &mut format_text_buf)?;
+                }
+                TAG_TITLE => {
+                    record.title = reader.read_text(TAG_TITLE, &mut format_text_buf)?;
+                }
+                TAG_ISSUED => {
+                    record.issued_date = Some(reader.read_text(TAG_ISSUED, &mut format_text_buf)?);
+                }
+                TAG_UPDATED => {
+                    record.updated_date =
+                        Some(reader.read_text(TAG_UPDATED, &mut format_text_buf)?);
+                }
+                TAG_RIGHTS => {
+                    record.rights = reader.read_text(TAG_RIGHTS, &mut format_text_buf)?;
+                }
+                TAG_RELEASE => {
+                    record.release = reader.read_text(TAG_RELEASE, &mut format_text_buf)?;
+                }
+                TAG_SEVERITY => {
+                    record.severity = reader.read_text(TAG_SEVERITY, &mut format_text_buf)?;
+                }
+                TAG_SUMMARY => {
+                    record.summary = reader.read_text(TAG_SUMMARY, &mut format_text_buf)?;
+                }
+                TAG_DESCRIPTION => {
+                    record.description = reader.read_text(TAG_DESCRIPTION, &mut format_text_buf)?;
+                }
+                TAG_SOLUTION => {
+                    record.solution = reader.read_text(TAG_SOLUTION, &mut format_text_buf)?;
+                }
+                // reboot_suggested, not clear if it needs to be parsed
+                TAG_REFERENCES => {}
+                TAG_PKGLIST => {}
+                _ => (),
+            },
+            Event::Eof => break,
+            _ => (),
+        }
+        buf.clear();
+        format_text_buf.clear();
+    }
+
+    Ok(None)
 }
 
 fn write_updaterecord<W: Write>(
@@ -164,7 +239,7 @@ fn write_updaterecord<W: Write>(
 
     // <rights>Copyright (C) 2021 blah blah blah.</rights>
     writer
-        .create_element(TAG_COPYRIGHT)
+        .create_element(TAG_RIGHTS)
         .write_text_content(BytesText::from_plain_str(record.rights.as_str()))?;
 
     // <release>Fedora 32</release>
@@ -222,7 +297,6 @@ fn write_updaterecord<W: Write>(
         // <references/>
         writer.write_event(Event::Empty(tag_references.to_borrowed()))?;
     }
-
 
     let tag_pkglist = BytesStart::borrowed_name(TAG_PKGLIST);
     if !record.pkglist.is_empty() {
