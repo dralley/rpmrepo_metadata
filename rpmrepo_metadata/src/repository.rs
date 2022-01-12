@@ -187,6 +187,9 @@ pub struct RepositoryWriter {
     pub filelists_xml_writer: Option<FilelistsXmlWriter<Box<dyn Write>>>,
     pub other_xml_writer: Option<OtherXmlWriter<Box<dyn Write>>>,
 
+    num_pkgs_written: usize,
+    num_pkgs: usize,
+
     // TODO
     // sqlite_data_writer: Option<SqliteDataWriter>,
     repomd_data: RepomdData,
@@ -254,6 +257,9 @@ impl RepositoryWriter {
             options,
             path: path.to_owned(),
 
+            num_pkgs: num_pkgs,
+            num_pkgs_written: 0,
+
             primary_xml_writer: Some(primary_xml_writer),
             filelists_xml_writer: Some(filelists_xml_writer),
             other_xml_writer: Some(other_xml_writer),
@@ -269,6 +275,9 @@ impl RepositoryWriter {
     }
 
     pub fn add_package(&mut self, pkg: &Package) -> Result<(), MetadataError> {
+        assert!(self.num_pkgs_written < self.num_pkgs);
+        self.num_pkgs_written += 1;
+
         self.primary_xml_writer
             .as_mut()
             .unwrap()
@@ -311,6 +320,12 @@ impl RepositoryWriter {
     }
 
     pub fn finish(&mut self) -> Result<(), MetadataError> {
+        assert_eq!(
+            self.num_pkgs_written, self.num_pkgs,
+            "Number of packages written {} is different from the number declared in the header {}.",
+            self.num_pkgs_written, self.num_pkgs
+        );
+
         // TODO: this is a mess
         let path = self.path.clone();
         let repodata_dir = self.path.join("repodata");

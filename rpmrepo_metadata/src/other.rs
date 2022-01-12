@@ -61,11 +61,7 @@ impl RpmMetadata for OtherXml {
 
 impl OtherXml {
     pub fn new_writer<W: Write>(writer: Writer<W>) -> OtherXmlWriter<W> {
-        OtherXmlWriter {
-            writer,
-            num_packages: 0,
-            packages_written: 0,
-        }
+        OtherXmlWriter { writer }
     }
 
     pub fn new_reader<R: BufRead>(reader: Reader<R>) -> OtherXmlReader<R> {
@@ -75,14 +71,10 @@ impl OtherXml {
 
 pub struct OtherXmlWriter<W: Write> {
     writer: Writer<W>,
-    num_packages: usize,
-    packages_written: usize,
 }
 
 impl<W: Write> OtherXmlWriter<W> {
     pub fn write_header(&mut self, num_pkgs: usize) -> Result<(), MetadataError> {
-        self.num_packages = num_pkgs;
-
         // <?xml version="1.0" encoding="UTF-8"?>
         self.writer
             .write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
@@ -127,17 +119,10 @@ impl<W: Write> OtherXmlWriter<W> {
         // </package>
         self.writer.write_event(Event::End(package_tag.to_end()))?;
 
-        self.packages_written += 1;
         Ok(())
     }
 
     pub fn finish(&mut self) -> Result<(), MetadataError> {
-        assert_eq!(
-            self.packages_written, self.num_packages,
-            "Number of packages written {} does not match number of packages declared {}.",
-            self.packages_written, self.num_packages
-        );
-
         // </otherdata>
         self.writer
             .write_event(Event::End(BytesEnd::borrowed(TAG_OTHERDATA)))?;

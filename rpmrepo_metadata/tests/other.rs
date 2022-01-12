@@ -67,26 +67,6 @@ fn test_other_xml_writer_complex_pkg() -> Result<(), MetadataError> {
 }
 
 #[test]
-#[should_panic]
-fn test_other_xml_writer_not_enough_packages() {
-    let mut writer = OtherXml::new_writer(utils::create_xml_writer(Cursor::new(Vec::new())));
-
-    writer.write_header(1).unwrap();
-    writer.finish().unwrap();
-}
-
-#[test]
-#[should_panic]
-fn test_other_xml_writer_too_many_packages() {
-    let mut writer = OtherXml::new_writer(utils::create_xml_writer(Cursor::new(Vec::new())));
-
-    writer.write_header(1).unwrap();
-    writer.write_package(&common::RPM_EMPTY).unwrap();
-    writer.write_package(&common::RPM_WITH_NON_ASCII).unwrap();
-    writer.finish().unwrap();
-}
-
-#[test]
 fn test_other_xml_writer_file() -> Result<(), MetadataError> {
     let working_dir = TempDir::new("")?;
     let other_name = working_dir.path().join("other.xml");

@@ -92,6 +92,9 @@ impl<W: Write> UpdateinfoXmlWriter<W> {
         self.writer
             .write_event(Event::Text(BytesText::from_plain_str("\n")))?;
 
+        // write everything out to disk - otherwise it won't happen until drop() which impedes debugging
+        self.writer.inner().flush()?;
+
         Ok(())
     }
 

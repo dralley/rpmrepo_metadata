@@ -84,11 +84,7 @@ impl RpmMetadata for PrimaryXml {
 
 impl PrimaryXml {
     pub fn new_writer<W: Write>(writer: Writer<W>) -> PrimaryXmlWriter<W> {
-        PrimaryXmlWriter {
-            writer,
-            num_packages: 0,
-            packages_written: 0,
-        }
+        PrimaryXmlWriter { writer }
     }
 
     pub fn new_reader<R: BufRead>(reader: Reader<R>) -> PrimaryXmlReader<R> {
@@ -412,14 +408,10 @@ pub fn parse_package<R: BufRead>(
 
 pub struct PrimaryXmlWriter<W: Write> {
     writer: Writer<W>,
-    num_packages: usize,
-    packages_written: usize,
 }
 
 impl<W: Write> PrimaryXmlWriter<W> {
     pub fn write_header(&mut self, num_pkgs: usize) -> Result<(), MetadataError> {
-        self.num_packages = num_pkgs;
-
         // <?xml version="1.0" encoding="UTF-8"?>
         self.writer
             .write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
@@ -437,17 +429,10 @@ impl<W: Write> PrimaryXmlWriter<W> {
 
     pub fn write_package(&mut self, package: &Package) -> Result<(), MetadataError> {
         write_package(&mut self.writer, package)?;
-        self.packages_written += 1;
         Ok(())
     }
 
     pub fn finish(&mut self) -> Result<(), MetadataError> {
-        assert_eq!(
-            self.packages_written, self.num_packages,
-            "Number of packages written {} does not match number of packages declared {}.",
-            self.packages_written, self.num_packages
-        );
-
         // </metadata>
         self.writer
             .write_event(Event::End(BytesEnd::borrowed(TAG_METADATA)))?;
