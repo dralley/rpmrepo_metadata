@@ -7,7 +7,8 @@ use super::metadata::{
     Checksum, MetadataError, Package, ParseState, PrimaryXml, Requirement, RpmMetadata,
     XML_NS_COMMON, XML_NS_RPM,
 };
-use super::{FileType, PackageFile, Repository, EVR};
+use super::{PackageFile, Repository, EVR};
+use super::filelist;
 
 const TAG_METADATA: &[u8] = b"metadata";
 const TAG_PACKAGE: &[u8] = b"package";
@@ -588,13 +589,11 @@ pub fn write_package<W: Write>(
     }
 
     // <file>/usr/bin/bash</file>
-    for file in package.files() {
-        if file.filetype == FileType::File && include_file(file) {
-            writer
-                .create_element(TAG_FILE)
-                .write_text_content(BytesText::from_plain_str(&file.path))?;
-        }
-    }
+    package
+        .files()
+        .iter()
+        .filter(|&f| include_file(f))
+        .try_for_each(|f| filelist::write_file_element(writer, f))?;
 
     // </format>
     writer.write_event(Event::End(format_tag.to_end()))?;

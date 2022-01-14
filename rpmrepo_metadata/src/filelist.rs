@@ -106,17 +106,7 @@ impl<W: Write> FilelistsXmlWriter<W> {
         self.writer.write_event(Event::Empty(version_tag))?;
 
         // <file type="dir">/etc/fonts/conf.avail</file>
-        for file in package.files() {
-            let mut file_tag = BytesStart::borrowed_name(TAG_FILE);
-            if file.filetype != FileType::File {
-                file_tag.push_attribute(("type".as_bytes(), file.filetype.to_values()));
-            }
-            self.writer
-                .write_event(Event::Start(file_tag.to_borrowed()))?;
-            self.writer
-                .write_event(Event::Text(BytesText::from_plain_str(&file.path)))?;
-            self.writer.write_event(Event::End(file_tag.to_end()))?;
-        }
+        package.files().iter().try_for_each(|f| write_file_element(&mut self.writer, f))?;
 
         // </package>
         self.writer.write_event(Event::End(package_tag.to_end()))?;
@@ -142,6 +132,19 @@ impl<W: Write> FilelistsXmlWriter<W> {
     pub fn into_inner(self) -> W {
         self.writer.into_inner()
     }
+}
+
+pub(crate) fn write_file_element<W: Write>(writer: &mut Writer<W>, file: &PackageFile) -> Result<(), MetadataError> {
+    let mut file_tag = BytesStart::borrowed_name(TAG_FILE);
+    if file.filetype != FileType::File {
+        file_tag.push_attribute(("type".as_bytes(), file.filetype.to_values()));
+    }
+    writer
+        .write_event(Event::Start(file_tag.to_borrowed()))?;
+    writer
+        .write_event(Event::Text(BytesText::from_plain_str(&file.path)))?;
+    writer.write_event(Event::End(file_tag.to_end()))?;
+    Ok(())
 }
 
 pub struct FilelistsXmlReader<R: BufRead> {
