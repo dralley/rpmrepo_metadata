@@ -137,26 +137,34 @@ fn parse_updaterecord<R: BufRead>(
             Event::End(e) if e.name() == TAG_UPDATE => break,
             Event::Start(e) => match e.name() {
                 TAG_UPDATE => {
-                    let status = e
+                    // for attr in e.attributes() {
+                    //     let attr = attr?;
+
+                    //     match attr.key {
+                    //         b"status" => record.status = attr.unescape_and_decode_value(reader)?,
+                    //         b"from" => record.from = attr.unescape_and_decode_value(reader)?,
+                    //         b"type" => record.update_type = attr.unescape_and_decode_value(reader)?,
+                    //         b"version" => record.version = attr.unescape_and_decode_value(reader)?,
+                    //         a @ _ => panic!("unrecognized attribute {}", std::str::from_utf8(a)?),
+                    //     }
+                    // }
+
+                    record.status = e
                         .try_get_attribute("status")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("status"))?
                         .unescape_and_decode_value(reader)?;
-                    let from = e
+                    record.from = e
                         .try_get_attribute("from")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("from"))?
                         .unescape_and_decode_value(reader)?;
-                    let update_type = e
+                    record.update_type = e
                         .try_get_attribute("type")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
                         .unescape_and_decode_value(reader)?;
-                    let version = e
+                    record.version = e
                         .try_get_attribute("version")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("version"))?
                         .unescape_and_decode_value(reader)?;
-                    record.status = status;
-                    record.from = from;
-                    record.update_type = update_type;
-                    record.version = version;
                 }
                 TAG_ID => {
                     record.id = reader.read_text(TAG_ID, &mut format_text_buf)?;

@@ -778,15 +778,18 @@ impl RepomdData {
 
     // TODO error handling
     pub fn get_primary_data(&self) -> &RepomdRecord {
-        self.get_record(METADATA_PRIMARY).expect("Cannot find primary metadata")
+        self.get_record(METADATA_PRIMARY)
+            .expect("Cannot find primary metadata")
     }
 
     pub fn get_filelist_data(&self) -> &RepomdRecord {
-        self.get_record(METADATA_FILELISTS).expect("Cannot find filelists metadata")
+        self.get_record(METADATA_FILELISTS)
+            .expect("Cannot find filelists metadata")
     }
 
     pub fn get_other_data(&self) -> &RepomdRecord {
-        self.get_record(METADATA_OTHER).expect("Cannot find other metadata")
+        self.get_record(METADATA_OTHER)
+            .expect("Cannot find other metadata")
     }
 }
 

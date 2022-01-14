@@ -4,11 +4,8 @@ use std::rc::Rc;
 use criterion::{self, criterion_group, criterion_main, Criterion};
 use rpmrepo_metadata::{
     utils, FilelistsXml, OtherXml, PackageParser, PrimaryXml, RepomdXml, Repository,
-    RepositoryOptions, RepositoryWriter,
 };
-use std::fs;
 use std::io::{BufReader, Cursor, Read};
-use tempdir::TempDir;
 
 // fn repository_write_benchmark(c: &mut Criterion) {
 //     let mut group = c.benchmark_group("repository_write");
@@ -117,6 +114,35 @@ fn metadata_parse_benchmark(c: &mut Criterion) {
             }
         })
     });
+
+    group.bench_function("iterative_all_together_manual", |b| {
+        b.iter(|| {
+            let mut primary_xml = PrimaryXml::new_reader(utils::create_xml_reader(&*primary));
+            let mut filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(&*filelists));
+            let mut other_xml = OtherXml::new_reader(utils::create_xml_reader(&*other));
+
+            primary_xml.read_header().unwrap();
+            filelists_xml.read_header().unwrap();
+            other_xml.read_header().unwrap();
+
+            let mut in_progress_package = None;
+
+            loop {
+                primary_xml
+                    .read_package(&mut in_progress_package).unwrap();
+                filelists_xml
+                    .read_package(&mut in_progress_package).unwrap();
+                other_xml.read_package(&mut in_progress_package).unwrap();
+
+                let package = in_progress_package.take();
+                match package {
+                    Some(package) => { criterion::black_box(package); },
+                    None => break,
+                }
+            }
+        })
+    });
+
 }
 
 /// Test writing metadata out to a memory-backed Vec<u8>
@@ -149,44 +175,26 @@ fn metadata_write_benchmark(c: &mut Criterion) {
     });
 
     group.bench_function("iterative_all_together", |b| {
-        let tmp_dir = TempDir::new("prof_repo_write").unwrap();
-        let num_pkgs = repo.packages().len();
-        let mut repo_writer = RepositoryWriter::new(&tmp_dir.path(), num_pkgs).unwrap();
+        let num_pkgs = repo.packages().values().count();
 
         b.iter(|| {
-            // replace the existing writers w/ memory backed ones
-            repo_writer.primary_xml_writer = Some(PrimaryXml::new_writer(
-                quick_xml::Writer::new_with_indent(Box::new(Cursor::new(Vec::new())), b' ', 2),
-            ));
-            repo_writer
-                .primary_xml_writer
-                .as_mut()
-                .unwrap()
-                .write_header(num_pkgs)
-                .unwrap();
-            repo_writer.filelists_xml_writer = Some(FilelistsXml::new_writer(
-                quick_xml::Writer::new_with_indent(Box::new(Cursor::new(Vec::new())), b' ', 2),
-            ));
-            repo_writer
-                .filelists_xml_writer
-                .as_mut()
-                .unwrap()
-                .write_header(num_pkgs)
-                .unwrap();
-            repo_writer.other_xml_writer = Some(OtherXml::new_writer(
-                quick_xml::Writer::new_with_indent(Box::new(Cursor::new(Vec::new())), b' ', 2),
-            ));
-            repo_writer
-                .other_xml_writer
-                .as_mut()
-                .unwrap()
-                .write_header(num_pkgs)
-                .unwrap();
+            let mut primary_xml_writer = PrimaryXml::new_writer(utils::create_xml_writer(Vec::new()));
+            let mut filelists_xml_writer = FilelistsXml::new_writer(utils::create_xml_writer(Vec::new()));
+            let mut other_xml_writer = OtherXml::new_writer(utils::create_xml_writer(Vec::new()));
+
+            primary_xml_writer.write_header(num_pkgs).unwrap();
+            filelists_xml_writer.write_header(num_pkgs).unwrap();
+            other_xml_writer.write_header(num_pkgs).unwrap();
 
             for package in repo.packages().values() {
-                repo_writer.add_package(package).unwrap();
+                primary_xml_writer.write_package(package).unwrap();
+                filelists_xml_writer.write_package(package).unwrap();
+                other_xml_writer.write_package(package).unwrap();
             }
-            repo_writer.finish().unwrap();
+
+            primary_xml_writer.finish().unwrap();
+            filelists_xml_writer.finish().unwrap();
+            other_xml_writer.finish().unwrap();
         })
     });
 }

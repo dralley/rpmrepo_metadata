@@ -1,4 +1,4 @@
-use std::io::{Cursor, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use crate::updateinfo::UpdateinfoXmlWriter;
@@ -112,7 +112,7 @@ impl Repository {
 
     pub fn write_metadata_bytes<M: RpmMetadata>(&self) -> Result<Vec<u8>, MetadataError> {
         let mut buf = Vec::new();
-        let writer = utils::create_xml_writer(Cursor::new(&mut buf));
+        let writer = utils::create_xml_writer(&mut buf);
         M::write_metadata(self, writer)?;
         Ok(buf)
     }
@@ -183,9 +183,9 @@ pub struct RepositoryWriter {
     options: RepositoryOptions,
     path: PathBuf,
 
-    pub primary_xml_writer: Option<PrimaryXmlWriter<Box<dyn Write>>>,
-    pub filelists_xml_writer: Option<FilelistsXmlWriter<Box<dyn Write>>>,
-    pub other_xml_writer: Option<OtherXmlWriter<Box<dyn Write>>>,
+    primary_xml_writer: Option<PrimaryXmlWriter<Box<dyn Write>>>,
+    filelists_xml_writer: Option<FilelistsXmlWriter<Box<dyn Write>>>,
+    other_xml_writer: Option<OtherXmlWriter<Box<dyn Write>>>,
 
     num_pkgs_written: usize,
     num_pkgs: usize,
@@ -275,8 +275,12 @@ impl RepositoryWriter {
     }
 
     pub fn add_package(&mut self, pkg: &Package) -> Result<(), MetadataError> {
-        assert!(self.num_pkgs_written < self.num_pkgs);
         self.num_pkgs_written += 1;
+        assert!(
+            self.num_pkgs_written <= self.num_pkgs,
+            "Num packages written {} is more than number of packages declared in the header {}",
+            self.num_pkgs_written, self.num_pkgs
+        );
 
         self.primary_xml_writer
             .as_mut()
