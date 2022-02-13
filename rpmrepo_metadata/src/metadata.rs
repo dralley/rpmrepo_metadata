@@ -793,7 +793,7 @@ impl RepomdData {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct RepomdRecord {
     base_path: Option<PathBuf>,
 
@@ -842,7 +842,11 @@ impl RepomdRecord {
     }
 
     pub fn fill(&mut self) -> Result<(), MetadataError> {
-        let file_path = self.base_path.as_ref().expect("cannot fill metadata if path not on disk").join(&self.location_href);
+        let file_path = self
+            .base_path
+            .as_ref()
+            .expect("cannot fill metadata if path not on disk")
+            .join(&self.location_href);
         let file_metadata = file_path.metadata()?;
         self.timestamp = file_metadata.mtime();
         self.size = Some(file_metadata.size());
@@ -854,7 +858,7 @@ impl RepomdRecord {
     }
 }
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct UpdateRecord {
     pub from: String,
     pub update_type: String,
@@ -877,7 +881,7 @@ pub struct UpdateRecord {
     pub pkglist: Vec<UpdateCollection>,
 }
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct UpdateCollection {
     pub name: String,
     pub shortname: String,
@@ -885,7 +889,7 @@ pub struct UpdateCollection {
     pub module: Option<UpdateCollectionModule>,
 }
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct UpdateReference {
     pub href: String,
     pub id: String,
@@ -893,9 +897,9 @@ pub struct UpdateReference {
     pub reftype: String,
 }
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct UpdateCollectionPackage {
-    pub epoch: u32,
+    pub epoch: String,
     pub filename: String,
     pub name: String,
     pub reboot_suggested: bool,
@@ -908,7 +912,7 @@ pub struct UpdateCollectionPackage {
     pub version: String,
 }
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct UpdateCollectionModule {
     pub name: String,
     pub stream: String,

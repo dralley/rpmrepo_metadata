@@ -3,6 +3,10 @@ use std::io::{BufRead, Write};
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 
+use crate::metadata::{
+    UpdateCollection, UpdateCollectionModule, UpdateCollectionPackage, UpdateReference,
+};
+
 use super::metadata::{RpmMetadata, UpdateRecord, UpdateinfoXml};
 use super::{MetadataError, Repository};
 
@@ -198,8 +202,143 @@ fn parse_updaterecord<R: BufRead>(
                     record.solution = reader.read_text(TAG_SOLUTION, &mut format_text_buf)?;
                 }
                 // reboot_suggested, not clear if it needs to be parsed
-                TAG_REFERENCES => {}
-                TAG_PKGLIST => {}
+                TAG_REFERENCES => {
+                    loop {
+                        match reader.read_event(&mut buf)? {
+                            Event::Start(e) if e.name() == TAG_REFERENCE => {
+                                let mut reference = UpdateReference::default();
+                                for attr in e.attributes() {
+                                    let attr = attr?;
+                                    reference.href = e
+                                        .try_get_attribute("href")?
+                                        .ok_or_else(|| {
+                                            MetadataError::MissingAttributeError("href")
+                                        })?
+                                        .unescape_and_decode_value(reader)?;
+                                    reference.id = e
+                                        .try_get_attribute("id")?
+                                        .ok_or_else(|| MetadataError::MissingAttributeError("id"))?
+                                        .unescape_and_decode_value(reader)?;
+                                    reference.reftype = e
+                                        .try_get_attribute("type")?
+                                        .ok_or_else(|| {
+                                            MetadataError::MissingAttributeError("type")
+                                        })?
+                                        .unescape_and_decode_value(reader)?;
+                                    reference.title = e
+                                        .try_get_attribute("title")?
+                                        .ok_or_else(|| {
+                                            MetadataError::MissingAttributeError("title")
+                                        })?
+                                        .unescape_and_decode_value(reader)?;
+                                }
+                                record.references.push(reference);
+                            }
+                            Event::End(e) if e.name() == TAG_REFERENCES => break,
+                            _ => (), // TODO
+                        }
+                    }
+                }
+                TAG_PKGLIST => {
+                    loop {
+                        match reader.read_event(&mut buf)? {
+                            // Event::Start(e) => match e.name() {
+                            //     TAG_MODULE => {
+                            //         let name = e
+                            //             .try_get_attribute("name")?
+                            //             .ok_or_else(|| {
+                            //                 MetadataError::MissingAttributeError("name")
+                            //             })?
+                            //             .unescape_and_decode_value(reader)?;
+                            //         let stream = e
+                            //             .try_get_attribute("stream")?
+                            //             .ok_or_else(|| {
+                            //                 MetadataError::MissingAttributeError("stream")
+                            //             })?
+                            //             .unescape_and_decode_value(reader)?;
+                            //         let version = e
+                            //             .try_get_attribute("version")?
+                            //             .ok_or_else(|| {
+                            //                 MetadataError::MissingAttributeError("version")
+                            //             })?
+                            //             .unescape_and_decode_value(reader)?;
+                            //         let context = e
+                            //             .try_get_attribute("context")?
+                            //             .ok_or_else(|| {
+                            //                 MetadataError::MissingAttributeError("context")
+                            //             })?
+                            //             .unescape_and_decode_value(reader)?;
+                            //         let arch = e
+                            //             .try_get_attribute("arch")?
+                            //             .ok_or_else(|| {
+                            //                 MetadataError::MissingAttributeError("arch")
+                            //             })?
+                            //             .unescape_and_decode_value(reader)?;
+
+                            //         let version = version.parse()?;
+
+                            //         let module = UpdateCollectionModule {
+                            //             name,
+                            //             stream,
+                            //             version,
+                            //             context,
+                            //             arch,
+                            //         };
+                            //         collection.unwrap().module = Some(module);
+                            //    }
+                            //     TAG_PACKAGE => {
+                            //         let mut package = UpdateCollectionPackage::default();
+
+                            //         let name = e
+                            //             .try_get_attribute("name")?
+                            //             .ok_or_else(|| {
+                            //                 MetadataError::MissingAttributeError("name")
+                            //             })?
+                            //             .unescape_and_decode_value(reader)?;
+                            //         let version = e
+                            //             .try_get_attribute("version")?
+                            //             .ok_or_else(|| {
+                            //                 MetadataError::MissingAttributeError("version")
+                            //             })?
+                            //             .unescape_and_decode_value(reader)?;
+                            //         let epoch = e
+                            //             .try_get_attribute("epoch")?
+                            //             .ok_or_else(|| {
+                            //                 MetadataError::MissingAttributeError("epoch")
+                            //             })?
+                            //             .unescape_and_decode_value(reader)?;
+                            //         let src = e
+                            //             .try_get_attribute("src")?
+                            //             .ok_or_else(|| MetadataError::MissingAttributeError("src"))?
+                            //             .unescape_and_decode_value(reader)?;
+                            //         let release = e
+                            //             .try_get_attribute("release")?
+                            //             .ok_or_else(|| {
+                            //                 MetadataError::MissingAttributeError("release")
+                            //             })?
+                            //             .unescape_and_decode_value(reader)?;
+                            //         let arch = e
+                            //             .try_get_attribute("arch")?
+                            //             .ok_or_else(|| {
+                            //                 MetadataError::MissingAttributeError("arch")
+                            //             })?
+                            //             .unescape_and_decode_value(reader)?;
+
+                            //         package.name = name;
+                            //         package.version = version;
+                            //         package.release = release;
+                            //         package.arch = arch;
+                            //         package.epoch = epoch;
+                            //         package.src = src;
+
+                            //         collection.unwrap().packages.push(package);
+                            //     }
+                            // },
+                            Event::End(e) if e.name() == TAG_REFERENCE => break,
+                            _ => (), // TODO
+                        }
+                    }
+                }
                 _ => (),
             },
             Event::Eof => break,
