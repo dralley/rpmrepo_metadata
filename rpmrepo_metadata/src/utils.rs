@@ -97,18 +97,18 @@ pub fn create_xml_reader<R: io::BufRead>(inner: R) -> quick_xml::Reader<R> {
     reader
 }
 
-pub fn create_xml_writer<W: io::Write>(inner: W) -> quick_xml::Writer<W> {
+pub fn create_xml_writer<W: io::Write + Send>(inner: W) -> quick_xml::Writer<W> {
     quick_xml::Writer::new_with_indent(inner, b' ', 2)
 }
 
-pub fn reader_from_file(path: &Path) -> Result<Box<dyn io::Read>, MetadataError> {
-    let (compress_reader, _compression) = niffler::from_path(path)?;
+pub fn reader_from_file(path: &Path) -> Result<Box<dyn io::Read + Send>, MetadataError> {
+    let (compress_reader, _compression) = niffler::send::from_path(path)?;
     Ok(compress_reader)
 }
 
 pub fn xml_reader_from_file(
     path: &Path,
-) -> Result<quick_xml::Reader<BufReader<Box<dyn io::Read>>>, MetadataError> {
+) -> Result<quick_xml::Reader<BufReader<Box<dyn io::Read + Send>>>, MetadataError> {
     let compress_reader = reader_from_file(path)?;
     Ok(create_xml_reader(BufReader::new(compress_reader)))
 }
@@ -117,7 +117,7 @@ pub fn xml_reader_from_file(
 pub fn xml_writer_for_path(
     path: &Path,
     compression: CompressionType,
-) -> Result<(PathBuf, quick_xml::Writer<Box<dyn io::Write>>), MetadataError> {
+) -> Result<(PathBuf, quick_xml::Writer<Box<dyn io::Write + Send>>), MetadataError> {
     let (filename, inner_writer) = writer_to_file(path, compression)?;
     let writer = create_xml_writer(inner_writer);
     Ok((filename, writer))
@@ -134,14 +134,14 @@ pub fn apply_compression_suffix(path: &Path, compression: CompressionType) -> Pa
 pub fn writer_to_file(
     path: &Path,
     compression: CompressionType,
-) -> Result<(PathBuf, Box<dyn io::Write>), MetadataError> {
+) -> Result<(PathBuf, Box<dyn io::Write + Send>), MetadataError> {
     let filename = apply_compression_suffix(path, compression);
     let format = match compression {
-        CompressionType::None => niffler::compression::Format::No,
-        CompressionType::Gzip => niffler::compression::Format::Gzip,
-        CompressionType::Xz => niffler::compression::Format::Lzma,
-        CompressionType::Bz2 => niffler::compression::Format::Bzip,
+        CompressionType::None => niffler::send::compression::Format::No,
+        CompressionType::Gzip => niffler::send::compression::Format::Gzip,
+        CompressionType::Xz => niffler::send::compression::Format::Lzma,
+        CompressionType::Bz2 => niffler::send::compression::Format::Bzip,
     };
-    let writer = niffler::to_path(&filename, format, niffler::Level::Nine)?;
+    let writer = niffler::send::to_path(&filename, format, niffler::Level::Nine)?;
     Ok((filename, writer))
 }

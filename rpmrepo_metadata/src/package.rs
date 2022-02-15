@@ -1,5 +1,5 @@
 // use rpm::{self, Header};
-use std::io::{BufRead, BufReader};
+use std::io::BufReader;
 use std::path::Path;
 
 use crate::filelist::FilelistsXmlReader;
@@ -57,14 +57,13 @@ use crate::{FilelistsXml, MetadataError, OtherXml, Package, PrimaryXml, EVR};
 // }
 
 pub struct PackageParser {
-    primary_xml: PrimaryXmlReader<BufReader<Box<dyn std::io::Read>>>,
-    filelists_xml: FilelistsXmlReader<BufReader<Box<dyn std::io::Read>>>,
-    other_xml: OtherXmlReader<BufReader<Box<dyn std::io::Read>>>,
+    primary_xml: PrimaryXmlReader<BufReader<Box<dyn std::io::Read + Send>>>,
+    filelists_xml: FilelistsXmlReader<BufReader<Box<dyn std::io::Read + Send>>>,
+    other_xml: OtherXmlReader<BufReader<Box<dyn std::io::Read + Send>>>,
 
     num_packages: usize,
     num_remaining: usize,
     in_progress_package: Option<Package>,
-    // unfinished_packages: HashMap<String, Package>,
 }
 
 impl PackageParser {
@@ -89,9 +88,9 @@ impl PackageParser {
     }
 
     pub fn from_readers(
-        primary_xml: PrimaryXmlReader<BufReader<Box<dyn std::io::Read>>>,
-        filelists_xml: FilelistsXmlReader<BufReader<Box<dyn std::io::Read>>>,
-        other_xml: OtherXmlReader<BufReader<Box<dyn std::io::Read>>>,
+        primary_xml: PrimaryXmlReader<BufReader<Box<dyn std::io::Read + Send>>>,
+        filelists_xml: FilelistsXmlReader<BufReader<Box<dyn std::io::Read + Send>>>,
+        other_xml: OtherXmlReader<BufReader<Box<dyn std::io::Read + Send>>>,
     ) -> Result<Self, MetadataError> {
         let mut parser = PackageParser {
             primary_xml,

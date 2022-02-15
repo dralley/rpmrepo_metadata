@@ -1,5 +1,6 @@
 use std::convert::TryInto;
 use std::io::{BufRead, Write};
+use std::fmt;
 use std::os::unix::prelude::MetadataExt;
 use std::path::{Path, PathBuf};
 
@@ -189,6 +190,33 @@ impl Package {
 
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    pub fn set_epoch(&mut self, epoch: &str) -> &mut Self {
+        self.evr.epoch = epoch.to_owned();
+        self
+    }
+
+    pub fn epoch(&self) -> &str {
+        &self.evr.epoch
+    }
+
+    pub fn set_version(&mut self, version: &str) -> &mut Self {
+        self.evr.version = version.to_owned();
+        self
+    }
+
+    pub fn version(&self) -> &str {
+        &self.evr.version
+    }
+
+    pub fn set_release(&mut self, release: &str) -> &mut Self {
+        self.evr.release = release.to_owned();
+        self
+    }
+
+    pub fn release(&self) -> &str {
+        &self.evr.release
     }
 
     pub fn set_arch(&mut self, arch: &str) -> &mut Self {
@@ -464,6 +492,20 @@ pub struct Nevra<'a> {
     pub evr: &'a EVR,
 }
 
+impl<'a> Nevra<'a> {
+    pub fn short(&self) -> String {
+        if self.evr.epoch == "0" {
+            format!("{}-{}-{}.{}", self.name, self.evr.version, self.evr.release, self.arch)
+        } else {
+            format!("{}-{}:{}-{}.{}", self.name, self.evr.epoch, self.evr.version, self.evr.release, self.arch)
+        }
+    }
+
+    pub fn canonical(&self) -> String {
+        format!("{}-{}:{}-{}.{}", self.name, self.evr.epoch, self.evr.version, self.evr.release, self.arch)
+    }
+}
+
 impl<'a> From<&'a Package> for Nevra<'a> {
     fn from(pkg: &'a Package) -> Self {
         Self {
@@ -471,6 +513,12 @@ impl<'a> From<&'a Package> for Nevra<'a> {
             evr: &pkg.evr,
             arch: &pkg.arch,
         }
+    }
+}
+
+impl<'a> fmt::Display for Nevra<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.canonical())
     }
 }
 

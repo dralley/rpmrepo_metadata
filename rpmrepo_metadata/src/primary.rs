@@ -3,12 +3,12 @@ use std::io::{BufRead, Write};
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 
+use super::filelist;
 use super::metadata::{
     Checksum, MetadataError, Package, PrimaryXml, Requirement, RpmMetadata,
     XML_NS_COMMON, XML_NS_RPM,
 };
 use super::{PackageFile, Repository, EVR};
-use super::filelist;
 
 const TAG_METADATA: &[u8] = b"metadata";
 const TAG_PACKAGE: &[u8] = b"package";
@@ -580,7 +580,6 @@ pub fn write_package<W: Write>(
     write_requirement_section(writer, TAG_RPM_RECOMMENDS, package.recommends())?;
     write_requirement_section(writer, TAG_RPM_SUPPLEMENTS, package.supplements())?;
 
-    // TODO: check this logic
     fn include_file(f: &PackageFile) -> bool {
         // strange algorithm, but it's what the original uses
         f.path.starts_with("/etc/")

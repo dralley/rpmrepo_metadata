@@ -183,9 +183,9 @@ pub struct RepositoryWriter {
     options: RepositoryOptions,
     path: PathBuf,
 
-    primary_xml_writer: Option<PrimaryXmlWriter<Box<dyn Write>>>,
-    filelists_xml_writer: Option<FilelistsXmlWriter<Box<dyn Write>>>,
-    other_xml_writer: Option<OtherXmlWriter<Box<dyn Write>>>,
+    primary_xml_writer: Option<PrimaryXmlWriter<Box<dyn Write + Send>>>,
+    filelists_xml_writer: Option<FilelistsXmlWriter<Box<dyn Write + Send>>>,
+    other_xml_writer: Option<OtherXmlWriter<Box<dyn Write + Send>>>,
 
     num_pkgs_written: usize,
     num_pkgs: usize,
@@ -194,7 +194,7 @@ pub struct RepositoryWriter {
     // sqlite_data_writer: Option<SqliteDataWriter>,
     repomd_data: RepomdData,
 
-    updateinfo_xml_writer: Option<UpdateinfoXmlWriter<Box<dyn Write>>>,
+    updateinfo_xml_writer: Option<UpdateinfoXmlWriter<Box<dyn Write + Send>>>,
 }
 
 impl RepositoryWriter {
@@ -279,7 +279,8 @@ impl RepositoryWriter {
         assert!(
             self.num_pkgs_written <= self.num_pkgs,
             "Num packages written {} is more than number of packages declared in the header {}",
-            self.num_pkgs_written, self.num_pkgs
+            self.num_pkgs_written,
+            self.num_pkgs
         );
 
         self.primary_xml_writer
@@ -361,8 +362,11 @@ impl RepositoryWriter {
 
         self.repomd_mut()
             .add_record(RepomdRecord::new("primary", &primary_path.as_ref(), &path)?);
-        self.repomd_mut()
-            .add_record(RepomdRecord::new("filelists", &filelists_path.as_ref(), &path)?);
+        self.repomd_mut().add_record(RepomdRecord::new(
+            "filelists",
+            &filelists_path.as_ref(),
+            &path,
+        )?);
         self.repomd_mut()
             .add_record(RepomdRecord::new("other", &other_path.as_ref(), &path)?);
 

@@ -1,0 +1,23 @@
+[package]
+name = "rpmrepo_metadata_python"
+version = "0.1.0"
+edition = "2021"
+authors = ["dalley@redhat.com"]
+license = "MPL-2.0"
+description = "Python bindings for the rpmrepo_metadata library."
+publish = false  # these are python bindings, no need to package them on crates.io
+
+[dependencies]
+pyo3 = "0.15.1"
+rpmrepo_metadata = { path = "../rpmrepo_metadata" }
+
+[lib]
+name = "rpmrepo_metadata"
+crate-type = ["cdylib"]
+
+[package.metadata.maturin]
+classifier = [
+  "Programming Language :: Rust",
+  "Operating System :: POSIX :: Linux",
+  "Topic :: System :: Archiving :: Packaging"
+]

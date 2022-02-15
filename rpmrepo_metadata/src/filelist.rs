@@ -134,15 +134,16 @@ impl<W: Write> FilelistsXmlWriter<W> {
     }
 }
 
-pub(crate) fn write_file_element<W: Write>(writer: &mut Writer<W>, file: &PackageFile) -> Result<(), MetadataError> {
+pub(crate) fn write_file_element<W: Write>(
+    writer: &mut Writer<W>,
+    file: &PackageFile,
+) -> Result<(), MetadataError> {
     let mut file_tag = BytesStart::borrowed_name(TAG_FILE);
     if file.filetype != FileType::File {
         file_tag.push_attribute(("type".as_bytes(), file.filetype.to_values()));
     }
-    writer
-        .write_event(Event::Start(file_tag.to_borrowed()))?;
-    writer
-        .write_event(Event::Text(BytesText::from_plain_str(&file.path)))?;
+    writer.write_event(Event::Start(file_tag.to_borrowed()))?;
+    writer.write_event(Event::Text(BytesText::from_plain_str(&file.path)))?;
     writer.write_event(Event::End(file_tag.to_end()))?;
     Ok(())
 }
