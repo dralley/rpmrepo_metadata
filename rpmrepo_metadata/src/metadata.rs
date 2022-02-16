@@ -1,6 +1,6 @@
 use std::convert::TryInto;
-use std::io::{BufRead, Write};
 use std::fmt;
+use std::io::{BufRead, Write};
 use std::os::unix::prelude::MetadataExt;
 use std::path::{Path, PathBuf};
 
@@ -42,6 +42,8 @@ pub enum MetadataError {
     UnsupportedCompressionTypeError(#[from] niffler::Error),
     #[error("Checksum type {0} is not supported")]
     UnsupportedChecksumTypeError(String),
+    #[error("\"{0}\" is not a valid checksum of type \"{1:?}\"")]
+    InvalidChecksumError(String, ChecksumType),
     #[error("Missing metadata fields: {0}")]
     MissingFieldError(&'static str), // TODO: support multiple missing fields?
     #[error("Missing metadata attributes: {0}")]
@@ -495,14 +497,23 @@ pub struct Nevra<'a> {
 impl<'a> Nevra<'a> {
     pub fn short(&self) -> String {
         if self.evr.epoch == "0" {
-            format!("{}-{}-{}.{}", self.name, self.evr.version, self.evr.release, self.arch)
+            format!(
+                "{}-{}-{}.{}",
+                self.name, self.evr.version, self.evr.release, self.arch
+            )
         } else {
-            format!("{}-{}:{}-{}.{}", self.name, self.evr.epoch, self.evr.version, self.evr.release, self.arch)
+            format!(
+                "{}-{}:{}-{}.{}",
+                self.name, self.evr.epoch, self.evr.version, self.evr.release, self.arch
+            )
         }
     }
 
     pub fn canonical(&self) -> String {
-        format!("{}-{}:{}-{}.{}", self.name, self.evr.epoch, self.evr.version, self.evr.release, self.arch)
+        format!(
+            "{}-{}:{}-{}.{}",
+            self.name, self.evr.epoch, self.evr.version, self.evr.release, self.arch
+        )
     }
 }
 
@@ -560,19 +571,68 @@ impl Checksum {
     ) -> Result<Self, MetadataError> {
         let bytes_to_str = |value| std::str::from_utf8(value).unwrap().to_owned();
 
-        let checksum = match checksum_type.as_ref() {
-            b"sha" => Checksum::Sha1(bytes_to_str(checksum.as_ref())),
-            b"sha1" => Checksum::Sha1(bytes_to_str(checksum.as_ref())),
-            b"sha256" => Checksum::Sha256(bytes_to_str(checksum.as_ref())),
-            b"sha384" => Checksum::Sha384(bytes_to_str(checksum.as_ref())),
-            b"sha512" => Checksum::Sha512(bytes_to_str(checksum.as_ref())),
+        match checksum_type.as_ref() {
+            b"sha" => {
+                let digest = bytes_to_str(checksum.as_ref());
+                if digest.len() != 40 {
+                    Err(MetadataError::InvalidChecksumError(
+                        digest,
+                        ChecksumType::Sha1,
+                    ))
+                } else {
+                    Ok(Checksum::Sha1(digest))
+                }
+            }
+            b"sha1" => {
+                let digest = bytes_to_str(checksum.as_ref());
+                if digest.len() != 40 {
+                    Err(MetadataError::InvalidChecksumError(
+                        digest,
+                        ChecksumType::Sha1,
+                    ))
+                } else {
+                    Ok(Checksum::Sha1(digest))
+                }
+            }
+            b"sha256" => {
+                let digest = bytes_to_str(checksum.as_ref());
+                if digest.len() != 64 {
+                    Err(MetadataError::InvalidChecksumError(
+                        digest,
+                        ChecksumType::Sha256,
+                    ))
+                } else {
+                    Ok(Checksum::Sha256(digest))
+                }
+            }
+            b"sha384" => {
+                let digest = bytes_to_str(checksum.as_ref());
+                if digest.len() != 96 {
+                    Err(MetadataError::InvalidChecksumError(
+                        digest,
+                        ChecksumType::Sha384,
+                    ))
+                } else {
+                    Ok(Checksum::Sha384(digest))
+                }
+            }
+            b"sha512" => {
+                let digest = bytes_to_str(checksum.as_ref());
+                if digest.len() != 128 {
+                    Err(MetadataError::InvalidChecksumError(
+                        digest,
+                        ChecksumType::Sha512,
+                    ))
+                } else {
+                    Ok(Checksum::Sha512(digest))
+                }
+            }
             _ => {
                 return Err(MetadataError::UnsupportedChecksumTypeError(bytes_to_str(
                     checksum_type.as_ref(),
                 )))
             }
-        };
-        Ok(checksum)
+        }
     }
 
     pub fn to_values<'a>(&'a self) -> Result<(&str, &'a str), MetadataError> {
