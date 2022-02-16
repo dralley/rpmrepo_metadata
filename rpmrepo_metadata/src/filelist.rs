@@ -6,7 +6,7 @@ use quick_xml::{Reader, Writer};
 use crate::Checksum;
 
 use super::metadata::{
-    FileType, FilelistsXml, Package, PackageFile, ParseState, RpmMetadata, XML_NS_FILELISTS,
+    FileType, FilelistsXml, Package, PackageFile, RpmMetadata, XML_NS_FILELISTS,
 };
 use super::{MetadataError, Repository, EVR};
 

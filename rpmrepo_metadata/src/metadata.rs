@@ -3,7 +3,7 @@ use std::io::{BufRead, Write};
 use std::os::unix::prelude::MetadataExt;
 use std::path::{Path, PathBuf};
 
-use bitflags;
+// use bitflags;
 use niffler;
 use quick_xml;
 use quick_xml::{Reader, Writer};
@@ -116,16 +116,16 @@ impl TryInto<CompressionType> for &str {
 //     }
 // }
 
-bitflags::bitflags! {
-    #[derive(Default)]
-    pub struct ParseState: u8 {
-        const NONE = 0b00000000;
-        const PRIMARY = 0b00000001;
-        const FILELISTS = 0b00000010;
-        const OTHER = 0b00000100;
-        const PRIMARY_WITH_FILES = 0b00001001;
-    }
-}
+// bitflags::bitflags! {
+//     #[derive(Default)]
+//     pub struct ParseState: u8 {
+//         const NONE = 0b00000000;
+//         const PRIMARY = 0b00000001;
+//         const FILELISTS = 0b00000010;
+//         const OTHER = 0b00000100;
+//         const PRIMARY_WITH_FILES = 0b00001001;
+//     }
+// }
 
 #[derive(Debug, PartialEq, Default)]
 pub struct Package {

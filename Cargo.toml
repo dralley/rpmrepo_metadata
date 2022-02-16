@@ -1,5 +1,5 @@
 [workspace]
-members = ["rpmrepo", "rpmrepo_metadata", "rpmrepo_download"]
+members = ["python", "rpmrepo_metadata"]
 
 [profile.dev]
 opt-level = 1

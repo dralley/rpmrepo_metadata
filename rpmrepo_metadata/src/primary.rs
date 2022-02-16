@@ -4,7 +4,7 @@ use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 
 use super::metadata::{
-    Checksum, MetadataError, Package, ParseState, PrimaryXml, Requirement, RpmMetadata,
+    Checksum, MetadataError, Package, PrimaryXml, Requirement, RpmMetadata,
     XML_NS_COMMON, XML_NS_RPM,
 };
 use super::{PackageFile, Repository, EVR};
