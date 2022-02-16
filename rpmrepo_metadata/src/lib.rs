@@ -1,5 +1,4 @@
 mod common;
-mod compression_wrapper;
 mod filelist;
 mod metadata;
 mod other;

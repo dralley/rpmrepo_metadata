@@ -2,44 +2,44 @@ use std::fs::File;
 use std::io::{self, BufReader, Read};
 use std::path::{Path, PathBuf};
 
+use digest;
 use hex;
 use niffler;
 use quick_xml;
-use ring::digest;
+use sha1;
+use sha2;
 
 use crate::{Checksum, ChecksumType, CompressionType, MetadataError};
 
-pub fn checksum_file(path: &Path, checksum_type: ChecksumType) -> Result<Checksum, MetadataError> {
-    let reader = &mut BufReader::new(File::open(path).unwrap());
-
-    let mut context = match checksum_type {
-        ChecksumType::Sha1 => digest::Context::new(&digest::SHA1_FOR_LEGACY_USE_ONLY),
-        ChecksumType::Sha256 => digest::Context::new(&digest::SHA256),
-        ChecksumType::Sha384 => digest::Context::new(&digest::SHA384),
-        ChecksumType::Sha512 => digest::Context::new(&digest::SHA512),
-        ChecksumType::Unknown => panic!("Cannot create digest using type Checksum::Unknown"),
-    };
+// TODO: these Box<dyn Read> shouldn't be necessary
+fn get_digest<D: digest::Digest>(mut reader: Box<dyn Read>) -> Result<String, MetadataError> {
     let mut buffer = [0; 4096];
+    let mut hasher = D::new();
 
     loop {
         let count = reader.read(&mut buffer)?;
         if count == 0 {
             break;
         }
-        context.update(&buffer[..count]);
+        hasher.update(&buffer[..count]);
     }
-    let digest = context.finish();
-    let checksum = hex::encode(digest.as_ref());
+
+    Ok(hex::encode(hasher.finalize().as_ref()))
+}
+
+pub fn checksum_file(path: &Path, checksum_type: ChecksumType) -> Result<Checksum, MetadataError> {
+    let mut reader = Box::new(BufReader::new(File::open(path).unwrap())) as Box<dyn Read>;
+
     let result = match checksum_type {
-        ChecksumType::Sha1 => Checksum::Sha1(checksum),
-        ChecksumType::Sha256 => Checksum::Sha256(checksum),
-        ChecksumType::Sha384 => Checksum::Sha384(checksum),
-        ChecksumType::Sha512 => Checksum::Sha512(checksum),
-        ChecksumType::Unknown => panic!(),
+        ChecksumType::Sha1 => Checksum::Sha1(get_digest::<sha1::Sha1>(reader)?),
+        ChecksumType::Sha256 => Checksum::Sha256(get_digest::<sha2::Sha256>(reader)?),
+        ChecksumType::Sha384 => Checksum::Sha384(get_digest::<sha2::Sha384>(reader)?),
+        ChecksumType::Sha512 => Checksum::Sha512(get_digest::<sha2::Sha512>(reader)?),
+        ChecksumType::Unknown => panic!("Cannot create digest using type Checksum::Unknown"),
     };
+
     Ok(result)
 }
-// TODO: clean this up, deduplicate
 // TODO: not efficient to iterate the file twice
 
 pub fn checksum_inner_file(
@@ -52,31 +52,14 @@ pub fn checksum_inner_file(
         return Ok(None);
     }
 
-    let mut context = match checksum_type {
-        ChecksumType::Sha1 => digest::Context::new(&digest::SHA1_FOR_LEGACY_USE_ONLY),
-        ChecksumType::Sha256 => digest::Context::new(&digest::SHA256),
-        ChecksumType::Sha384 => digest::Context::new(&digest::SHA384),
-        ChecksumType::Sha512 => digest::Context::new(&digest::SHA512),
+    let result = match checksum_type {
+        ChecksumType::Sha1 => Checksum::Sha1(get_digest::<sha1::Sha1>(reader)?),
+        ChecksumType::Sha256 => Checksum::Sha256(get_digest::<sha2::Sha256>(reader)?),
+        ChecksumType::Sha384 => Checksum::Sha384(get_digest::<sha2::Sha384>(reader)?),
+        ChecksumType::Sha512 => Checksum::Sha512(get_digest::<sha2::Sha512>(reader)?),
         ChecksumType::Unknown => panic!("Cannot create digest using type Checksum::Unknown"),
     };
-    let mut buffer = [0; 4096];
 
-    loop {
-        let count = reader.read(&mut buffer)?;
-        if count == 0 {
-            break;
-        }
-        context.update(&buffer[..count]);
-    }
-    let digest = context.finish();
-    let checksum = hex::encode(digest.as_ref());
-    let result = match checksum_type {
-        ChecksumType::Sha1 => Checksum::Sha1(checksum),
-        ChecksumType::Sha256 => Checksum::Sha256(checksum),
-        ChecksumType::Sha384 => Checksum::Sha384(checksum),
-        ChecksumType::Sha512 => Checksum::Sha512(checksum),
-        ChecksumType::Unknown => panic!(),
-    };
     Ok(Some(result))
 }
 

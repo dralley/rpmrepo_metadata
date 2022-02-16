@@ -22,3 +22,5 @@
 
 # Cargo timings
 **/*.html
+
+**/Cargo.lock
