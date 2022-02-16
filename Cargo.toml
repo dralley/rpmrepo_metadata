@@ -1,9 +1,0 @@
-[workspace]
-members = ["python", "rpmrepo_metadata"]
-
-[profile.dev]
-opt-level = 1
-
-[profile.release]
-debuginfo = 1
-lto = "thin"

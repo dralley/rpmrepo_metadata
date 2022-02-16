@@ -3,7 +3,7 @@ use std::path::Path;
 use pyo3;
 use pyo3::prelude::*;
 
-use rpmrepo_metadata;
+use crate as rpmrepo_metadata;
 
 fn into_pyerr(err: rpmrepo_metadata::MetadataError) -> pyo3::PyErr {
     match err {

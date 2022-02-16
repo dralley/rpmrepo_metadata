@@ -9,6 +9,8 @@ mod repository;
 mod updateinfo;
 pub mod utils;
 
+mod python;
+
 pub use common::EVR;
 pub use metadata::{
     Checksum, ChecksumType, CompressionType, FileType, FilelistsXml, MetadataError, OtherXml,
