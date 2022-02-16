@@ -1,5 +1,5 @@
 use std::path::Path;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use criterion::{self, criterion_group, criterion_main, Criterion};
 use rpmrepo_metadata::{
@@ -50,7 +50,7 @@ fn metadata_parse_benchmark(c: &mut Criterion) {
         .unwrap()
         .read_to_end(&mut primary)
         .unwrap();
-    let primary: Rc<[u8]> = primary.into_boxed_slice().into();
+    let primary: Arc<[u8]> = primary.into_boxed_slice().into();
     group.bench_function("primary_xml", |b| {
         b.iter(|| {
             let mut repo = Repository::new();
@@ -64,7 +64,7 @@ fn metadata_parse_benchmark(c: &mut Criterion) {
         .unwrap()
         .read_to_end(&mut filelists)
         .unwrap();
-    let filelists: Rc<[u8]> = filelists.into_boxed_slice().into();
+    let filelists: Arc<[u8]> = filelists.into_boxed_slice().into();
     group.bench_function("filelists_xml", |b| {
         b.iter(|| {
             let mut repo = Repository::new();
@@ -78,7 +78,7 @@ fn metadata_parse_benchmark(c: &mut Criterion) {
         .unwrap()
         .read_to_end(&mut other)
         .unwrap();
-    let other: Rc<[u8]> = other.into_boxed_slice().into();
+    let other: Arc<[u8]> = other.into_boxed_slice().into();
     group.bench_function("other_xml", |b| {
         b.iter(|| {
             let mut repo = Repository::new();
@@ -98,13 +98,13 @@ fn metadata_parse_benchmark(c: &mut Criterion) {
     group.bench_function("iterative_all_together", |b| {
         b.iter(|| {
             let primary_xml = PrimaryXml::new_reader(utils::create_xml_reader(BufReader::new(
-                Box::new(Cursor::new(primary.clone())) as Box<dyn Read>,
+                Box::new(Cursor::new(primary.clone())) as Box<dyn Read + Send>,
             )));
             let filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(BufReader::new(
-                Box::new(Cursor::new(filelists.clone())) as Box<dyn Read>,
+                Box::new(Cursor::new(filelists.clone())) as Box<dyn Read + Send>,
             )));
             let other_xml = OtherXml::new_reader(utils::create_xml_reader(BufReader::new(
-                Box::new(Cursor::new(other.clone())) as Box<dyn Read>,
+                Box::new(Cursor::new(other.clone())) as Box<dyn Read + Send>,
             )));
 
             let mut parser =
