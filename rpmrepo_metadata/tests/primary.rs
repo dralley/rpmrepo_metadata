@@ -1,5 +1,5 @@
 // Copyright (c) 2022 Daniel Alley
-// 
+//
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -8,7 +8,7 @@ extern crate rpmrepo_metadata;
 
 use pretty_assertions::assert_eq;
 use rpmrepo_metadata::*;
-use std::fs::{Metadata, OpenOptions};
+use std::fs::OpenOptions;
 use std::io::{Cursor, Read, Seek, SeekFrom};
 use tempdir::TempDir;
 

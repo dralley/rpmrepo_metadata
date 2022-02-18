@@ -1,5 +1,5 @@
 // Copyright (c) 2022 Daniel Alley
-// 
+//
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -112,7 +112,10 @@ impl<W: Write> FilelistsXmlWriter<W> {
         self.writer.write_event(Event::Empty(version_tag))?;
 
         // <file type="dir">/etc/fonts/conf.avail</file>
-        package.files().iter().try_for_each(|f| write_file_element(&mut self.writer, f))?;
+        package
+            .files()
+            .iter()
+            .try_for_each(|f| write_file_element(&mut self.writer, f))?;
 
         // </package>
         self.writer.write_event(Event::End(package_tag.to_end()))?;

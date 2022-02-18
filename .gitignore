@@ -11,6 +11,7 @@
 **/*.xz
 **/*.xml
 **/*.bz2
+**/*.zstd
 
 # Cargo flamegraph
 **/perf.data
@@ -23,4 +24,13 @@
 # Cargo timings
 **/*.html
 
+# This is a library: no lockfile
 **/Cargo.lock
+
+# Python virtual environments for bindings development
+venv
+.env
+
+# Python bytecode caches (from tests)
+**/__pycache__/
+**/.pytest_cache/

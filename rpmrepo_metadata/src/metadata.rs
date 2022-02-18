@@ -1,5 +1,5 @@
 // Copyright (c) 2022 Daniel Alley
-// 
+//
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -37,7 +37,7 @@ pub const METADATA_OTHER_ZCK: &str = "other_zck";
 #[derive(Error, Debug)]
 pub enum MetadataError {
     #[error(transparent)]
-    MetadataParseError(#[from] quick_xml::Error),
+    XmlParseError(#[from] quick_xml::Error),
     #[error(transparent)]
     Utf8Error(#[from] std::str::Utf8Error),
     #[error(transparent)]
@@ -50,13 +50,18 @@ pub enum MetadataError {
     UnsupportedChecksumTypeError(String),
     #[error("\"{0}\" is not a valid checksum of type \"{1:?}\"")]
     InvalidChecksumError(String, ChecksumType),
-    #[error("Missing metadata fields: {0}")]
-    MissingFieldError(&'static str), // TODO: support multiple missing fields?
-    #[error("Missing metadata attributes: {0}")]
-    MissingAttributeError(&'static str), // TODO: support multiple missing attributes?
+    #[error("Missing metadata field: {0}")]
+    MissingFieldError(&'static str),
+    #[error("Missing metadata attribute: {0}")]
+    MissingAttributeError(&'static str),
     #[error("Missing metadata header")]
     MissingHeaderError,
 }
+
+// #[derive(Error, Debug)]
+// pub enum RpmrepoError {
+
+// }
 
 /// Default namespace for primary.xml
 pub const XML_NS_COMMON: &str = "http://linux.duke.edu/metadata/common";
@@ -139,36 +144,38 @@ impl TryInto<CompressionType> for &str {
 #[derive(Debug, PartialEq, Default)]
 pub struct Package {
     // pub(crate) parse_state: ParseState,
-    name: String,
-    arch: String,
-    evr: EVR,
-    checksum: Checksum,
-    location_href: String,
-    location_base: Option<String>,
-    summary: String,
-    description: String,
-    packager: String,
-    url: String,
-    time: Time,
-    size: Size,
+    pub name: String,
+    pub arch: String,
+    pub evr: EVR,
+    pub checksum: Checksum,
+    pub location_href: String,
+    pub location_base: Option<String>,
+    pub summary: String,
+    pub description: String,
+    pub packager: String,
+    pub url: String,
+    pub time_file: u64,
+    pub time_build: u64,
+    pub size_package: u64,
+    pub size_installed: u64,
+    pub size_archive: u64,
 
-    rpm_license: String,           // rpm:license
-    rpm_vendor: String,            // rpm:vendor
-    rpm_group: String,             // rpm:group
-    rpm_buildhost: String,         // rpm:buildhost
-    rpm_sourcerpm: String,         // rpm:sourcerpm
-    rpm_header_range: HeaderRange, // rpm:header-range
+    pub rpm_license: String,           // rpm:license
+    pub rpm_vendor: String,            // rpm:vendor
+    pub rpm_group: String,             // rpm:group
+    pub rpm_buildhost: String,         // rpm:buildhost
+    pub rpm_sourcerpm: String,         // rpm:sourcerpm
+    pub rpm_header_range: HeaderRange, // rpm:header-range
 
-    rpm_requires: Vec<Requirement>,    // rpm:provides
-    rpm_provides: Vec<Requirement>,    // rpm:requires
-    rpm_conflicts: Vec<Requirement>,   // rpm:conflicts
-    rpm_obsoletes: Vec<Requirement>,   // rpm:obsoletes
-    rpm_suggests: Vec<Requirement>,    // rpm:suggests
-    rpm_enhances: Vec<Requirement>,    // rpm:enhances
-    rpm_recommends: Vec<Requirement>,  // rpm:recommends
-    rpm_supplements: Vec<Requirement>, // rpm:supplements
+    pub rpm_requires: Vec<Requirement>,    // rpm:provides
+    pub rpm_provides: Vec<Requirement>,    // rpm:requires
+    pub rpm_conflicts: Vec<Requirement>,   // rpm:conflicts
+    pub rpm_obsoletes: Vec<Requirement>,   // rpm:obsoletes
+    pub rpm_suggests: Vec<Requirement>,    // rpm:suggests
+    pub rpm_enhances: Vec<Requirement>,    // rpm:enhances
+    pub rpm_recommends: Vec<Requirement>,  // rpm:recommends
+    pub rpm_supplements: Vec<Requirement>, // rpm:supplements
 
-    // TODO
     pub rpm_changelogs: Vec<Changelog>,
     pub rpm_files: Vec<PackageFile>,
 }
@@ -246,10 +253,27 @@ impl Package {
         &self.evr
     }
 
-    pub fn nevra<'a>(&'a self) -> Nevra<'a> {
-        self.into()
+    pub fn nvra(&self) -> String {
+        format!(
+            "{}-{}-{}.{}",
+            self.name, self.evr.version, self.evr.release, self.arch
+        )
     }
 
+    pub fn nevra_short(&self) -> String {
+        if self.evr.epoch == "0" {
+            self.nvra()
+        } else {
+            self.nevra()
+        }
+    }
+
+    pub fn nevra(&self) -> String {
+        format!(
+            "{}-{}:{}-{}.{}",
+            self.name, self.evr.epoch, self.evr.version, self.evr.release, self.arch
+        )
+    }
     // TODO: signature
     pub fn set_checksum(&mut self, checksum: Checksum) -> &mut Self {
         self.checksum = checksum;
@@ -319,26 +343,49 @@ impl Package {
         &self.url
     }
 
-    pub fn set_time(&mut self, file: u64, build: u64) -> &mut Self {
-        self.time = Time { build, file };
+    pub fn set_time_file(&mut self, time_file: u64) -> &mut Self {
+        self.time_file = time_file;
         self
     }
 
-    pub fn time(&self) -> &Time {
-        &self.time
+    pub fn time_file(&self) -> u64 {
+        self.time_file
     }
 
-    pub fn set_size(&mut self, package: u64, installed: u64, archive: u64) -> &mut Self {
-        self.size = Size {
-            archive,
-            installed,
-            package,
-        };
+    pub fn set_time_build(&mut self, time_build: u64) -> &mut Self {
+        self.time_build = time_build;
         self
     }
 
-    pub fn size(&self) -> &Size {
-        &self.size
+    pub fn time_build(&self) -> u64 {
+        self.time_build
+    }
+
+    pub fn set_size_package(&mut self, size_package: u64) -> &mut Self {
+        self.size_package = size_package;
+        self
+    }
+
+    pub fn size_package(&self) -> u64 {
+        self.size_package
+    }
+
+    pub fn set_size_installed(&mut self, size_installed: u64) -> &mut Self {
+        self.size_installed = size_installed;
+        self
+    }
+
+    pub fn size_installed(&self) -> u64 {
+        self.size_installed
+    }
+
+    pub fn set_size_archive(&mut self, size_archive: u64) -> &mut Self {
+        self.size_archive = size_archive;
+        self
+    }
+
+    pub fn size_archive(&self) -> u64 {
+        self.size_archive
     }
 
     pub fn set_rpm_license(&mut self, license: &str) -> &mut Self {
@@ -476,6 +523,11 @@ impl Package {
         self
     }
 
+    pub fn set_files(&mut self, files: Vec<PackageFile>) -> &mut Self {
+        self.rpm_files = files;
+        self
+    }
+
     pub fn files(&self) -> &[PackageFile] {
         &self.rpm_files
     }
@@ -489,59 +541,21 @@ impl Package {
         self
     }
 
+    pub fn set_changelogs(&mut self, changelogs: Vec<Changelog>) -> &mut Self {
+        self.rpm_changelogs = changelogs;
+        self
+    }
+
     pub fn changelogs(&self) -> &[Changelog] {
         &self.rpm_changelogs
     }
 }
 
-pub struct Nevra<'a> {
-    pub name: &'a str,
-    pub arch: &'a str,
-    pub evr: &'a EVR,
-}
-
-impl<'a> Nevra<'a> {
-    pub fn short(&self) -> String {
-        if self.evr.epoch == "0" {
-            format!(
-                "{}-{}-{}.{}",
-                self.name, self.evr.version, self.evr.release, self.arch
-            )
-        } else {
-            format!(
-                "{}-{}:{}-{}.{}",
-                self.name, self.evr.epoch, self.evr.version, self.evr.release, self.arch
-            )
-        }
-    }
-
-    pub fn canonical(&self) -> String {
-        format!(
-            "{}-{}:{}-{}.{}",
-            self.name, self.evr.epoch, self.evr.version, self.evr.release, self.arch
-        )
-    }
-}
-
-impl<'a> From<&'a Package> for Nevra<'a> {
-    fn from(pkg: &'a Package) -> Self {
-        Self {
-            name: &pkg.name,
-            evr: &pkg.evr,
-            arch: &pkg.arch,
-        }
-    }
-}
-
-impl<'a> fmt::Display for Nevra<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.canonical())
-    }
-}
-
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum ChecksumType {
+    Md5,
     Sha1,
+    Sha224,
     Sha256,
     Sha384,
     Sha512,
@@ -556,7 +570,9 @@ impl Default for ChecksumType {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Checksum {
+    Md5(String),
     Sha1(String),
+    Sha224(String),
     Sha256(String),
     Sha384(String),
     Sha512(String),
@@ -578,6 +594,17 @@ impl Checksum {
         let bytes_to_str = |value| std::str::from_utf8(value).unwrap().to_owned();
 
         match checksum_type.as_ref() {
+            b"md5" => {
+                let digest = bytes_to_str(checksum.as_ref());
+                if digest.len() != 32 {
+                    Err(MetadataError::InvalidChecksumError(
+                        digest,
+                        ChecksumType::Md5,
+                    ))
+                } else {
+                    Ok(Checksum::Md5(digest))
+                }
+            }
             b"sha" => {
                 let digest = bytes_to_str(checksum.as_ref());
                 if digest.len() != 40 {
@@ -598,6 +625,17 @@ impl Checksum {
                     ))
                 } else {
                     Ok(Checksum::Sha1(digest))
+                }
+            }
+            b"sha224" => {
+                let digest = bytes_to_str(checksum.as_ref());
+                if digest.len() != 56 {
+                    Err(MetadataError::InvalidChecksumError(
+                        digest,
+                        ChecksumType::Sha224,
+                    ))
+                } else {
+                    Ok(Checksum::Sha224(digest))
                 }
             }
             b"sha256" => {
@@ -643,7 +681,9 @@ impl Checksum {
 
     pub fn to_values<'a>(&'a self) -> Result<(&str, &'a str), MetadataError> {
         let values = match self {
+            Checksum::Md5(c) => ("md5", c.as_str()),
             Checksum::Sha1(c) => ("sha1", c.as_str()),
+            Checksum::Sha224(c) => ("sha224", c.as_str()),
             Checksum::Sha256(c) => ("sha256", c.as_str()),
             Checksum::Sha384(c) => ("sha384", c.as_str()),
             Checksum::Sha512(c) => ("sha512", c.as_str()),
@@ -662,19 +702,6 @@ pub struct Changelog {
 }
 
 #[derive(Debug, PartialEq, Default)]
-pub struct Time {
-    pub file: u64,
-    pub build: u64,
-}
-
-#[derive(Debug, PartialEq, Default)]
-pub struct Size {
-    pub package: u64,
-    pub installed: u64,
-    pub archive: u64,
-}
-
-#[derive(Debug, PartialEq, Default)]
 pub struct HeaderRange {
     pub start: u64,
     pub end: u64,
@@ -688,7 +715,7 @@ pub struct Requirement {
     pub epoch: Option<String>,
     pub version: Option<String>,
     pub release: Option<String>,
-    pub preinstall: Option<bool>,
+    pub preinstall: bool,
 }
 
 pub enum RequirementType {

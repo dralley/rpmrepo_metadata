@@ -1,5 +1,5 @@
 // Copyright (c) 2022 Daniel Alley
-// 
+//
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -37,7 +37,9 @@ pub fn checksum_file(path: &Path, checksum_type: ChecksumType) -> Result<Checksu
     let mut reader = Box::new(BufReader::new(File::open(path).unwrap())) as Box<dyn Read>;
 
     let result = match checksum_type {
+        ChecksumType::Md5 => Checksum::Md5(get_digest::<md5::Md5>(reader)?),
         ChecksumType::Sha1 => Checksum::Sha1(get_digest::<sha1::Sha1>(reader)?),
+        ChecksumType::Sha224 => Checksum::Sha224(get_digest::<sha2::Sha224>(reader)?),
         ChecksumType::Sha256 => Checksum::Sha256(get_digest::<sha2::Sha256>(reader)?),
         ChecksumType::Sha384 => Checksum::Sha384(get_digest::<sha2::Sha384>(reader)?),
         ChecksumType::Sha512 => Checksum::Sha512(get_digest::<sha2::Sha512>(reader)?),
@@ -59,7 +61,9 @@ pub fn checksum_inner_file(
     }
 
     let result = match checksum_type {
+        ChecksumType::Md5 => Checksum::Md5(get_digest::<md5::Md5>(reader)?),
         ChecksumType::Sha1 => Checksum::Sha1(get_digest::<sha1::Sha1>(reader)?),
+        ChecksumType::Sha224 => Checksum::Sha224(get_digest::<sha2::Sha224>(reader)?),
         ChecksumType::Sha256 => Checksum::Sha256(get_digest::<sha2::Sha256>(reader)?),
         ChecksumType::Sha384 => Checksum::Sha384(get_digest::<sha2::Sha384>(reader)?),
         ChecksumType::Sha512 => Checksum::Sha512(get_digest::<sha2::Sha512>(reader)?),

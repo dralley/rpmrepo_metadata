@@ -1,5 +1,5 @@
 // Copyright (c) 2022 Daniel Alley
-// 
+//
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -26,8 +26,11 @@ pub static COMPLEX_PACKAGE: Lazy<Package> = Lazy::new(|| {
     package.set_packager("Michael Bluth");
     package.set_url("http://bobloblaw.com");
     package.set_location_href("complex-package-2.3.4-5.el8.x86_64.rpm");
-    package.set_time(1627052744, 1627052743);
-    package.set_size(8680, 117, 932);
+    package.set_time_build(1627052743);
+    package.set_time_file(1627052744);
+    package.set_size_package(8680);
+    package.set_size_installed(117);
+    package.set_size_archive(932);
 
     package.set_rpm_license("MPLv2");
     package.set_rpm_buildhost("localhost");
@@ -76,7 +79,7 @@ pub static COMPLEX_PACKAGE: Lazy<Package> = Lazy::new(|| {
         },
         Requirement {
             name: "/usr/sbin/useradd".to_owned(),
-            preinstall: Some(true),
+            preinstall: true,
             ..Requirement::default()
         },
         Requirement {
@@ -220,8 +223,11 @@ pub static RPM_WITH_INVALID_CHARS: Lazy<Package> = Lazy::new(|| {
 These must be escaped in the final XML metadata. The XML spec does not strictly require escaping 'single' or "double" quotes
 within text content, and not all XML libraries do so. However, it is generally recommended."##);
     package.set_url("https://github.com/dralley/rpmrepo_rs/");
-    package.set_time(1625930845, 1617418325);
-    package.set_size(6489, 0, 124);
+    package.set_time_build(1617418325);
+    package.set_time_file(1625930845);
+    package.set_size_package(6489);
+    package.set_size_installed(0);
+    package.set_size_archive(124);
 
     package.set_rpm_license("Public Domain");
     package.set_rpm_sourcerpm("rpm-with-invalid-chars-1-1.fc33.src.rpm");
@@ -235,7 +241,7 @@ within text content, and not all XML libraries do so. However, it is generally r
         epoch: Some("0".to_owned()),
         version: Some("1".to_owned()),
         release: Some("1.fc33".to_owned()),
-        preinstall: None,
+        preinstall: false,
     }]);
 
     package
@@ -252,8 +258,11 @@ pub static RPM_EMPTY: Lazy<Package> = Lazy::new(|| {
     ));
     package.set_summary(r##""""##);
     package.set_location_href("rpm-empty-0-0.x86_64.rpm");
-    package.set_time(1625930845, 1615686424);
-    package.set_size(6005, 0, 124);
+    package.set_time_build(1615686424);
+    package.set_time_file(1625930845);
+    package.set_size_package(6005);
+    package.set_size_installed(0);
+    package.set_size_archive(124);
 
     package.set_rpm_license("LGPL");
     package.set_rpm_group("Unspecified");
@@ -310,8 +319,11 @@ block:
 See: http://www.unicode.org/charts/"##,
     );
     package.set_url("https://github.com/dralley/rpmrepo_rs/");
-    package.set_time(1625930845, 1615686425);
-    package.set_size(6433, 0, 124);
+    package.set_time_build(1615686425);
+    package.set_time_file(1625930845);
+    package.set_size_package(6433);
+    package.set_size_installed(0);
+    package.set_size_archive(124);
 
     package.set_rpm_license("Public Domain");
     package.set_rpm_sourcerpm("rpm-with-non-ascii-1-1.fc33.src.rpm");
@@ -325,7 +337,7 @@ See: http://www.unicode.org/charts/"##,
         epoch: Some("0".to_owned()),
         version: Some("1".to_owned()),
         release: Some("1.fc33".to_owned()),
-        preinstall: None,
+        preinstall: false,
     }]);
 
     package

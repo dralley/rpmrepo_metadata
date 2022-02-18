@@ -1,5 +1,5 @@
 // Copyright (c) 2022 Daniel Alley
-// 
+//
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -134,7 +134,7 @@ impl PackageParser {
 
         let package = self.in_progress_package.take();
 
-        // TODO: error handling?
+        // TODO: actual error handling instead of panics?
         if let Some(_) = package {
             self.num_remaining = self
                 .num_remaining

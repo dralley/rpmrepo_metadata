@@ -1,5 +1,5 @@
 // Copyright (c) 2022 Daniel Alley
-// 
+//
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -11,8 +11,8 @@ use quick_xml::{Reader, Writer};
 
 use super::filelist;
 use super::metadata::{
-    Checksum, MetadataError, Package, PrimaryXml, Requirement, RpmMetadata,
-    XML_NS_COMMON, XML_NS_RPM,
+    Checksum, MetadataError, Package, PrimaryXml, Requirement, RpmMetadata, XML_NS_COMMON,
+    XML_NS_RPM,
 };
 use super::{PackageFile, Repository, EVR};
 
@@ -59,7 +59,6 @@ impl RpmMetadata for PrimaryXml {
         reader: Reader<R>,
     ) -> Result<(), MetadataError> {
         // TODO: in theory, other or filelists could be parsed first, and in that case this is wrong
-        // need to at least enforce order w/ a state machine, or just handle it.
         let mut reader = PrimaryXml::new_reader(reader);
         reader.read_header()?;
         let mut package = None;
@@ -239,7 +238,11 @@ pub fn parse_package<R: BufRead>(
                         .unescape_and_decode_value(reader)?
                         .parse()?;
 
-                    package.as_mut().unwrap().set_time(time_file, time_build);
+                    package
+                        .as_mut()
+                        .unwrap()
+                        .set_time_file(time_file)
+                        .set_time_build(time_build);
                 }
                 TAG_SIZE => {
                     let package_size = e
@@ -263,7 +266,9 @@ pub fn parse_package<R: BufRead>(
                     package
                         .as_mut()
                         .unwrap()
-                        .set_size(package_size, installed_size, archive_size);
+                        .set_size_package(package_size)
+                        .set_size_installed(installed_size)
+                        .set_size_archive(archive_size);
                 }
                 TAG_LOCATION => {
                     let location_href = e
@@ -390,7 +395,9 @@ pub fn parse_package<R: BufRead>(
                                         .unwrap()
                                         .set_supplements(parse_requirement_list(reader, &e)?);
                                 }
-                                TAG_FILE => (), // TODO: share implementation w/ filelists, but don't parse twice.
+                                TAG_FILE => (),
+                                // TODO: share implementation w/ filelists, but don't parse twice.
+                                // use IndexSet to enforce uniqueness while keeping order
                                 _ => (),
                             },
                             _ => (),
@@ -518,16 +525,16 @@ pub fn write_package<W: Write>(
     // <time file="1615451135" build="1331831374"/>
     writer
         .create_element(TAG_TIME)
-        .with_attribute(("file", package.time().file.to_string().as_str()))
-        .with_attribute(("build", package.time().build.to_string().as_str()))
+        .with_attribute(("file", package.time_file().to_string().as_str()))
+        .with_attribute(("build", package.time_build().to_string().as_str()))
         .write_empty()?;
 
     // <size package="1846" installed="42" archive="296"/>
     writer
         .create_element(TAG_SIZE)
-        .with_attribute(("package", package.size().package.to_string().as_str()))
-        .with_attribute(("installed", package.size().installed.to_string().as_str()))
-        .with_attribute(("archive", package.size().archive.to_string().as_str()))
+        .with_attribute(("package", package.size_package().to_string().as_str()))
+        .with_attribute(("installed", package.size_installed().to_string().as_str()))
+        .with_attribute(("archive", package.size_archive().to_string().as_str()))
         .write_empty()?;
 
     // <location href="horse-4.1-1.noarch.rpm"/>
@@ -644,8 +651,7 @@ fn write_requirement_section<W: Write, N: AsRef<[u8]> + Sized>(
         if let Some(release) = &entry.release {
             entry_tag.push_attribute(("rel", release.as_str()));
         }
-        // TODO: make sure this logic is correct, should this be option or just plain bool?
-        if let Some(true) = &entry.preinstall {
+        if entry.preinstall {
             entry_tag.push_attribute(("pre", "1"));
         }
         writer.write_event(Event::Empty(entry_tag))?;
@@ -694,7 +700,8 @@ pub fn parse_requirement_list<R: BufRead>(
                             requirement.preinstall = attr
                                 .unescape_and_decode_value(reader)
                                 .ok()
-                                .map(|val| val != "0" || !val.eq_ignore_ascii_case("false"))
+                                .filter(|val| val != "0" && !val.eq_ignore_ascii_case("false"))
+                                .is_some()
                         }
                         a @ _ => panic!("unrecognized attribute {}", std::str::from_utf8(a)?),
                     }
