@@ -134,17 +134,19 @@ impl PackageParser {
 
         let package = self.in_progress_package.take();
 
-        // TODO: actual error handling instead of panics?
+        // TODO: re-enable this with actual error handling instead of panics - RHEL6 for example will fail
+        // because the header lies about the number of packages
         if let Some(_) = package {
-            self.num_remaining = self
-                .num_remaining
-                .checked_sub(1)
-                .expect("More packages parsed than declared in the metadata header.");
+            self.num_remaining -= 1;
+            // self.num_remaining = self
+            //     .num_remaining
+            //     .checked_sub(1)
+            //     .expect("More packages parsed than declared in the metadata header.");
         } else {
-            assert!(
-                self.num_remaining == 0,
-                "Less packages parsed than declared in metadata header."
-            );
+            // assert!(
+            //     self.num_remaining == 0,
+            //     "Less packages parsed than declared in metadata header."
+            // );
         }
 
         Ok(package)
