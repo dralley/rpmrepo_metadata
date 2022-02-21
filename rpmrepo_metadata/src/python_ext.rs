@@ -4,7 +4,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use std::path::Path;
+use std::path::PathBuf;
 
 use pyo3;
 use pyo3::prelude::*;
@@ -45,15 +45,13 @@ impl Repository {
     }
 
     #[staticmethod]
-    fn load_from_directory(path: &str) -> PyResult<Self> {
-        let path = Path::new(path);
+    fn load_from_directory(path: PathBuf) -> PyResult<Self> {
         let repo = crate::Repository::load_from_directory(&path)?;
         let py_repo = Self { inner: repo };
         Ok(py_repo)
     }
 
-    fn write_to_directory(&self, path: &str) -> PyResult<()> {
-        let path = Path::new(path);
+    fn write_to_directory(&self, path: PathBuf) -> PyResult<()> {
         let options = crate::RepositoryOptions::default();
 
         self.inner.write_to_directory(&path, options)?;
@@ -69,9 +67,8 @@ struct RepositoryWriter {
 #[pymethods]
 impl RepositoryWriter {
     #[new]
-    fn new(path: &str, num_pkgs: usize) -> PyResult<Self> {
-        let path = Path::new(path);
-        let repo_writer = crate::RepositoryWriter::new(path, num_pkgs)?;
+    fn new(path: PathBuf, num_pkgs: usize) -> PyResult<Self> {
+        let repo_writer = crate::RepositoryWriter::new(&path, num_pkgs)?;
         let py_repo_writer = RepositoryWriter { inner: repo_writer };
         Ok(py_repo_writer)
     }
@@ -95,8 +92,7 @@ struct RepositoryReader {
 #[pymethods]
 impl RepositoryReader {
     #[new]
-    fn new(path: &str) -> PyResult<Self> {
-        let path = Path::new(path);
+    fn new(path: PathBuf) -> PyResult<Self> {
         let repo_reader = crate::RepositoryReader::new_from_directory(&path)?;
         let py_repo_reader = Self { inner: repo_reader };
         Ok(py_repo_reader)
@@ -736,12 +732,9 @@ struct PackageParser {
 #[pymethods]
 impl PackageParser {
     #[new]
-    pub fn new(primary_path: &str, filelists_path: &str, other_path: &str) -> PyResult<Self> {
-        let primary_path = Path::new(primary_path);
-        let filelists_path = Path::new(filelists_path);
-        let other_path = Path::new(other_path);
+    pub fn new(primary_path: PathBuf, filelists_path: PathBuf, other_path: PathBuf) -> PyResult<Self> {
         let py_pkg_parser = Self {
-            inner: crate::PackageParser::from_files(primary_path, filelists_path, other_path)?,
+            inner: crate::PackageParser::from_files(&primary_path, &filelists_path, &other_path)?,
         };
         Ok(py_pkg_parser)
     }
