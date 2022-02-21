@@ -21,7 +21,7 @@ pub struct RepomdXml;
 pub struct PrimaryXml;
 pub struct FilelistsXml;
 pub struct OtherXml;
-// pub struct UpdateinfoXml;
+pub struct UpdateinfoXml;
 
 pub const METADATA_PRIMARY: &str = "primary";
 pub const METADATA_FILELISTS: &str = "filelists";
@@ -33,6 +33,7 @@ pub const METADATA_PRIMARY_ZCK: &str = "primary_zck";
 pub const METADATA_FILELISTS_ZCK: &str = "filelists_zck";
 pub const METADATA_OTHER_ZCK: &str = "other_zck";
 
+// TODO: probably this can / should be broken up better rather than being a kitchen sink
 #[derive(Error, Debug)]
 pub enum MetadataError {
     #[error(transparent)]
@@ -49,10 +50,18 @@ pub enum MetadataError {
     UnsupportedChecksumTypeError(String),
     #[error("\"{0}\" is not a valid checksum of type \"{1:?}\"")]
     InvalidChecksumError(String, ChecksumType),
+    #[error("\"{0}\" is not a valid flag value")]
+    InvalidFlagsError(String),
+    #[error("\"{0}\" is not a valid EVR string: {1}")]
+    InvalidEvrError(String, String),
+    #[error("Metadata files are inconsistent: {0}")]
+    InconsistentMetadataError(String),
     #[error("Missing metadata field: {0}")]
     MissingFieldError(&'static str),
     #[error("Missing metadata attribute: {0}")]
     MissingAttributeError(&'static str),
+    #[error("Unknown metadata attribute: {0}")]
+    UnknownAttributeError(String),
     #[error("Missing metadata header")]
     MissingHeaderError,
 }
@@ -693,7 +702,7 @@ impl Checksum {
     }
 }
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct Changelog {
     pub author: String,
     pub date: u64,
@@ -707,7 +716,7 @@ pub struct HeaderRange {
 }
 
 // Requirement (Provides, Conflicts, Obsoletes, Requires).
-#[derive(Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct Requirement {
     pub name: String,
     pub flags: Option<String>,
@@ -737,7 +746,24 @@ impl From<RequirementType> for &str {
     }
 }
 
-#[derive(Debug, PartialEq)]
+impl TryFrom<&str> for RequirementType {
+    type Error = MetadataError;
+
+    fn try_from(flags: &str) -> Result<Self, Self::Error> {
+        let reqtype = match flags {
+            "LT" => RequirementType::LT,
+            "GT" => RequirementType::GT,
+            "EQ" => RequirementType::EQ,
+            "LE" => RequirementType::LE,
+            "GE" => RequirementType::GE,
+            t @ _ => return Err(MetadataError::InvalidFlagsError(t.to_owned())),
+        };
+
+        Ok(reqtype)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum FileType {
     File,
     Dir,
@@ -771,13 +797,13 @@ impl Default for FileType {
     }
 }
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct PackageFile {
     pub filetype: FileType,
     pub path: String,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum MetadataType {
     Primary,
     Filelists,
@@ -814,7 +840,7 @@ impl From<&str> for MetadataType {
     }
 }
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct DistroTag {
     pub cpeid: Option<String>,
     pub name: String,
@@ -826,7 +852,7 @@ impl DistroTag {
     }
 }
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct RepomdData {
     revision: Option<String>,
     metadata_files: Vec<RepomdRecord>,

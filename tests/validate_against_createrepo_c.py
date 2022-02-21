@@ -43,6 +43,7 @@ def compare_pkgs(rpmrepo_pkg, createrepo_pkg):
     # * libxml appears to replace \t (tab) characters in attribute names with spaces, and quick-xml does not
     # * "files" getter/setter uses a 2-tuple of (type, path) instead of a 3-tuple of (type, base, filename)
     #   * the 3-tuple variant is available as "files_split"
+    # * rpm_packager -> packager, since the tag name isn't in the rpm: namespace
 
     assert rpmrepo_pkg.name == createrepo_pkg.name, "name"
     assert rpmrepo_pkg.epoch == createrepo_pkg.epoch, "epoch"
@@ -109,24 +110,18 @@ def validate_rpmrepo(repo_path):
             other_xml_path = os.path.join(repo_path, record.location_href)
 
     parser = rpmmd.PackageParser(primary_xml_path, filelists_xml_path, other_xml_path)
+    pkg_iterator = cr.PackageIterator(primary_xml_path, filelists_xml_path, other_xml_path)
 
-    def pkgcb(createrepo_pkg):
-        rpmrepo_pkg = next(parser)
+    for (createrepo_pkg, rpmrepo_pkg) in zip(pkg_iterator, parser):
         compare_pkgs(rpmrepo_pkg, createrepo_pkg)
-
-    cr.xml_parse_main_metadata_together(primary_xml_path,
-                                        filelists_xml_path,
-                                        other_xml_path,
-                                        None,
-                                        pkgcb,
-                                        None,
-                                        False)
 
     assert parser.remaining_packages == 0
 
 
 def find_repos(directory):
-    return sorted([path for path in os.listdir(directory) if not path.startswith(".")])
+    def ignorable(path):
+        return path.startswith(".") or path.endswith(".md")
+    return sorted([path for path in os.listdir(directory) if not ignorable(path)])
 
 
 @pytest.mark.parametrize("path", find_repos("tests/assets/external_repos"))
@@ -137,6 +132,11 @@ def test_validate_ecosystem_repo(path):
 @pytest.mark.parametrize("path", find_repos("tests/assets/fixture_repos"))
 def test_validate_fixture_repo(path):
     validate_rpmrepo(os.path.join("tests/assets/fixture_repos", path))
+
+
+@pytest.mark.parametrize("path", find_repos("tests/assets/broken_fixture_repos"))
+def test_validate_broken_repo(path):
+    validate_rpmrepo(os.path.join("tests/assets/broken_fixture_repos", path))
 
 
 if __name__ == "__main__":

@@ -4,9 +4,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+use std::fmt;
 use std::path::PathBuf;
 
 use pyo3;
+use pyo3::basic::CompareOp;
 use pyo3::prelude::*;
 
 // Create a Python exception type "MetadataError" to mirror the Rust version
@@ -113,7 +115,7 @@ struct Package {
 impl Package {
     #[new]
     fn new() -> Self {
-        Package {
+        Self {
             inner: crate::Package::default(),
         }
     }
@@ -130,9 +132,15 @@ impl Package {
         self.inner.nevra_short()
     }
 
+    fn evr(&self) -> EVR {
+        EVR {
+            inner: self.inner.evr.clone(),
+        }
+    }
+
     #[setter(name)]
-    fn set_name(&mut self, name: String) {
-        self.inner.name = name;
+    fn set_name(&mut self, name: &str) {
+        self.inner.set_name(name);
     }
 
     #[getter(name)]
@@ -363,15 +371,14 @@ impl Package {
     }
 
     #[setter(rpm_header_range)]
-    pub fn set_rpm_header_range(&mut self, tuple: (u64, u64)) -> PyResult<()> {
+    pub fn set_rpm_header_range(&mut self, tuple: (u64, u64)) {
         self.inner.set_rpm_header_range(tuple.0, tuple.1);
-        Ok(())
     }
 
     #[getter(rpm_header_range)]
-    pub fn rpm_header_range(&self) -> PyResult<(u64, u64)> {
+    pub fn rpm_header_range(&self) -> (u64, u64) {
         let range = self.inner.rpm_header_range();
-        Ok((range.start, range.end))
+        (range.start, range.end)
     }
 
     #[setter(requires)]
@@ -519,12 +526,12 @@ impl Package {
     }
 
     #[setter(files)]
-    pub fn set_files(&mut self, files: Vec<FileTuple>) -> PyResult<()> {
-        let mut rusty_files: Vec<crate::metadata::PackageFile> = Vec::with_capacity(files.len());
-        for file in files.iter() {
-            rusty_files.push(crate::metadata::PackageFile::try_from(file)?);
+    pub fn set_files(&mut self, file_tuples: Vec<FileTuple>) -> PyResult<()> {
+        let mut files = Vec::with_capacity(file_tuples.len());
+        for file in file_tuples.iter() {
+            files.push(crate::metadata::PackageFile::try_from(file)?);
         }
-        self.inner.set_files(rusty_files);
+        self.inner.set_files(files);
         Ok(())
     }
 
@@ -538,12 +545,12 @@ impl Package {
     }
 
     #[setter(files_split)]
-    pub fn set_files_split(&mut self, files: Vec<CrFileTuple>) -> PyResult<()> {
-        let mut rusty_files: Vec<crate::metadata::PackageFile> = Vec::with_capacity(files.len());
-        for file in files.iter() {
-            rusty_files.push(crate::metadata::PackageFile::try_from(file)?);
+    pub fn set_files_split(&mut self, file_tuples: Vec<CrFileTuple>) -> PyResult<()> {
+        let mut files = Vec::with_capacity(file_tuples.len());
+        for file in file_tuples.iter() {
+            files.push(crate::metadata::PackageFile::try_from(file)?);
         }
-        self.inner.set_files(rusty_files);
+        self.inner.set_files(files);
         Ok(())
     }
 
@@ -557,9 +564,9 @@ impl Package {
     }
 
     #[setter(changelogs)]
-    pub fn set_changelogs(&mut self, changelogs: Vec<ChangelogTuple>) {
-        let changelogs: Vec<_> = changelogs
-            .iter()
+    pub fn set_changelogs(&mut self, changelog_tuples: Vec<ChangelogTuple>) {
+        let changelogs: Vec<_> = changelog_tuples
+            .into_iter()
             .map(|r| crate::metadata::Changelog::from(r))
             .collect();
         self.inner.set_changelogs(changelogs);
@@ -573,12 +580,19 @@ impl Package {
             .map(|r| ChangelogTuple::from(r))
             .collect()
     }
+
+    fn __str__(&self) -> PyResult<String> {
+        Ok(self.to_string())
+    }
+
+    fn __repr__(&self) -> PyResult<String> {
+        Ok(self.to_string())
+    }
 }
 
-#[pyproto]
-impl pyo3::PyObjectProtocol for Package {
-    fn __str__(&self) -> PyResult<String> {
-        Ok(format!("<Package {}>", self.nevra()))
+impl fmt::Display for Package {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "<Package {}>", self.nevra())
     }
 }
 
@@ -622,12 +636,12 @@ impl From<&crate::metadata::Requirement> for RequirementTuple {
 // Author, Date, Description
 type ChangelogTuple = (String, u64, String);
 
-impl From<&ChangelogTuple> for crate::metadata::Changelog {
-    fn from(tuple: &ChangelogTuple) -> Self {
+impl From<ChangelogTuple> for crate::metadata::Changelog {
+    fn from(tuple: ChangelogTuple) -> Self {
         crate::metadata::Changelog {
-            author: tuple.0.clone(),
+            author: tuple.0,
             date: tuple.1,
-            description: tuple.2.clone(),
+            description: tuple.2,
         }
     }
 }
@@ -732,7 +746,7 @@ struct PackageParser {
 #[pymethods]
 impl PackageParser {
     #[new]
-    pub fn new(primary_path: PathBuf, filelists_path: PathBuf, other_path: PathBuf) -> PyResult<Self> {
+    fn new(primary_path: PathBuf, filelists_path: PathBuf, other_path: PathBuf) -> PyResult<Self> {
         let py_pkg_parser = Self {
             inner: crate::PackageParser::from_files(&primary_path, &filelists_path, &other_path)?,
         };
@@ -758,10 +772,7 @@ impl PackageParser {
     fn __length_hint__(&self) -> usize {
         self.inner.remaining_packages()
     }
-}
 
-#[pyproto]
-impl pyo3::PyIterProtocol for PackageParser {
     fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
         slf
     }
@@ -771,12 +782,86 @@ impl pyo3::PyIterProtocol for PackageParser {
     }
 }
 
+#[pyclass]
+struct EVR {
+    inner: crate::EVR,
+}
+
+#[pymethods]
+impl EVR {
+    #[new]
+    fn new(epoch: &str, version: &str, release: &str) -> EVR {
+        EVR {
+            inner: crate::EVR::new(epoch, version, release),
+        }
+    }
+
+    fn components(&self) -> (&str, &str, &str) {
+        (self.epoch(), self.version(), self.release())
+    }
+
+    #[staticmethod]
+    fn parse(evr: &str) -> PyResult<Self> {
+        let py_evr = EVR {
+            inner: crate::EVR::parse_values(evr)?.try_into()?,
+        };
+        Ok(py_evr)
+    }
+
+    #[getter]
+    fn epoch(&self) -> &str {
+        &self.inner.epoch
+    }
+
+    #[getter]
+    fn version(&self) -> &str {
+        &self.inner.version
+    }
+
+    #[getter]
+    fn release(&self) -> &str {
+        &self.inner.release
+    }
+
+    fn __str__(&self) -> PyResult<String> {
+        Ok(self.to_string())
+    }
+
+    fn __repr__(&self) -> PyResult<String> {
+        Ok(self.to_string())
+    }
+
+    fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
+        match op {
+            CompareOp::Lt => Ok(self.inner < other.inner),
+            CompareOp::Le => Ok(self.inner <= other.inner),
+            CompareOp::Eq => Ok(self.inner == other.inner),
+            CompareOp::Ne => Ok(self.inner != other.inner),
+            CompareOp::Gt => Ok(self.inner > other.inner),
+            CompareOp::Ge => Ok(self.inner >= other.inner),
+        }
+    }
+}
+
+impl fmt::Display for EVR {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "<EVR ({:?}, {:?}, {:?})>",
+            self.epoch(),
+            self.version(),
+            self.release()
+        )
+    }
+}
+
 #[pymodule]
-fn rpmrepo_metadata(_py: Python, m: &PyModule) -> PyResult<()> {
+fn rpmrepo_metadata(py: Python, m: &PyModule) -> PyResult<()> {
     // m.add_class::<Repository>()?;
-    m.add_class::<RepositoryWriter>()?;
+    // m.add_class::<RepositoryWriter>()?;
     m.add_class::<RepositoryReader>()?;
     // m.add_class::<RepositoryOptions>()?;
+    m.add_class::<EVR>()?;
     m.add_class::<Package>()?;
     m.add_class::<PackageParser>()?;
     // m.add_class::<RepomdXml>()?;

@@ -34,3 +34,6 @@ venv
 # Python bytecode caches (from tests)
 **/__pycache__/
 **/.pytest_cache/
+
+# package building
+**/*.crate

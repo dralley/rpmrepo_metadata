@@ -5,6 +5,8 @@ authors = ["Daniel Alley <dalley@redhat.com>"]
 edition = "2021"
 license = "MPL-2.0"
 description = "A library for parsing RPM repository metadata."
+include = ["/src", "benches/", "pyproject.toml", "README.md"]
+readme = "README.md"
 
 [features]
 python_ext = ["pyo3"]
@@ -13,17 +15,17 @@ python_ext = ["pyo3"]
 quick-xml = { git = "https://github.com/tafia/quick-xml", rev = "d8727717", default-features = false }
 # rayon = "1.5.1"
 thiserror = "1.0.30"
-niffler = { version = "2.4.0", features = ["bz2", "xz", "gz"], default-features = false }
+niffler = { path = "/home/dalley/Devel/rpm-dev/niffler", features = ["bz2", "xz", "gz"], default-features = false }
 # rpm-rs = { version = "0.8.1", default-features = true }
 # tempdir = "0.3.7"
-digest = "0.10.2"
-sha1 = "0.10.0"
+digest = "0.10.3"
+sha1 = "0.10.1"
 sha2 = "0.10.1"
 md-5 = "0.10.1"
 # bitflags = "1.3.2"
 hex = "0.4.3"
-indexmap = "1.7.0"
-pyo3 = { version = "0.15.1", features = ["extension-module"], optional = true }
+indexmap = "1.8.0"
+pyo3 = { version = "0.16.1", features = ["extension-module"], optional = true }
 
 [lib]
 name = "rpmrepo_metadata"
@@ -31,17 +33,13 @@ crate-type = ["lib", "cdylib"]
 
 [dev-dependencies]
 tempdir = "0.3.7"
-pretty_assertions = "1.0.0"
-once_cell = "1.8.0"
+pretty_assertions = "1.1.0"
+once_cell = "1.9.0"
 criterion = "0.3"
 
 [[bench]]
 name = "repository"
 harness = false
-
-# [patch.crates-io]
-# quick-xml = { path = "../quick-xml", default-features = false }
-# # rpm-rs = { path = "../rpm-rs" }
 
 [profile.dev]
 opt-level = 1

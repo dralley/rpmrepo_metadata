@@ -117,6 +117,12 @@ impl PackageParser {
         let filelists_pkg_count = self.filelists_xml.read_header()?;
         let other_pkg_count = self.other_xml.read_header()?;
 
+        if primary_pkg_count != filelists_pkg_count || primary_pkg_count != other_pkg_count {
+            return Err(MetadataError::InconsistentMetadataError(
+                "Metadata package counts don't match".to_owned(),
+            ));
+        }
+
         assert_eq!(primary_pkg_count, filelists_pkg_count);
         assert_eq!(primary_pkg_count, other_pkg_count);
         self.num_packages = primary_pkg_count;

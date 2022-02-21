@@ -103,13 +103,14 @@ impl<W: Write> FilelistsXmlWriter<W> {
         self.writer
             .write_event(Event::Start(package_tag.to_borrowed()))?;
 
-        // <version epoch="0" ver="2.8.0" rel="5.fc33"/>
+        // <version epoch="0" ver="2.8.0" rel="5.el6"/>
         let (epoch, version, release) = package.evr().values();
-        let mut version_tag = BytesStart::borrowed_name(TAG_VERSION);
-        version_tag.push_attribute(("epoch", epoch));
-        version_tag.push_attribute(("ver", version));
-        version_tag.push_attribute(("rel", release));
-        self.writer.write_event(Event::Empty(version_tag))?;
+        self.writer
+            .create_element(TAG_VERSION)
+            .with_attribute(("epoch", epoch))
+            .with_attribute(("ver", version))
+            .with_attribute(("rel", release))
+            .write_empty()?;
 
         // <file type="dir">/etc/fonts/conf.avail</file>
         package
@@ -143,6 +144,7 @@ impl<W: Write> FilelistsXmlWriter<W> {
     }
 }
 
+// <file type="dir">/etc/fonts/conf.avail</file>
 pub(crate) fn write_file_element<W: Write>(
     writer: &mut Writer<W>,
     file: &PackageFile,
@@ -165,11 +167,9 @@ impl<R: BufRead> FilelistsXmlReader<R> {
     pub fn read_header(&mut self) -> Result<usize, MetadataError> {
         parse_header(&mut self.reader)
     }
+
     pub fn read_package(&mut self, package: &mut Option<Package>) -> Result<(), MetadataError> {
         parse_package(package, &mut self.reader)
-    }
-    pub fn finish(&mut self) -> Result<(), MetadataError> {
-        Ok(())
     }
 }
 
@@ -272,7 +272,7 @@ pub fn parse_evr<R: BufRead>(
         .ok_or_else(|| MetadataError::MissingAttributeError("rel"))?
         .unescape_and_decode_value(reader)?;
 
-    // TODO: double-allocations
+    // TODO: unnecessary allocations
     Ok(EVR::new(&epoch, &version, &release))
 }
 

@@ -33,7 +33,9 @@ impl EVR {
 
     pub fn parse_values(evr: &str) -> Result<(&str, &str, &str), MetadataError> {
         let (epoch, vr) = evr.split_once(':').unwrap_or(evr.split_at(0));
-        let (version, release) = vr.split_once('-').expect("couldn't find release separator"); // TODO
+        let (version, release) = vr.split_once('-').ok_or_else(|| {
+            MetadataError::InvalidEvrError(evr.to_owned(), "No release separator".to_owned())
+        })?;
         Ok((epoch, version, release))
     }
 

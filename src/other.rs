@@ -95,6 +95,7 @@ impl<W: Write> OtherXmlWriter<W> {
     }
 
     pub fn write_package(&mut self, package: &Package) -> Result<(), MetadataError> {
+        // <package pkgid="6a915b6e1ad740994aa9688d70a67ff2b6b72e0ced668794aeb27b2d0f2e237b" name="fontconfig" arch="x86_64">
         let mut package_tag = BytesStart::borrowed_name(TAG_PACKAGE);
         let (_, pkgid) = package.checksum().to_values()?;
         package_tag.push_attribute(("pkgid", pkgid));
@@ -105,11 +106,12 @@ impl<W: Write> OtherXmlWriter<W> {
 
         let (epoch, version, release) = package.evr().values();
         // <version epoch="0" ver="2.8.0" rel="5.el6"/>
-        let mut version_tag = BytesStart::borrowed_name(TAG_VERSION);
-        version_tag.push_attribute(("epoch", epoch));
-        version_tag.push_attribute(("ver", version));
-        version_tag.push_attribute(("rel", release));
-        self.writer.write_event(Event::Empty(version_tag))?;
+        self.writer
+            .create_element(TAG_VERSION)
+            .with_attribute(("epoch", epoch))
+            .with_attribute(("ver", version))
+            .with_attribute(("rel", release))
+            .write_empty()?;
 
         for changelog in package.changelogs() {
             //  <changelog author="dalley &lt;dalley@redhat.com&gt; - 2.7.2-1" date="1251720000">- Update to 2.7.2</changelog>
@@ -266,6 +268,7 @@ pub fn parse_evr<R: BufRead>(
     Ok(EVR::new(&epoch, &version, &release))
 }
 
+// <changelog author="Behdad Esfahbod &lt;besfahbo@redhat.com&gt; - 2.7.2-1" date="1251720000">- Update to 2.7.2</changelog>
 pub fn parse_changelog<R: BufRead>(
     reader: &mut Reader<R>,
     open_tag: &BytesStart,

@@ -13,9 +13,17 @@ use crate::{utils, PackageParser};
 
 use super::filelist::FilelistsXmlWriter;
 use super::metadata::{
-    ChecksumType, CompressionType, FilelistsXml, OtherXml, Package,
-    PrimaryXml, RepomdData, RepomdRecord, RepomdXml, RpmMetadata, UpdateRecord
-    // DistroTag, MetadataType
+    ChecksumType,
+    CompressionType,
+    FilelistsXml,
+    OtherXml,
+    Package,
+    PrimaryXml,
+    RepomdData,
+    RepomdRecord,
+    RepomdXml,
+    RpmMetadata,
+    UpdateRecord, // DistroTag, MetadataType
 };
 use super::other::OtherXmlWriter;
 use super::primary::PrimaryXmlWriter;
@@ -199,7 +207,6 @@ pub struct RepositoryWriter {
     // TODO
     // sqlite_data_writer: Option<SqliteDataWriter>,
     repomd_data: RepomdData,
-
     // updateinfo_xml_writer: Option<UpdateinfoXmlWriter<Box<dyn Write + Send>>>,
 }
 
@@ -271,7 +278,6 @@ impl RepositoryWriter {
             other_xml_writer: Some(other_xml_writer),
 
             repomd_data: RepomdData::default(),
-
             // updateinfo_xml_writer: None,
         })
     }

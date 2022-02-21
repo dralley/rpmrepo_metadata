@@ -421,7 +421,7 @@ fn write_updaterecord<W: Write>(
     // <solution>Another description, usually about how the update should be applied</solution>
     writer
         .create_element(TAG_SOLUTION)
-        .write_cdata_content(BytesText::from_plain_str(record.solution.as_str()))?;
+        .write_text_content(BytesText::from_plain_str(record.solution.as_str()))?;
 
     // It's not clear that any metadata actually uses this
     // // <reboot_suggested>True</reboot_suggestion> (optional)

@@ -297,23 +297,17 @@ pub fn parse_package<R: BufRead>(
                             Event::Start(e) => match e.name() {
                                 TAG_RPM_LICENSE => {
                                     package.as_mut().unwrap().set_rpm_license(
-                                        reader
-                                            .read_text(TAG_RPM_LICENSE, &mut text_buf)?
-                                            .as_str(),
+                                        reader.read_text(TAG_RPM_LICENSE, &mut text_buf)?.as_str(),
                                     );
                                 }
                                 TAG_RPM_VENDOR => {
                                     package.as_mut().unwrap().set_rpm_vendor(
-                                        reader
-                                            .read_text(TAG_RPM_VENDOR, &mut text_buf)?
-                                            .as_str(),
+                                        reader.read_text(TAG_RPM_VENDOR, &mut text_buf)?.as_str(),
                                     );
                                 }
                                 TAG_RPM_GROUP => {
                                     package.as_mut().unwrap().set_rpm_group(
-                                        reader
-                                            .read_text(TAG_RPM_GROUP, &mut text_buf)?
-                                            .as_str(),
+                                        reader.read_text(TAG_RPM_GROUP, &mut text_buf)?.as_str(),
                                     );
                                 }
                                 TAG_RPM_BUILDHOST => {
@@ -673,14 +667,11 @@ pub fn parse_requirement_list<R: BufRead>(
         match reader.read_event(&mut buf)? {
             Event::Start(e) if e.name() == TAG_RPM_ENTRY => {
                 let mut requirement = Requirement::default();
-
-                let mut name_found = false;
                 for attr in e.attributes() {
                     let attr = attr?;
                     match attr.key {
                         b"name" => {
                             requirement.name = attr.unescape_and_decode_value(reader)?;
-                            name_found = true;
                         }
                         b"flags" => {
                             requirement.flags = Some(attr.unescape_and_decode_value(reader)?)
@@ -701,11 +692,16 @@ pub fn parse_requirement_list<R: BufRead>(
                                 .filter(|val| val != "0" && !val.eq_ignore_ascii_case("false"))
                                 .is_some()
                         }
-                        a @ _ => panic!("unrecognized attribute {}", std::str::from_utf8(a)?),
+                        a @ _ => {
+                            return Err(MetadataError::UnknownAttributeError(format!(
+                                "unrecognized attribute {}",
+                                std::str::from_utf8(a)?
+                            )))
+                        }
                     }
                 }
 
-                if !name_found {
+                if requirement.name.is_empty() {
                     return Err(MetadataError::MissingAttributeError("name"));
                 }
 

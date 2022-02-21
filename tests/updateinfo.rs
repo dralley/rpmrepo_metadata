@@ -11,6 +11,7 @@ use rpmrepo_metadata::*;
 use std::fs::{Metadata, OpenOptions};
 use std::io::{Cursor, Read, Seek, SeekFrom};
 use tempdir::TempDir;
+use rpmrepo_metadata::UpdateRecord;
 
 mod common;
 

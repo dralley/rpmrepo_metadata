@@ -33,6 +33,8 @@ This package contains library source intended for building other packages which
 use the "%{crate}" crate.
 
 %files          devel
+%license LICENSE.txt
+%doc README.md TODO.md
 %{cargo_registry}/%{crate}-%{version_no_tilde}/
 
 %package     -n %{name}+default-devel
@@ -59,16 +61,16 @@ use the "pyo3" feature of the "%{crate}" crate.
 %files       -n %{name}+pyo3-devel
 %ghost %{cargo_registry}/%{crate}-%{version_no_tilde}/Cargo.toml
 
-%package     -n %{name}+python-devel
+%package     -n %{name}+python_ext-devel
 Summary:        %{summary}
 BuildArch:      noarch
 
-%description -n %{name}+python-devel %{_description}
+%description -n %{name}+python_ext-devel %{_description}
 
 This package contains library source intended for building other packages which
-use the "python" feature of the "%{crate}" crate.
+use the "python_ext" feature of the "%{crate}" crate.
 
-%files       -n %{name}+python-devel
+%files       -n %{name}+python_ext-devel
 %ghost %{cargo_registry}/%{crate}-%{version_no_tilde}/Cargo.toml
 
 %prep
