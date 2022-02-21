@@ -5,7 +5,6 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 use std::convert::TryInto;
-use std::fmt;
 use std::io::{BufRead, Write};
 use std::os::unix::prelude::MetadataExt;
 use std::path::{Path, PathBuf};
@@ -22,7 +21,7 @@ pub struct RepomdXml;
 pub struct PrimaryXml;
 pub struct FilelistsXml;
 pub struct OtherXml;
-pub struct UpdateinfoXml;
+// pub struct UpdateinfoXml;
 
 pub const METADATA_PRIMARY: &str = "primary";
 pub const METADATA_FILELISTS: &str = "filelists";

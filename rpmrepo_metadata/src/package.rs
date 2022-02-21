@@ -13,7 +13,7 @@ use crate::metadata::{METADATA_FILELISTS, METADATA_OTHER, METADATA_PRIMARY};
 use crate::other::OtherXmlReader;
 use crate::primary::PrimaryXmlReader;
 use crate::{utils, RepomdData};
-use crate::{FilelistsXml, MetadataError, OtherXml, Package, PrimaryXml, EVR};
+use crate::{FilelistsXml, MetadataError, OtherXml, Package, PrimaryXml};
 
 // impl TryInto<Package> for rpm::RPMPackage {
 //     type Error = rpm::RPMError;

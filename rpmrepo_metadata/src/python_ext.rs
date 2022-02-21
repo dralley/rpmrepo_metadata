@@ -780,7 +780,7 @@ impl pyo3::PyIterProtocol for PackageParser {
 
 #[pymodule]
 fn rpmrepo_metadata(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_class::<Repository>()?;
+    // m.add_class::<Repository>()?;
     m.add_class::<RepositoryWriter>()?;
     m.add_class::<RepositoryReader>()?;
     // m.add_class::<RepositoryOptions>()?;

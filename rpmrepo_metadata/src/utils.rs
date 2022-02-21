@@ -34,7 +34,7 @@ fn get_digest<D: digest::Digest>(mut reader: Box<dyn Read>) -> Result<String, Me
 }
 
 pub fn checksum_file(path: &Path, checksum_type: ChecksumType) -> Result<Checksum, MetadataError> {
-    let mut reader = Box::new(BufReader::new(File::open(path).unwrap())) as Box<dyn Read>;
+    let reader = Box::new(BufReader::new(File::open(path).unwrap())) as Box<dyn Read>;
 
     let result = match checksum_type {
         ChecksumType::Md5 => Checksum::Md5(get_digest::<md5::Md5>(reader)?),
@@ -54,7 +54,7 @@ pub fn checksum_inner_file(
     path: &Path,
     checksum_type: ChecksumType,
 ) -> Result<Option<Checksum>, MetadataError> {
-    let (mut reader, format) = niffler::from_path(path)?;
+    let (reader, format) = niffler::from_path(path)?;
 
     if format == niffler::Format::No {
         return Ok(None);

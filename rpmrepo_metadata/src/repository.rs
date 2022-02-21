@@ -7,15 +7,15 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use crate::updateinfo::UpdateinfoXmlWriter;
-use crate::UpdateinfoXml;
+// use crate::updateinfo::UpdateinfoXmlWriter;
+// use crate::UpdateinfoXml;
 use crate::{utils, PackageParser};
 
 use super::filelist::FilelistsXmlWriter;
 use super::metadata::{
-    ChecksumType, CompressionType, DistroTag, FilelistsXml, MetadataType, OtherXml, Package,
-    PrimaryXml, RepomdData, RepomdRecord, RepomdXml, RpmMetadata, UpdateRecord, METADATA_FILELISTS,
-    METADATA_OTHER, METADATA_PRIMARY,
+    ChecksumType, CompressionType, FilelistsXml, OtherXml, Package,
+    PrimaryXml, RepomdData, RepomdRecord, RepomdXml, RpmMetadata, UpdateRecord
+    // DistroTag, MetadataType
 };
 use super::other::OtherXmlWriter;
 use super::primary::PrimaryXmlWriter;
@@ -138,10 +138,10 @@ impl Repository {
 
 #[derive(Debug, Copy, Clone)]
 pub struct RepositoryOptions {
-    simple_metadata_filenames: bool,
-    metadata_compression_type: CompressionType,
-    metadata_checksum_type: ChecksumType,
-    package_checksum_type: ChecksumType,
+    pub simple_metadata_filenames: bool,
+    pub metadata_compression_type: CompressionType,
+    pub metadata_checksum_type: ChecksumType,
+    pub package_checksum_type: ChecksumType,
 }
 
 impl Default for RepositoryOptions {
@@ -200,7 +200,7 @@ pub struct RepositoryWriter {
     // sqlite_data_writer: Option<SqliteDataWriter>,
     repomd_data: RepomdData,
 
-    updateinfo_xml_writer: Option<UpdateinfoXmlWriter<Box<dyn Write + Send>>>,
+    // updateinfo_xml_writer: Option<UpdateinfoXmlWriter<Box<dyn Write + Send>>>,
 }
 
 impl RepositoryWriter {
@@ -219,11 +219,11 @@ impl RepositoryWriter {
             writer.add_package(pkg)?;
         }
 
-        if !repo.advisories().is_empty() {
-            for advisory in repo.advisories().values() {
-                writer.add_advisory(advisory)?;
-            }
-        }
+        // if !repo.advisories().is_empty() {
+        //     for advisory in repo.advisories().values() {
+        //         writer.add_advisory(advisory)?;
+        //     }
+        // }
 
         writer.finish()?;
 
@@ -238,15 +238,15 @@ impl RepositoryWriter {
         let repodata_dir = path.join("repodata");
         std::fs::create_dir_all(&repodata_dir)?;
 
-        let (primary_path, primary_writer) = utils::xml_writer_for_path(
+        let (_primary_path, primary_writer) = utils::xml_writer_for_path(
             &repodata_dir.join("primary.xml"),
             options.metadata_compression_type,
         )?;
-        let (filelists_path, filelists_writer) = utils::xml_writer_for_path(
+        let (_filelists_path, filelists_writer) = utils::xml_writer_for_path(
             &repodata_dir.join("filelists.xml"),
             options.metadata_compression_type,
         )?;
-        let (other_path, other_writer) = utils::xml_writer_for_path(
+        let (_other_path, other_writer) = utils::xml_writer_for_path(
             &repodata_dir.join("other.xml"),
             options.metadata_compression_type,
         )?;
@@ -272,7 +272,7 @@ impl RepositoryWriter {
 
             repomd_data: RepomdData::default(),
 
-            updateinfo_xml_writer: None,
+            // updateinfo_xml_writer: None,
         })
     }
 
@@ -307,28 +307,28 @@ impl RepositoryWriter {
         Ok(())
     }
 
-    pub fn add_advisory(&mut self, record: &UpdateRecord) -> Result<(), MetadataError> {
-        // TODO: clean this up
-        if self.updateinfo_xml_writer.is_none() {
-            let repodata_dir = self.path.join("repodata");
-            let (updateinfo_path, updateinfo_writer) = utils::xml_writer_for_path(
-                &repodata_dir.join("updateinfo.xml"),
-                self.options.metadata_compression_type,
-            )?;
+    // pub fn add_advisory(&mut self, record: &UpdateRecord) -> Result<(), MetadataError> {
+    //     // TODO: clean this up
+    //     if self.updateinfo_xml_writer.is_none() {
+    //         let repodata_dir = self.path.join("repodata");
+    //         let (updateinfo_path, updateinfo_writer) = utils::xml_writer_for_path(
+    //             &repodata_dir.join("updateinfo.xml"),
+    //             self.options.metadata_compression_type,
+    //         )?;
 
-            let mut updateinfo_xml_writer = UpdateinfoXml::new_writer(updateinfo_writer);
-            updateinfo_xml_writer.write_header()?;
+    //         let mut updateinfo_xml_writer = UpdateinfoXml::new_writer(updateinfo_writer);
+    //         updateinfo_xml_writer.write_header()?;
 
-            self.updateinfo_xml_writer = Some(updateinfo_xml_writer)
-        }
+    //         self.updateinfo_xml_writer = Some(updateinfo_xml_writer)
+    //     }
 
-        self.updateinfo_xml_writer
-            .as_mut()
-            .unwrap()
-            .write_updaterecord(record)?;
+    //     self.updateinfo_xml_writer
+    //         .as_mut()
+    //         .unwrap()
+    //         .write_updaterecord(record)?;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     pub fn finish(&mut self) -> Result<(), MetadataError> {
         assert_eq!(
@@ -376,10 +376,10 @@ impl RepositoryWriter {
         self.repomd_mut()
             .add_record(RepomdRecord::new("other", &other_path.as_ref(), &path)?);
 
-        if let Some(updateinfo_xml_writer) = &mut self.updateinfo_xml_writer {
-            updateinfo_xml_writer.finish()?;
-            self.updateinfo_xml_writer = None;
-        }
+        // if let Some(updateinfo_xml_writer) = &mut self.updateinfo_xml_writer {
+        //     updateinfo_xml_writer.finish()?;
+        //     self.updateinfo_xml_writer = None;
+        // }
 
         let (_, mut repomd_writer) =
             utils::xml_writer_for_path(&repodata_dir.join("repomd.xml"), CompressionType::None)?;
