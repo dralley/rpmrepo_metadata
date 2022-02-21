@@ -10,9 +10,9 @@ description = "A library for parsing RPM repository metadata."
 python_ext = ["pyo3"]
 
 [dependencies]
-quick-xml = { path = "../../quick-xml", default-features = false }
+quick-xml = { git = "https://github.com/tafia/quick-xml", rev = "d8727717", default-features = false }
 # rayon = "1.5.1"
-thiserror = "1.0.28"
+thiserror = "1.0.30"
 niffler = { version = "2.4.0", features = ["bz2", "xz", "gz"], default-features = false }
 # rpm-rs = { version = "0.8.1", default-features = true }
 # tempdir = "0.3.7"
