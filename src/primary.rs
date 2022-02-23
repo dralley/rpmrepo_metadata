@@ -134,8 +134,8 @@ pub fn parse_package<R: BufRead>(
     reader: &mut Reader<R>,
     package: &mut Option<Package>,
 ) -> Result<(), MetadataError> {
-    let mut buf = vec![];
-    let mut text_buf = vec![];
+    let mut buf = Vec::with_capacity(512);
+    let mut text_buf = Vec::with_capacity(512);
 
     loop {
         match reader.read_event(&mut buf)? {
@@ -289,44 +289,44 @@ pub fn parse_package<R: BufRead>(
                 }
                 TAG_FORMAT => {
                     // TODO: allocations
-                    let mut format_buf = vec![];
-                    let mut format_text_buf = vec![];
+                    buf.clear();
+                    text_buf.clear();
                     loop {
-                        match reader.read_event(&mut format_buf)? {
+                        match reader.read_event(&mut buf)? {
                             Event::End(e) if e.name() == TAG_FORMAT => break,
                             Event::Start(e) => match e.name() {
                                 TAG_RPM_LICENSE => {
                                     package.as_mut().unwrap().set_rpm_license(
                                         reader
-                                            .read_text(TAG_RPM_LICENSE, &mut format_text_buf)?
+                                            .read_text(TAG_RPM_LICENSE, &mut text_buf)?
                                             .as_str(),
                                     );
                                 }
                                 TAG_RPM_VENDOR => {
                                     package.as_mut().unwrap().set_rpm_vendor(
                                         reader
-                                            .read_text(TAG_RPM_VENDOR, &mut format_text_buf)?
+                                            .read_text(TAG_RPM_VENDOR, &mut text_buf)?
                                             .as_str(),
                                     );
                                 }
                                 TAG_RPM_GROUP => {
                                     package.as_mut().unwrap().set_rpm_group(
                                         reader
-                                            .read_text(TAG_RPM_GROUP, &mut format_text_buf)?
+                                            .read_text(TAG_RPM_GROUP, &mut text_buf)?
                                             .as_str(),
                                     );
                                 }
                                 TAG_RPM_BUILDHOST => {
                                     package.as_mut().unwrap().set_rpm_buildhost(
                                         reader
-                                            .read_text(TAG_RPM_BUILDHOST, &mut format_text_buf)?
+                                            .read_text(TAG_RPM_BUILDHOST, &mut text_buf)?
                                             .as_str(),
                                     );
                                 }
                                 TAG_RPM_SOURCERPM => {
                                     package.as_mut().unwrap().set_rpm_sourcerpm(
                                         reader
-                                            .read_text(TAG_RPM_SOURCERPM, &mut format_text_buf)?
+                                            .read_text(TAG_RPM_SOURCERPM, &mut text_buf)?
                                             .as_str(),
                                     );
                                 }
@@ -402,8 +402,6 @@ pub fn parse_package<R: BufRead>(
                             },
                             _ => (),
                         }
-                        format_buf.clear();
-                        format_text_buf.clear();
                     }
                 }
                 _ => (),
@@ -666,10 +664,10 @@ pub fn parse_requirement_list<R: BufRead>(
     reader: &mut Reader<R>,
     open_tag: &BytesStart,
 ) -> Result<Vec<Requirement>, MetadataError> {
-    let mut list = vec![];
+    let mut list = Vec::with_capacity(10);
 
     // TODO: another hot allocation
-    let mut buf = vec![];
+    let mut buf = Vec::with_capacity(128);
 
     loop {
         match reader.read_event(&mut buf)? {

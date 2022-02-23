@@ -201,7 +201,7 @@ pub fn parse_package<R: BufRead>(
     package: &mut Option<Package>,
     reader: &mut Reader<R>,
 ) -> Result<(), MetadataError> {
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(128);
 
     loop {
         match reader.read_event(&mut buf)? {
@@ -282,7 +282,7 @@ pub fn parse_file<R: BufRead>(
     open_tag: &BytesStart,
 ) -> Result<PackageFile, MetadataError> {
     let mut file = PackageFile::default();
-    file.path = reader.read_text(open_tag.name(), &mut Vec::new())?;
+    file.path = reader.read_text(open_tag.name(), &mut Vec::with_capacity(128))?;
 
     if let Some(filetype) = open_tag.try_get_attribute("type")? {
         file.filetype = FileType::try_create(filetype.value.as_ref())?;

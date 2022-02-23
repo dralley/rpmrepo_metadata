@@ -190,7 +190,7 @@ pub fn parse_package<R: BufRead>(
     package: &mut Option<Package>,
     reader: &mut Reader<R>,
 ) -> Result<(), MetadataError> {
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(128);
 
     // TODO: get rid of unwraps, various branches could happen in wrong order
     loop {
@@ -282,7 +282,7 @@ pub fn parse_changelog<R: BufRead>(
         .unescape_and_decode_value(reader)?
         .parse()?;
 
-    changelog.description = reader.read_text(open_tag.name(), &mut Vec::new())?;
+    changelog.description = reader.read_text(open_tag.name(), &mut Vec::with_capacity(128))?;
 
     Ok(changelog)
 }
