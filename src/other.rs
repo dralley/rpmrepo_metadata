@@ -66,11 +66,11 @@ impl RpmMetadata for OtherXml {
 }
 
 impl OtherXml {
-    pub fn new_writer<W: Write>(writer: Writer<W>) -> OtherXmlWriter<W> {
+    pub fn new_writer<W: Write>(writer: quick_xml::Writer<W>) -> OtherXmlWriter<W> {
         OtherXmlWriter { writer }
     }
 
-    pub fn new_reader<R: BufRead>(reader: Reader<R>) -> OtherXmlReader<R> {
+    pub fn new_reader<R: BufRead>(reader: quick_xml::Reader<R>) -> OtherXmlReader<R> {
         OtherXmlReader { reader }
     }
 }

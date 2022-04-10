@@ -64,11 +64,11 @@ impl RpmMetadata for FilelistsXml {
 }
 
 impl FilelistsXml {
-    pub fn new_writer<W: Write>(writer: Writer<W>) -> FilelistsXmlWriter<W> {
+    pub fn new_writer<W: Write>(writer: quick_xml::Writer<W>) -> FilelistsXmlWriter<W> {
         FilelistsXmlWriter { writer }
     }
 
-    pub fn new_reader<R: BufRead>(reader: Reader<R>) -> FilelistsXmlReader<R> {
+    pub fn new_reader<R: BufRead>(reader: quick_xml::Reader<R>) -> FilelistsXmlReader<R> {
         FilelistsXmlReader { reader }
     }
 }

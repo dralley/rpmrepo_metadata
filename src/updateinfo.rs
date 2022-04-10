@@ -108,8 +108,8 @@ impl<W: Write> UpdateinfoXmlWriter<W> {
         Ok(())
     }
 
-    pub fn into_inner(self) -> Writer<W> {
-        self.writer
+    pub fn into_inner(self) -> W {
+        self.writer.into_inner()
     }
 }
 
@@ -123,12 +123,20 @@ impl<R: BufRead> UpdateinfoXmlReader<R> {
     }
 }
 
+impl<R: BufRead> Iterator for UpdateinfoXmlReader<R> {
+    type Item = Result<UpdateRecord, MetadataError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.read_update().transpose()
+    }
+}
+
 impl UpdateinfoXml {
-    pub fn new_writer<W: Write>(writer: Writer<W>) -> UpdateinfoXmlWriter<W> {
+    pub fn new_writer<W: Write>(writer: quick_xml::Writer<W>) -> UpdateinfoXmlWriter<W> {
         UpdateinfoXmlWriter { writer }
     }
 
-    pub fn new_reader<R: BufRead>(reader: Reader<R>) -> UpdateinfoXmlReader<R> {
+    pub fn new_reader<R: BufRead>(reader: quick_xml::Reader<R>) -> UpdateinfoXmlReader<R> {
         UpdateinfoXmlReader { reader }
     }
 }
@@ -214,7 +222,7 @@ fn parse_updaterecord<R: BufRead>(
                             Event::Start(e) if e.name() == TAG_REFERENCE => {
                                 let mut reference = UpdateReference::default();
                                 for attr in e.attributes() {
-                                    let attr = attr?;
+                                    // let attr = attr?;
                                     reference.href = e
                                         .try_get_attribute("href")?
                                         .ok_or_else(|| {
@@ -245,116 +253,124 @@ fn parse_updaterecord<R: BufRead>(
                         }
                     }
                 }
-                TAG_PKGLIST => {
-                    loop {
-                        match reader.read_event(&mut buf)? {
-                            // Event::Start(e) => match e.name() {
-                            //     TAG_MODULE => {
-                            //         let name = e
-                            //             .try_get_attribute("name")?
-                            //             .ok_or_else(|| {
-                            //                 MetadataError::MissingAttributeError("name")
-                            //             })?
-                            //             .unescape_and_decode_value(reader)?;
-                            //         let stream = e
-                            //             .try_get_attribute("stream")?
-                            //             .ok_or_else(|| {
-                            //                 MetadataError::MissingAttributeError("stream")
-                            //             })?
-                            //             .unescape_and_decode_value(reader)?;
-                            //         let version = e
-                            //             .try_get_attribute("version")?
-                            //             .ok_or_else(|| {
-                            //                 MetadataError::MissingAttributeError("version")
-                            //             })?
-                            //             .unescape_and_decode_value(reader)?;
-                            //         let context = e
-                            //             .try_get_attribute("context")?
-                            //             .ok_or_else(|| {
-                            //                 MetadataError::MissingAttributeError("context")
-                            //             })?
-                            //             .unescape_and_decode_value(reader)?;
-                            //         let arch = e
-                            //             .try_get_attribute("arch")?
-                            //             .ok_or_else(|| {
-                            //                 MetadataError::MissingAttributeError("arch")
-                            //             })?
-                            //             .unescape_and_decode_value(reader)?;
-
-                            //         let version = version.parse()?;
-
-                            //         let module = UpdateCollectionModule {
-                            //             name,
-                            //             stream,
-                            //             version,
-                            //             context,
-                            //             arch,
-                            //         };
-                            //         collection.unwrap().module = Some(module);
-                            //    }
-                            //     TAG_PACKAGE => {
-                            //         let mut package = UpdateCollectionPackage::default();
-
-                            //         let name = e
-                            //             .try_get_attribute("name")?
-                            //             .ok_or_else(|| {
-                            //                 MetadataError::MissingAttributeError("name")
-                            //             })?
-                            //             .unescape_and_decode_value(reader)?;
-                            //         let version = e
-                            //             .try_get_attribute("version")?
-                            //             .ok_or_else(|| {
-                            //                 MetadataError::MissingAttributeError("version")
-                            //             })?
-                            //             .unescape_and_decode_value(reader)?;
-                            //         let epoch = e
-                            //             .try_get_attribute("epoch")?
-                            //             .ok_or_else(|| {
-                            //                 MetadataError::MissingAttributeError("epoch")
-                            //             })?
-                            //             .unescape_and_decode_value(reader)?;
-                            //         let src = e
-                            //             .try_get_attribute("src")?
-                            //             .ok_or_else(|| MetadataError::MissingAttributeError("src"))?
-                            //             .unescape_and_decode_value(reader)?;
-                            //         let release = e
-                            //             .try_get_attribute("release")?
-                            //             .ok_or_else(|| {
-                            //                 MetadataError::MissingAttributeError("release")
-                            //             })?
-                            //             .unescape_and_decode_value(reader)?;
-                            //         let arch = e
-                            //             .try_get_attribute("arch")?
-                            //             .ok_or_else(|| {
-                            //                 MetadataError::MissingAttributeError("arch")
-                            //             })?
-                            //             .unescape_and_decode_value(reader)?;
-
-                            //         package.name = name;
-                            //         package.version = version;
-                            //         package.release = release;
-                            //         package.arch = arch;
-                            //         package.epoch = epoch;
-                            //         package.src = src;
-
-                            //         collection.unwrap().packages.push(package);
-                            //     }
-                            // },
-                            Event::End(e) if e.name() == TAG_REFERENCE => break,
-                            _ => (), // TODO
-                        }
-                    }
-                }
+                TAG_PKGLIST => record.pkglist = parse_pkglist(reader)?,
                 _ => (),
             },
-            Event::Eof => break,
+            Event::Eof => return Ok(None),
             _ => (),
         }
         buf.clear();
         format_text_buf.clear();
     }
 
-    Ok(None)
+    Ok(Some(record))
+}
+
+pub fn parse_pkglist<R: BufRead>(reader: &mut Reader<R>) -> Result<Vec<UpdateCollection>, MetadataError> {
+
+    let mut current_collection = None;
+    let mut current_package = None;
+    let mut buf = Vec::with_capacity(256);
+    let mut text_buf = Vec::with_capacity(256);
+    let mut collections = Vec::new();
+
+    loop {
+        match reader.read_event(&mut buf)? {
+            Event::End(e) if e.name() == TAG_PKGLIST => break,
+            Event::Start(e) if e.name() == TAG_COLLECTION => {
+                current_collection = Some(UpdateCollection::default());
+            }
+            Event::End(e) if e.name() == TAG_COLLECTION => {
+                collections.push(current_collection.take().unwrap());
+            }
+            Event::Start(e) => match e.name() {
+                TAG_NAME => {
+                    current_collection.as_mut().unwrap().name =
+                        reader.read_text(TAG_NAME, &mut text_buf)?
+                }
+                TAG_MODULE => {
+                    let name = e
+                        .try_get_attribute("name")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("name"))?
+                        .unescape_and_decode_value(reader)?;
+                    let stream = e
+                        .try_get_attribute("stream")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("stream"))?
+                        .unescape_and_decode_value(reader)?;
+                    let version = e
+                        .try_get_attribute("version")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("version"))?
+                        .unescape_and_decode_value(reader)?;
+                    let context = e
+                        .try_get_attribute("context")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("context"))?
+                        .unescape_and_decode_value(reader)?;
+                    let arch = e
+                        .try_get_attribute("arch")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
+                        .unescape_and_decode_value(reader)?;
+
+                    let version = version.parse()?;
+
+                    let module = UpdateCollectionModule {
+                        name,
+                        stream,
+                        version,
+                        context,
+                        arch,
+                    };
+                    current_collection.as_mut().unwrap().module = Some(module);
+                }
+                TAG_PACKAGE => {
+                    let mut package = UpdateCollectionPackage::default();
+
+                    let name = e
+                        .try_get_attribute("name")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("name"))?
+                        .unescape_and_decode_value(reader)?;
+                    let version = e
+                        .try_get_attribute("version")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("version"))?
+                        .unescape_and_decode_value(reader)?;
+                    let epoch = e
+                        .try_get_attribute("epoch")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("epoch"))?
+                        .unescape_and_decode_value(reader)?;
+                    let src = e
+                        .try_get_attribute("src")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("src"))?
+                        .unescape_and_decode_value(reader)?;
+                    let release = e
+                        .try_get_attribute("release")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("release"))?
+                        .unescape_and_decode_value(reader)?;
+                    let arch = e
+                        .try_get_attribute("arch")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
+                        .unescape_and_decode_value(reader)?;
+
+                    package.name = name;
+                    package.version = version;
+                    package.release = release;
+                    package.arch = arch;
+                    package.epoch = epoch;
+                    package.src = src;
+                    current_package = Some(package);
+                    // current_collection.unwrap().packages.push(package);
+                }
+                TAG_FILENAME => {
+                    current_package.as_mut().unwrap().filename =
+                        reader.read_text(TAG_FILENAME, &mut text_buf)?;
+                }
+                e @ _ => panic!("{}", dbg!(std::str::from_utf8(e).unwrap())),
+            },
+            _ => (), // TODO
+        }
+        buf.clear();
+        text_buf.clear();
+    }
+
+    Ok(collections)
 }
 
 fn write_updaterecord<W: Write>(

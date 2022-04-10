@@ -134,21 +134,22 @@ fn metadata_parse_benchmark(c: &mut Criterion) {
             let mut in_progress_package = None;
 
             loop {
-                primary_xml
-                    .read_package(&mut in_progress_package).unwrap();
+                primary_xml.read_package(&mut in_progress_package).unwrap();
                 filelists_xml
-                    .read_package(&mut in_progress_package).unwrap();
+                    .read_package(&mut in_progress_package)
+                    .unwrap();
                 other_xml.read_package(&mut in_progress_package).unwrap();
 
                 let package = in_progress_package.take();
                 match package {
-                    Some(package) => { criterion::black_box(package); },
+                    Some(package) => {
+                        criterion::black_box(package);
+                    }
                     None => break,
                 }
             }
         })
     });
-
 }
 
 /// Test writing metadata out to a memory-backed Vec<u8>

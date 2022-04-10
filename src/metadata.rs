@@ -26,12 +26,10 @@ pub struct UpdateinfoXml;
 pub const METADATA_PRIMARY: &str = "primary";
 pub const METADATA_FILELISTS: &str = "filelists";
 pub const METADATA_OTHER: &str = "other";
-pub const METADATA_PRIMARY_DB: &str = "primary_db";
-pub const METADATA_FILELISTS_DB: &str = "filelists_db";
-pub const METADATA_OTHER_DB: &str = "other_db";
 pub const METADATA_PRIMARY_ZCK: &str = "primary_zck";
 pub const METADATA_FILELISTS_ZCK: &str = "filelists_zck";
 pub const METADATA_OTHER_ZCK: &str = "other_zck";
+pub const METADATA_UPDATEINFO: &str = "updateinfo";
 
 // TODO: probably this can / should be broken up better rather than being a kitchen sink
 #[derive(Error, Debug)]

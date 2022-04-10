@@ -206,7 +206,7 @@ fn test_primary_xml_read_package() -> Result<(), MetadataError> {
     primary_xml.read_package(&mut package)?;
     assert!(matches!(package, None));
 
-    // Test that no packaged is parsed when there are no packages and the footer element doesn't exist (EOF)
+    // Test that no packages are parsed when there are no packages and the footer element doesn't exist (EOF)
     let mut primary_xml =
         PrimaryXml::new_reader(utils::create_xml_reader(EMPTY_PRIMARY_NO_FOOTER.as_bytes()));
     assert_eq!(primary_xml.read_header()?, 0);

@@ -4,11 +4,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use std::io::Write;
+use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 
-// use crate::updateinfo::UpdateinfoXmlWriter;
-// use crate::UpdateinfoXml;
+use crate::updateinfo::{UpdateinfoXmlReader, UpdateinfoXmlWriter};
+use crate::UpdateinfoXml;
 use crate::{utils, PackageParser};
 
 use super::filelist::FilelistsXmlWriter;
@@ -204,10 +204,8 @@ pub struct RepositoryWriter {
     num_pkgs_written: usize,
     num_pkgs: usize,
 
-    // TODO
-    // sqlite_data_writer: Option<SqliteDataWriter>,
     repomd_data: RepomdData,
-    // updateinfo_xml_writer: Option<UpdateinfoXmlWriter<Box<dyn Write + Send>>>,
+    updateinfo_xml_writer: Option<UpdateinfoXmlWriter<Box<dyn Write + Send>>>,
 }
 
 impl RepositoryWriter {
@@ -226,11 +224,11 @@ impl RepositoryWriter {
             writer.add_package(pkg)?;
         }
 
-        // if !repo.advisories().is_empty() {
-        //     for advisory in repo.advisories().values() {
-        //         writer.add_advisory(advisory)?;
-        //     }
-        // }
+        if !repo.advisories().is_empty() {
+            for advisory in repo.advisories().values() {
+                writer.add_advisory(advisory)?;
+            }
+        }
 
         writer.finish()?;
 
@@ -278,7 +276,7 @@ impl RepositoryWriter {
             other_xml_writer: Some(other_xml_writer),
 
             repomd_data: RepomdData::default(),
-            // updateinfo_xml_writer: None,
+            updateinfo_xml_writer: None,
         })
     }
 
@@ -305,36 +303,31 @@ impl RepositoryWriter {
             .write_package(pkg)?;
         self.other_xml_writer.as_mut().unwrap().write_package(pkg)?;
 
-        // TODO:
-        // if self.sqlite_data_writer.is_none() {
-
-        // }
-
         Ok(())
     }
 
-    // pub fn add_advisory(&mut self, record: &UpdateRecord) -> Result<(), MetadataError> {
-    //     // TODO: clean this up
-    //     if self.updateinfo_xml_writer.is_none() {
-    //         let repodata_dir = self.path.join("repodata");
-    //         let (updateinfo_path, updateinfo_writer) = utils::xml_writer_for_path(
-    //             &repodata_dir.join("updateinfo.xml"),
-    //             self.options.metadata_compression_type,
-    //         )?;
+    pub fn add_advisory(&mut self, record: &UpdateRecord) -> Result<(), MetadataError> {
+        // TODO: clean this up
+        if self.updateinfo_xml_writer.is_none() {
+            let repodata_dir = self.path.join("repodata");
+            let (updateinfo_path, updateinfo_writer) = utils::xml_writer_for_path(
+                &repodata_dir.join("updateinfo.xml"),
+                self.options.metadata_compression_type,
+            )?;
 
-    //         let mut updateinfo_xml_writer = UpdateinfoXml::new_writer(updateinfo_writer);
-    //         updateinfo_xml_writer.write_header()?;
+            let mut updateinfo_xml_writer = UpdateinfoXml::new_writer(updateinfo_writer);
+            updateinfo_xml_writer.write_header()?;
 
-    //         self.updateinfo_xml_writer = Some(updateinfo_xml_writer)
-    //     }
+            self.updateinfo_xml_writer = Some(updateinfo_xml_writer)
+        }
 
-    //     self.updateinfo_xml_writer
-    //         .as_mut()
-    //         .unwrap()
-    //         .write_updaterecord(record)?;
+        self.updateinfo_xml_writer
+            .as_mut()
+            .unwrap()
+            .write_updaterecord(record)?;
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 
     pub fn finish(&mut self) -> Result<(), MetadataError> {
         assert_eq!(
@@ -382,10 +375,10 @@ impl RepositoryWriter {
         self.repomd_mut()
             .add_record(RepomdRecord::new("other", &other_path.as_ref(), &path)?);
 
-        // if let Some(updateinfo_xml_writer) = &mut self.updateinfo_xml_writer {
-        //     updateinfo_xml_writer.finish()?;
-        //     self.updateinfo_xml_writer = None;
-        // }
+        if let Some(updateinfo_xml_writer) = &mut self.updateinfo_xml_writer {
+            updateinfo_xml_writer.finish()?;
+            self.updateinfo_xml_writer = None;
+        }
 
         let (_, mut repomd_writer) =
             utils::xml_writer_for_path(&repodata_dir.join("repomd.xml"), CompressionType::None)?;
@@ -417,9 +410,18 @@ impl RepositoryReader {
         PackageParser::from_repodata(&self.path, self.repository.repomd())
     }
 
-    // pub fn iter_advisories(&self) -> Result<> {
+    pub fn iter_advisories(&self) -> Result<UpdateinfoXmlReader<impl BufRead>, MetadataError> {
+        let updateinfo_path = &self.path.join(
+            &self
+                .repository
+                .repomd()
+                .get_record(crate::metadata::METADATA_UPDATEINFO)
+                .unwrap()
+                .location_href,
+        );
 
-    // }
+        Ok(UpdateinfoXml::new_reader(utils::xml_reader_from_file(updateinfo_path)?))
+    }
 
     // pub fn iter_comps(&self) -> Result<> {
 

@@ -89,11 +89,11 @@ impl RpmMetadata for PrimaryXml {
 }
 
 impl PrimaryXml {
-    pub fn new_writer<W: Write>(writer: Writer<W>) -> PrimaryXmlWriter<W> {
+    pub fn new_writer<W: Write>(writer: quick_xml::Writer<W>) -> PrimaryXmlWriter<W> {
         PrimaryXmlWriter { writer }
     }
 
-    pub fn new_reader<R: BufRead>(reader: Reader<R>) -> PrimaryXmlReader<R> {
+    pub fn new_reader<R: BufRead>(reader: quick_xml::Reader<R>) -> PrimaryXmlReader<R> {
         PrimaryXmlReader { reader }
     }
 }

@@ -100,11 +100,17 @@ impl RepositoryReader {
         Ok(py_repo_reader)
     }
 
-    fn iter_packages(&self) -> PyResult<PackageParser> {
-        let pkg_parser = self.inner.iter_packages()?;
-        let py_pkg_parser = PackageParser { inner: pkg_parser };
-        Ok(py_pkg_parser)
+    fn iter_packages(&self) -> PyResult<PackageReader> {
+        let pkg_reader = self.inner.iter_packages()?;
+        let py_pkg_reader = PackageReader { inner: pkg_reader };
+        Ok(py_pkg_reader)
     }
+
+    // fn iter_advisories(&self) -> PyResult<PackageReader> {
+    //     let pkg_reader = self.inner.iter_packages()?;
+    //     let py_pkg_reader = PackageReader { inner: pkg_reader };
+    //     Ok(py_pkg_reader)
+    // }
 }
 #[pyclass]
 struct Package {
@@ -739,18 +745,18 @@ impl From<&crate::metadata::PackageFile> for CrFileTuple {
 }
 
 #[pyclass]
-struct PackageParser {
-    inner: crate::PackageParser,
+struct PackageReader {
+    inner: crate::PackageReader,
 }
 
 #[pymethods]
-impl PackageParser {
+impl PackageReader {
     #[new]
     fn new(primary_path: PathBuf, filelists_path: PathBuf, other_path: PathBuf) -> PyResult<Self> {
-        let py_pkg_parser = Self {
-            inner: crate::PackageParser::from_files(&primary_path, &filelists_path, &other_path)?,
+        let py_pkg_reader = Self {
+            inner: crate::PackageReader::from_files(&primary_path, &filelists_path, &other_path)?,
         };
-        Ok(py_pkg_parser)
+        Ok(py_pkg_reader)
     }
 
     fn parse_package(&mut self) -> PyResult<Option<Package>> {
@@ -863,7 +869,7 @@ fn rpmrepo_metadata(py: Python, m: &PyModule) -> PyResult<()> {
     // m.add_class::<RepositoryOptions>()?;
     m.add_class::<EVR>()?;
     m.add_class::<Package>()?;
-    m.add_class::<PackageParser>()?;
+    m.add_class::<PackageReader>()?;
     // m.add_class::<RepomdXml>()?;
     // m.add_class::<PrimaryXml>()?;
     // m.add_class::<FilelistsXml>()?;
