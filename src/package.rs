@@ -4,7 +4,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// use rpm::{self, Header};
 use std::io::BufReader;
 use std::path::Path;
 
@@ -15,52 +14,63 @@ use crate::primary::PrimaryXmlReader;
 use crate::{utils, RepomdData};
 use crate::{FilelistsXml, MetadataError, OtherXml, Package, PrimaryXml};
 
-// impl TryInto<Package> for rpm::RPMPackage {
-//     type Error = rpm::RPMError;
+#[cfg(feature = "read_rpm")]
+pub mod rpm_parsing {
+    use rpm::{self, Header};
+    use super::*;
 
-//     fn try_into(self) -> Result<Package, Self::Error> {
-//         let mut pkg = Package::default();
-//         pkg.set_name(self.metadata.header.get_name()?);
-//         pkg.set_arch(self.metadata.header.get_arch()?);
-//         {
-//             let epoch = self.metadata.header.get_epoch()?.to_string(); // TODO evaluate epoch type
-//             let version = self.metadata.header.get_version()?;
-//             let release = self.metadata.header.get_release()?;
-//             pkg.set_evr(EVR::new(epoch.as_str(), version, release));
-//         }
+    impl TryFrom<rpm::RPMPackage> for Package {
+        type Error = rpm::RPMError;
 
-//         //     checksum: todo!(),
-//         //     location_href: todo!(),
-//         //     summary: todo!(),
-//         //     description: todo!(),
-//         //     packager: todo!(),
-//         //     url: todo!(),
-//         //     time: todo!(),
-//         //     size: todo!(),
+        fn try_from(pkg: rpm::RPMPackage) -> Result<Package, Self::Error> {
+            let mut pkg_metadata = Package::default();
+            pkg_metadata.set_name(pkg.metadata.header.get_name()?);
+            pkg_metadata.set_arch(pkg.metadata.header.get_arch()?);
+            pkg_metadata.set_epoch(pkg.metadata.header.get_epoch()?);
+            pkg_metadata.set_version(pkg.metadata.header.get_version()?);
+            pkg_metadata.set_release(pkg.metadata.header.get_release()?);
 
-//         //     rpm_license: todo!(),
-//         //     rpm_vendor: todo!(),
-//         //     rpm_group: todo!(),
-//         //     rpm_buildhost: todo!(),
-//         //     rpm_sourcerpm: todo!(),
-//         //     rpm_header_range: todo!(),
+            //     checksum: todo!(),
+            //     location_href: todo!(),
+            //     summary: todo!(),
+            //     description: todo!(),
+            //     packager: todo!(),
+            //     url: todo!(),
+            //     time: todo!(),
+            //     size: todo!(),
 
-//         //     rpm_requires: todo!(),
-//         //     rpm_provides: todo!(),
-//         //     rpm_conflicts: todo!(),
-//         //     rpm_obsoletes: todo!(),
-//         //     rpm_suggests: todo!(),
-//         //     rpm_enhances: todo!(),
-//         //     rpm_recommends: todo!(),
-//         //     rpm_supplements: todo!(),
+            //     rpm_license: todo!(),
+            //     rpm_vendor: todo!(),
+            //     rpm_group: todo!(),
+            //     rpm_buildhost: todo!(),
+            //     rpm_sourcerpm: todo!(),
+            //     rpm_header_range: todo!(),
 
-//         //     rpm_changelogs: todo!(),
-//         //     rpm_files: todo!(),
-//         // };
+            //     rpm_requires: todo!(),
+            //     rpm_provides: todo!(),
+            //     rpm_conflicts: todo!(),
+            //     rpm_obsoletes: todo!(),
+            //     rpm_suggests: todo!(),
+            //     rpm_enhances: todo!(),
+            //     rpm_recommends: todo!(),
+            //     rpm_supplements: todo!(),
 
-//         Ok(pkg)
-//     }
-// }
+            //     rpm_changelogs: todo!(),
+            //     rpm_files: todo!(),
+            // };
+
+            Ok(pkg_metadata)
+        }
+    }
+
+    pub fn load_rpm_package(path: &Path) -> Result<Package, MetadataError> {
+        let rpm_file = std::fs::File::open(path)?;
+        let mut buf_reader = std::io::BufReader::new(rpm_file);
+        let pkg = rpm::RPMPackage::parse(&mut buf_reader)?;
+
+        Ok(Package::try_from(pkg)?)
+    }
+}
 
 pub struct PackageParser {
     primary_xml: PrimaryXmlReader<BufReader<Box<dyn std::io::Read + Send>>>,

@@ -14,6 +14,8 @@ use niffler;
 use quick_xml;
 use quick_xml::{Reader, Writer};
 use thiserror::Error;
+#[cfg(feature = "read_rpm")]
+use rpm;
 
 use crate::{utils, Repository, EVR};
 
@@ -34,6 +36,9 @@ pub const METADATA_UPDATEINFO: &str = "updateinfo";
 // TODO: probably this can / should be broken up better rather than being a kitchen sink
 #[derive(Error, Debug)]
 pub enum MetadataError {
+    #[cfg(feature = "read_rpm")]
+    #[error(transparent)]
+    RpmReadError(#[from] rpm::RPMError),
     #[error(transparent)]
     XmlParseError(#[from] quick_xml::Error),
     #[error(transparent)]
@@ -213,13 +218,13 @@ impl Package {
         &self.name
     }
 
-    pub fn set_epoch(&mut self, epoch: &str) -> &mut Self {
-        self.evr.epoch = epoch.to_owned();
+    pub fn set_epoch(&mut self, epoch: i32) -> &mut Self {
+        self.evr.epoch = epoch.to_string();
         self
     }
 
-    pub fn epoch(&self) -> &str {
-        &self.evr.epoch
+    pub fn epoch(&self) -> i32 {
+        self.evr.epoch.parse().expect("TODO: don't do this")
     }
 
     pub fn set_version(&mut self, version: &str) -> &mut Self {

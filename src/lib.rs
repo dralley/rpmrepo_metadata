@@ -27,3 +27,4 @@ pub use metadata::{
 };
 pub use package::PackageParser;
 pub use repository::{Repository, RepositoryOptions, RepositoryReader, RepositoryWriter};
+pub use updateinfo::UpdateinfoXmlReader;

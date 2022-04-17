@@ -138,3 +138,6 @@ pub fn writer_to_file(
     let writer = niffler::send::to_path(&filename, format, niffler::Level::Nine)?;
     Ok((filename, writer))
 }
+
+#[cfg(feature = "read_rpm")]
+pub use crate::package::rpm_parsing::load_rpm_package;

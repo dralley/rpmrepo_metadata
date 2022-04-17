@@ -10,13 +10,14 @@ readme = "README.md"
 
 [features]
 python_ext = ["pyo3"]
+read_rpm = ["rpm-rs"]
 
 [dependencies]
 quick-xml = { git = "https://github.com/tafia/quick-xml", rev = "d8727717", default-features = false }
 # rayon = "1.5.1"
 thiserror = "1.0.30"
 niffler = { path = "/home/dalley/Devel/rpm-dev/niffler", features = ["bz2", "xz", "gz"], default-features = false }
-# rpm-rs = { version = "0.8.1", default-features = true }
+rpm-rs = { version = "0.8.1", default-features = true, optional = true }
 # tempdir = "0.3.7"
 digest = "0.10.3"
 sha1 = "0.10.1"
