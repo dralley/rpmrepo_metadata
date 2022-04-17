@@ -30,9 +30,15 @@ use super::primary::PrimaryXmlWriter;
 use super::MetadataError;
 use indexmap::IndexMap;
 
-// TODO: uphold invariants
-// a) no duplicate pkgids / checksums
-// b) no duplicate NEVRA (normalized for epoch)
+/// A high level API for working with RPM repositories.
+///
+/// This struct attempts to uphold invariants such as
+///  a) only one package of any given NEVRA (name-epoch-version-release-architecture) combination is permitted
+///  b) updateinfo IDs are unique
+///
+/// Helpers are also provided for keeping packages ordered (helps with the metadata compression ratio).
+///
+/// All metadata is maintained in working memory (this can be large).
 #[derive(Debug, PartialEq, Default)]
 pub struct Repository {
     repomd_data: RepomdData,
@@ -40,6 +46,20 @@ pub struct Repository {
     advisories: IndexMap<String, UpdateRecord>,
 }
 
+// TODO: worth doing any allocation tricks? (probably not)
+// TODO: probably consolidate package_checksum_type and metadata_checksum_type, no real need for both
+// TODO: provide a way to e.g. remove N old packages from the repo
+// TODO: what to do with updateinfo, groups, modules when packages added or removed?
+// TODO: uphold invariants
+// a) no duplicate NEVRA (normalized for epoch)
+// b) no duplicate advisory IDs
+// TODO:
+
+// configuration options for writing metadata:
+// * checksum types for metadata
+// * compression types. how customizable does it need to be?
+// * zchunk metadata?
+// * signing
 impl Repository {
     pub fn new() -> Self {
         Self::default()
@@ -71,26 +91,35 @@ impl Repository {
         &mut self.advisories
     }
 
+    /// Sorts the package entries by `location_href`.
+    ///
+    /// Helps with compression ratios for certain types of compression, and makes it more easily searchable.
     pub fn sort(&mut self) {
         self.packages
             .sort_by(|_k1, v1, _k2, v2| v1.location_href().cmp(v2.location_href()));
     }
 
+    /// Create a new [`Repository`] from a path pointing to an RPM repository.
+    ///
+    /// Will fail if the RPM repository is not valid.
     pub fn load_from_directory(path: &Path) -> Result<Self, MetadataError> {
         let reader = RepositoryReader::new_from_directory(path)?;
         Ok(reader.into_repo()?)
     }
 
+    /// Load a metadata file into an existing repository.
     pub fn load_metadata_file<M: RpmMetadata>(&mut self, path: &Path) -> Result<(), MetadataError> {
         let reader = utils::xml_reader_from_file(path)?;
         M::load_metadata(self, reader)
     }
 
+    /// Load metadata from a string into an existing repository.
     pub fn load_metadata_str<M: RpmMetadata>(&mut self, str: &str) -> Result<(), MetadataError> {
         let reader = utils::create_xml_reader(str.as_bytes());
         M::load_metadata(self, reader)
     }
 
+    /// Load metadata from an array of bytes (assumed to be UTF-8) into an existing repository.
     pub fn load_metadata_bytes<M: RpmMetadata>(
         &mut self,
         bytes: &[u8],
@@ -99,14 +128,32 @@ impl Repository {
         M::load_metadata(self, reader)
     }
 
-    pub fn write_to_directory(
+    /// Write all the RPM metadata out to a directory with default options.
+    pub fn write_to_directory(&self, path: &Path) -> Result<(), MetadataError> {
+        Self::write_to_directory_with_options(&self, path, RepositoryOptions::default())
+    }
+
+    /// Write all the RPM metadata out to a directory with the provided options.
+    pub fn write_to_directory_with_options(
         &self,
         path: &Path,
         options: RepositoryOptions,
     ) -> Result<(), MetadataError> {
-        RepositoryWriter::write_repository(self, &path, options)
+        let mut writer = RepositoryWriter::new_with_options(path, self.packages().len(), options)?;
+
+        for (_, pkg) in self.packages() {
+            writer.add_package(pkg)?;
+        }
+        for advisory in self.advisories().values() {
+            writer.add_advisory(advisory)?;
+        }
+
+        writer.finish()?;
+
+        Ok(())
     }
 
+    /// Write an individual metadata file to disk.
     pub fn write_metadata_file<M: RpmMetadata>(
         &self,
         path: &Path,
@@ -119,31 +166,27 @@ impl Repository {
         Ok(fname)
     }
 
+    /// Write repository metadata to a String.
     pub fn write_metadata_string<M: RpmMetadata>(&self) -> Result<String, MetadataError> {
         let bytes = self.write_metadata_bytes::<M>()?;
         Ok(String::from_utf8(bytes).map_err(|e| e.utf8_error())?)
     }
 
+    /// Write repository metadata to a buffer of bytes.
     pub fn write_metadata_bytes<M: RpmMetadata>(&self) -> Result<Vec<u8>, MetadataError> {
         let mut buf = Vec::new();
         let writer = utils::create_xml_writer(&mut buf);
         M::write_metadata(self, writer)?;
         Ok(buf)
     }
-
-    // TODO: allocation? one arena allocator per package, everything freed at once
-
-    // TODO: what to do with updateinfo, groups, modules when packages added or removed?
-
-    // configuration options for writing metadata:
-    // * number of old packages?
-    // * checksum types for metadata
-    // * compression types. how customizable does it need to be?
-    // * sqlite metadata yes/no
-    // * zchunk metadata?
-    // * signing
 }
 
+/// Options for writing RPM repository metadata.
+///
+/// - `simple_metadata_filenames` - Determines whether filenames should be bare e.g. `filelists.xml` or should include the file checksum.
+/// - `metadata_compression_type` - The type of compression to use for repository metadata.
+/// - `metadata_checksum_type` - The type of checksums to use for metadata.
+/// - `package_checksum_type` - The type of checksums to use for packages.
 #[derive(Debug, Copy, Clone)]
 pub struct RepositoryOptions {
     pub simple_metadata_filenames: bool,
@@ -193,6 +236,11 @@ impl RepositoryOptions {
     }
 }
 
+/// Helper for writing RPM repository metadata manually.
+///
+/// A complete RPM repository can represent a significant amount of metadata split across multiple files.
+/// This API provides a way to write different types of metadata separately and without needing to keep
+/// everything in memory by storing it in a [`Repository`] first.
 pub struct RepositoryWriter {
     options: RepositoryOptions,
     path: PathBuf,
@@ -209,32 +257,12 @@ pub struct RepositoryWriter {
 }
 
 impl RepositoryWriter {
+    /// Constructor for a new [`RepositoryWriter`] with default options. See [`RepositoryOptions`].
     pub fn new(path: &Path, num_pkgs: usize) -> Result<Self, MetadataError> {
         Self::new_with_options(path, num_pkgs, RepositoryOptions::default())
     }
 
-    pub fn write_repository(
-        repo: &Repository,
-        path: &Path,
-        options: RepositoryOptions,
-    ) -> Result<(), MetadataError> {
-        let mut writer = Self::new_with_options(path, repo.packages().len(), options)?;
-
-        for (_, pkg) in repo.packages() {
-            writer.add_package(pkg)?;
-        }
-
-        if !repo.advisories().is_empty() {
-            for advisory in repo.advisories().values() {
-                writer.add_advisory(advisory)?;
-            }
-        }
-
-        writer.finish()?;
-
-        Ok(())
-    }
-
+    /// Constructur for a new [`RepositoryWriter`] with user-provided options. See [`RepositoryOptions`].
     pub fn new_with_options(
         path: &Path,
         num_pkgs: usize,
@@ -280,10 +308,12 @@ impl RepositoryWriter {
         })
     }
 
+    /// Mutable accessor for the [`RepomdData`] struct which is written as repomd.xml later.
     pub fn repomd_mut(&mut self) -> &mut RepomdData {
         &mut self.repomd_data
     }
 
+    /// Write a `Package` to the repo metadata.
     pub fn add_package(&mut self, pkg: &Package) -> Result<(), MetadataError> {
         self.num_pkgs_written += 1;
         assert!(
@@ -306,6 +336,7 @@ impl RepositoryWriter {
         Ok(())
     }
 
+    /// Write an `UpdateRecord` to the repo metadata.
     pub fn add_advisory(&mut self, record: &UpdateRecord) -> Result<(), MetadataError> {
         // TODO: clean this up
         if self.updateinfo_xml_writer.is_none() {
@@ -329,7 +360,12 @@ impl RepositoryWriter {
         Ok(())
     }
 
-    pub fn finish(&mut self) -> Result<(), MetadataError> {
+    /// Consume the [`RepositoryWriter`], and finish writing the repository metadata to disk.
+    ///
+    /// - Checks that the number of packages written matches the number of packages declared.
+    /// - Completes all metadata files.
+    /// - Writes `repomd.xml`.
+    pub fn finish(mut self) -> Result<(), MetadataError> {
         assert_eq!(
             self.num_pkgs_written, self.num_pkgs,
             "Number of packages written {} is different from the number declared in the header {}.",
@@ -390,12 +426,22 @@ impl RepositoryWriter {
     }
 }
 
+/// Helper for reading metadata from an RPM repository manually.
+///
+/// A complete RPM repository can represent a significant amount of metadata split across multiple files.
+/// This API provides a way to read different types of metadata without reading everything at once and
+/// storing it in memory.
 pub struct RepositoryReader {
-    repository: Repository, // TODO: we're only using this for the repomd, maybe just use it directly
+    // TODO: we're only using this for the repomd, maybe just use it directly
+    // but need to figure out how to generically support loading metadata files
+    repository: Repository,
     path: PathBuf,
 }
 
 impl RepositoryReader {
+    /// Create a new `RepositoryReader` for a given directory `path`.
+    ///
+    /// If `repodata/repomd.xml` cannot be found or if it cannot be parsed, this will fail.
     pub fn new_from_directory(path: &Path) -> Result<Self, MetadataError> {
         let mut repo = Repository::new();
         repo.load_metadata_file::<RepomdXml>(&path.join("repodata/repomd.xml"))?;
@@ -406,10 +452,21 @@ impl RepositoryReader {
         })
     }
 
+    /// Return the contents of `repomd.xml` in a `RepomdData` struct.
+    pub fn repomd(&self) -> &RepomdData {
+        &self.repository.repomd()
+    }
+
+    /// Iterate over the packages of the repo.
+    ///
+    /// Create an iterator over the package metadata which will yield packages until completion or error.
     pub fn iter_packages(&self) -> Result<PackageParser, MetadataError> {
         PackageParser::from_repodata(&self.path, self.repository.repomd())
     }
 
+    /// Iterate over the advisories of the repo.
+    ///
+    /// Create an iterator over "advisory" / updateinfo metadata which will yield updaterecords until completion or error.
     pub fn iter_advisories(&self) -> Result<UpdateinfoXmlReader<impl BufRead>, MetadataError> {
         let updateinfo_path = &self.path.join(
             &self
@@ -427,15 +484,22 @@ impl RepositoryReader {
 
     // }
 
+    /// Consume the `RepositoryReader` and yield a [`Repository`] struct with the full repository contents.
     pub fn into_repo(mut self) -> Result<Repository, MetadataError> {
-        let parser = self.iter_packages()?;
+        let packages_iter = self.iter_packages()?;
         self.repository
             .packages_mut()
-            .reserve(parser.total_packages());
+            .reserve(packages_iter.total_packages());
         self.repository.packages_mut().extend(
-            parser
-                .filter_map(|r| r.ok())
+            packages_iter
+                .filter_map(|r| r.ok())  // TODO: I don't like this .ok(), ought to return the error
                 .map(|p| (p.pkgid().to_owned(), p)),
+        );
+
+        let advisories_iter = self.iter_advisories()?;
+        self.repository.advisories_mut().extend(advisories_iter
+                .filter_map(|r| r.ok())
+                .map(|p| (p.id.clone(), p))
         );
         Ok(self.repository)
     }
