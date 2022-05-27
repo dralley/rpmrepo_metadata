@@ -4,7 +4,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use std::io::{BufRead, Write};
+use std::io::{BufRead, Write, BufReader};
 use std::path::{Path, PathBuf};
 
 use crate::updateinfo::{UpdateinfoXmlReader, UpdateinfoXmlWriter};

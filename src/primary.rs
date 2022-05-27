@@ -668,7 +668,7 @@ pub fn parse_requirement_list<R: BufRead>(
             Event::Start(e) if e.name() == TAG_RPM_ENTRY => {
                 let mut requirement = Requirement::default();
                 for attr in e.attributes() {
-                    let attr = attr?;
+                    let attr = attr.map_err(|e| quick_xml::Error::from(e))?;
                     match attr.key {
                         b"name" => {
                             requirement.name = attr.unescape_and_decode_value(reader)?;
