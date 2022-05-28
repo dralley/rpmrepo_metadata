@@ -4,20 +4,18 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-
 extern crate rpmrepo_metadata;
 
 use pretty_assertions::assert_eq;
 use rpmrepo_metadata::*;
 use std::fs::OpenOptions;
 use std::io::{Cursor, Read, Seek, SeekFrom};
-use tempdir::TempDir;
 use std::path::Path;
+use tempdir::TempDir;
 
 mod common;
 
 pub const COMPLEX_PKG_PATH: &str = "./tests/assets/packages/complex-package-2.3.4-5.el8.x86_64.rpm";
-
 
 #[test]
 #[cfg(feature = "read_rpm")]

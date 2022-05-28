@@ -13,9 +13,9 @@ use std::path::{Path, PathBuf};
 use niffler;
 use quick_xml;
 use quick_xml::{Reader, Writer};
-use thiserror::Error;
 #[cfg(feature = "read_rpm")]
 use rpm;
+use thiserror::Error;
 
 use crate::{utils, Repository, EVR};
 
@@ -994,7 +994,12 @@ pub struct RepomdRecord {
 }
 
 impl RepomdRecord {
-    pub fn new(name: &str, href: &Path, base: &Path) -> Result<Self, MetadataError> {
+    pub fn new(
+        name: &str,
+        href: &Path,
+        base: &Path,
+        checksum_type: ChecksumType,
+    ) -> Result<Self, MetadataError> {
         let mut record = RepomdRecord::default();
         record.metadata_name = name.to_owned();
         record.location_href = {
@@ -1006,11 +1011,11 @@ impl RepomdRecord {
             href.to_owned()
         };
         record.base_path = Some(base.to_owned());
-        record.fill()?;
+        record.fill(checksum_type)?;
         Ok(record)
     }
 
-    pub fn fill(&mut self) -> Result<(), MetadataError> {
+    pub fn fill(&mut self, checksum_type: ChecksumType) -> Result<(), MetadataError> {
         let file_path = self
             .base_path
             .as_ref()
@@ -1019,8 +1024,8 @@ impl RepomdRecord {
         let file_metadata = file_path.metadata()?;
         self.timestamp = file_metadata.mtime();
         self.size = Some(file_metadata.size());
-        self.checksum = utils::checksum_file(&file_path, ChecksumType::Sha256)?;
-        self.open_checksum = utils::checksum_inner_file(&file_path, ChecksumType::Sha256)?;
+        self.checksum = utils::checksum_file(&file_path, checksum_type)?;
+        self.open_checksum = utils::checksum_inner_file(&file_path, checksum_type)?;
         self.open_size = utils::size_inner_file(&file_path)?;
 
         Ok(())

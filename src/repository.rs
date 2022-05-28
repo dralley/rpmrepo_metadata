@@ -4,7 +4,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use std::io::{BufRead, Write, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 
 use crate::updateinfo::{UpdateinfoXmlReader, UpdateinfoXmlWriter};
@@ -401,15 +401,27 @@ impl RepositoryWriter {
         drop(self.filelists_xml_writer.take());
         drop(self.other_xml_writer.take());
 
-        self.repomd_mut()
-            .add_record(RepomdRecord::new("primary", &primary_path.as_ref(), &path)?);
-        self.repomd_mut().add_record(RepomdRecord::new(
+        let primary_xml = RepomdRecord::new(
+            "primary",
+            &primary_path.as_ref(),
+            &path,
+            ChecksumType::Sha256,
+        )?;
+        self.repomd_mut().add_record(primary_xml); // TODO configure checksum type
+        let filelists_xml = RepomdRecord::new(
             "filelists",
             &filelists_path.as_ref(),
             &path,
-        )?);
-        self.repomd_mut()
-            .add_record(RepomdRecord::new("other", &other_path.as_ref(), &path)?);
+            ChecksumType::Sha256,
+        )?;
+        self.repomd_mut().add_record(filelists_xml);
+        let other_xml = RepomdRecord::new(
+            "other",
+            &other_path.as_ref(),
+            &path,
+            ChecksumType::Sha256
+        )?;
+        self.repomd_mut().add_record(other_xml);
 
         if let Some(updateinfo_xml_writer) = &mut self.updateinfo_xml_writer {
             updateinfo_xml_writer.finish()?;

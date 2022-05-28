@@ -16,8 +16,8 @@ use crate::{FilelistsXml, MetadataError, OtherXml, Package, PrimaryXml};
 
 #[cfg(feature = "read_rpm")]
 pub mod rpm_parsing {
-    use rpm::{self, Header};
     use super::*;
+    use rpm::{self, Header};
 
     impl TryFrom<rpm::RPMPackage> for Package {
         type Error = rpm::RPMError;
