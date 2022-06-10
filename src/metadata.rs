@@ -209,8 +209,8 @@ impl Package {
         }
     }
 
-    pub fn set_name(&mut self, name: &str) -> &mut Self {
-        self.name = name.to_owned();
+    pub fn set_name(&mut self, name: impl Into<String>) -> &mut Self {
+        self.name = name.into();
         self
     }
 
@@ -227,8 +227,8 @@ impl Package {
         self.evr.epoch.parse().expect("TODO: don't do this")
     }
 
-    pub fn set_version(&mut self, version: &str) -> &mut Self {
-        self.evr.version = version.to_owned();
+    pub fn set_version(&mut self, version: impl Into<String>) -> &mut Self {
+        self.evr.version = version.into();
         self
     }
 
@@ -236,8 +236,8 @@ impl Package {
         &self.evr.version
     }
 
-    pub fn set_release(&mut self, release: &str) -> &mut Self {
-        self.evr.release = release.to_owned();
+    pub fn set_release(&mut self, release: impl Into<String>) -> &mut Self {
+        self.evr.release = release.into();
         self
     }
 
@@ -245,8 +245,8 @@ impl Package {
         &self.evr.release
     }
 
-    pub fn set_arch(&mut self, arch: &str) -> &mut Self {
-        self.arch = arch.to_owned();
+    pub fn set_arch(&mut self, arch: impl Into<String>) -> &mut Self {
+        self.arch = arch.into();
         self
     }
 
@@ -300,8 +300,8 @@ impl Package {
         &self.checksum.to_values().unwrap().1
     }
 
-    pub fn set_location_href(&mut self, location_href: &str) -> &mut Self {
-        self.location_href = location_href.to_owned();
+    pub fn set_location_href(&mut self, location_href: impl Into<String>) -> &mut Self {
+        self.location_href = location_href.into();
         self
     }
 
@@ -309,8 +309,8 @@ impl Package {
         &self.location_href
     }
 
-    pub fn set_location_base(&mut self, location_base: Option<&str>) -> &mut Self {
-        self.location_base = location_base.and_then(|a| Some(a.to_owned()));
+    pub fn set_location_base(&mut self, location_base: Option<impl Into<String>>) -> &mut Self {
+        self.location_base = location_base.and_then(|a| Some(a.into()));
         self
     }
 
@@ -318,8 +318,8 @@ impl Package {
         self.location_base.as_ref().and_then(|a| Some(a.as_ref()))
     }
 
-    pub fn set_summary(&mut self, summary: &str) -> &mut Self {
-        self.summary = summary.to_owned();
+    pub fn set_summary(&mut self, summary: impl Into<String>) -> &mut Self {
+        self.summary = summary.into();
         self
     }
 
@@ -327,8 +327,8 @@ impl Package {
         &self.summary
     }
 
-    pub fn set_description(&mut self, description: &str) -> &mut Self {
-        self.description = description.to_owned();
+    pub fn set_description(&mut self, description: impl Into<String>) -> &mut Self {
+        self.description = description.into();
         self
     }
 
@@ -336,8 +336,8 @@ impl Package {
         &self.description
     }
 
-    pub fn set_packager(&mut self, packager: &str) -> &mut Self {
-        self.packager = packager.to_owned();
+    pub fn set_packager(&mut self, packager: impl Into<String>) -> &mut Self {
+        self.packager = packager.into();
         self
     }
 
@@ -345,8 +345,8 @@ impl Package {
         &self.packager
     }
 
-    pub fn set_url(&mut self, url: &str) -> &mut Self {
-        self.url = url.to_owned();
+    pub fn set_url(&mut self, url: impl Into<String>) -> &mut Self {
+        self.url = url.into();
         self
     }
 
@@ -399,8 +399,8 @@ impl Package {
         self.size_archive
     }
 
-    pub fn set_rpm_license(&mut self, license: &str) -> &mut Self {
-        self.rpm_license = license.to_owned();
+    pub fn set_rpm_license(&mut self, license: impl Into<String>) -> &mut Self {
+        self.rpm_license = license.into();
         self
     }
 
@@ -408,8 +408,8 @@ impl Package {
         &self.rpm_license
     }
 
-    pub fn set_rpm_vendor(&mut self, vendor: &str) -> &mut Self {
-        self.rpm_vendor = vendor.to_owned();
+    pub fn set_rpm_vendor(&mut self, vendor: impl Into<String>) -> &mut Self {
+        self.rpm_vendor = vendor.into();
         self
     }
 
@@ -417,8 +417,8 @@ impl Package {
         &self.rpm_vendor
     }
 
-    pub fn set_rpm_group(&mut self, group: &str) -> &mut Self {
-        self.rpm_group = group.to_owned();
+    pub fn set_rpm_group(&mut self, group: impl Into<String>) -> &mut Self {
+        self.rpm_group = group.into();
         self
     }
 
@@ -426,8 +426,8 @@ impl Package {
         &self.rpm_group
     }
 
-    pub fn set_rpm_buildhost(&mut self, rpm_buildhost: &str) -> &mut Self {
-        self.rpm_buildhost = rpm_buildhost.to_owned();
+    pub fn set_rpm_buildhost(&mut self, rpm_buildhost: impl Into<String>) -> &mut Self {
+        self.rpm_buildhost = rpm_buildhost.into();
         self
     }
 
@@ -435,8 +435,8 @@ impl Package {
         &self.rpm_buildhost
     }
 
-    pub fn set_rpm_sourcerpm(&mut self, rpm_sourcerpm: &str) -> &mut Self {
-        self.rpm_sourcerpm = rpm_sourcerpm.to_owned();
+    pub fn set_rpm_sourcerpm(&mut self, rpm_sourcerpm: impl Into<String>) -> &mut Self {
+        self.rpm_sourcerpm = rpm_sourcerpm.into();
         self
     }
 

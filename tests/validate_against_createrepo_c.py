@@ -142,6 +142,7 @@ def validate_rpmrepo(repo_path):
     other_xml_path     = None
     updateinfo_xml_path     = None
 
+    rpm_repo = rpmmd.RepositoryReader(repo_path)
     repomd = cr.Repomd(os.path.join(repo_path, "repodata/repomd.xml"))
     # TODO: warnings?
 
@@ -155,7 +156,7 @@ def validate_rpmrepo(repo_path):
         elif record.type == "updateinfo":
             updateinfo_xml_path = os.path.join(repo_path, record.location_href)
 
-    rpmrepo_pkg_parser = rpmmd.PackageParser(primary_xml_path, filelists_xml_path, other_xml_path)
+    rpmrepo_pkg_parser = rpm_repo.iter_packages()
     cr_pkg_iterator = cr.PackageIterator(primary_xml_path, filelists_xml_path, other_xml_path)
 
     for (rpmrepo_pkg, createrepo_pkg) in zip(rpmrepo_pkg_parser, cr_pkg_iterator):

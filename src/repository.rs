@@ -479,17 +479,22 @@ impl RepositoryReader {
     /// Iterate over the advisories of the repo.
     ///
     /// Create an iterator over "advisory" / updateinfo metadata which will yield updaterecords until completion or error.
-    pub fn iter_advisories(&self) -> Result<UpdateinfoXmlReader<impl BufRead>, MetadataError> {
-        let updateinfo_path = &self.path.join(
-            &self
+    pub fn iter_advisories(&self) -> Option<Result<UpdateinfoXmlReader<impl BufRead>, MetadataError>> {
+
+        let updateinfo = self
                 .repository
                 .repomd()
-                .get_record(crate::metadata::METADATA_UPDATEINFO)
-                .unwrap()
-                .location_href,
-        );
+                .get_record(crate::metadata::METADATA_UPDATEINFO);
 
-        Ok(UpdateinfoXml::new_reader(utils::xml_reader_from_file(updateinfo_path)?))
+        if let Some(updateinfo) = updateinfo {
+            let updateinfo_path = self.path.join(&updateinfo.location_href);
+            match utils::xml_reader_from_file(&updateinfo_path) {
+                Ok(reader) => Some(Ok(UpdateinfoXml::new_reader(reader))),
+                Err(err) => Some(Err(err)),
+            }
+        } else {
+            None
+        }
     }
 
     // pub fn iter_comps(&self) -> Result<> {
@@ -498,21 +503,23 @@ impl RepositoryReader {
 
     /// Consume the `RepositoryReader` and yield a [`Repository`] struct with the full repository contents.
     pub fn into_repo(mut self) -> Result<Repository, MetadataError> {
-        let packages_iter = self.iter_packages()?;
+        let packages = self.iter_packages()?;
         self.repository
             .packages_mut()
-            .reserve(packages_iter.total_packages());
-        self.repository.packages_mut().extend(
-            packages_iter
-                .filter_map(|r| r.ok())  // TODO: I don't like this .ok(), ought to return the error
-                .map(|p| (p.pkgid().to_owned(), p)),
-        );
+            .reserve(packages.total_packages());
 
-        let advisories_iter = self.iter_advisories()?;
-        self.repository.advisories_mut().extend(advisories_iter
-                .filter_map(|r| r.ok())
-                .map(|p| (p.id.clone(), p))
-        );
+        for package in packages {
+            let package = package?;
+            self.repository.packages_mut().insert(package.pkgid().to_owned(), package);
+        }
+
+        if let Some(advisories) = self.iter_advisories() {
+            for advisory in advisories? {
+                let advisory = advisory?;
+                self.repository.advisories_mut().insert(advisory.id.to_owned(), advisory);
+            }
+        }
+
         Ok(self.repository)
     }
 }
