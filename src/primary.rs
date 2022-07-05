@@ -121,7 +121,7 @@ fn parse_header<R: BufRead>(reader: &mut Reader<R>) -> Result<usize, MetadataErr
     loop {
         match reader.read_event(&mut buf)? {
             Event::Decl(_) => (),
-            Event::Start(e) if e.name() == TAG_METADATA => {
+            Event::Start(e) if e.name().as_ref() == TAG_METADATA => {
                 let count = e.try_get_attribute("packages")?.unwrap().value;
                 return Ok(std::str::from_utf8(&count)?.parse()?);
             }
@@ -139,8 +139,8 @@ pub fn parse_package<R: BufRead>(
 
     loop {
         match reader.read_event(&mut buf)? {
-            Event::End(e) if e.name() == TAG_PACKAGE => break,
-            Event::Start(e) => match e.name() {
+            Event::End(e) if e.name().as_ref() == TAG_PACKAGE => break,
+            Event::Start(e) => match e.name().as_ref() {
                 TAG_PACKAGE => {
                     let ptype = e
                         .try_get_attribute(b"type")?
@@ -293,8 +293,8 @@ pub fn parse_package<R: BufRead>(
                     text_buf.clear();
                     loop {
                         match reader.read_event(&mut buf)? {
-                            Event::End(e) if e.name() == TAG_FORMAT => break,
-                            Event::Start(e) => match e.name() {
+                            Event::End(e) if e.name().as_ref() == TAG_FORMAT => break,
+                            Event::Start(e) => match e.name().as_ref() {
                                 TAG_RPM_LICENSE => {
                                     package.as_mut().unwrap().set_rpm_license(
                                         reader.read_text(TAG_RPM_LICENSE, &mut text_buf)?.as_str(),
@@ -665,11 +665,11 @@ pub fn parse_requirement_list<R: BufRead>(
 
     loop {
         match reader.read_event(&mut buf)? {
-            Event::Start(e) if e.name() == TAG_RPM_ENTRY => {
+            Event::Start(e) if e.name().as_ref() == TAG_RPM_ENTRY => {
                 let mut requirement = Requirement::default();
                 for attr in e.attributes() {
                     let attr = attr.map_err(|e| quick_xml::Error::from(e))?;
-                    match attr.key {
+                    match attr.key.as_ref() {
                         b"name" => {
                             requirement.name = attr.unescape_and_decode_value(reader)?;
                         }

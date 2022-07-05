@@ -137,7 +137,7 @@ fn read_repomd_xml<R: BufRead>(
 
     loop {
         match reader.read_event(&mut event_buf)? {
-            Event::Start(e) => match e.name() {
+            Event::Start(e) => match e.name().as_ref() {
                 TAG_REPOMD => {
                     found_metadata_tag = true;
                 }
@@ -157,7 +157,7 @@ fn read_repomd_xml<R: BufRead>(
                     //   </tags>
                     loop {
                         match reader.read_event(&mut event_buf)? {
-                            Event::Start(e) => match e.name() {
+                            Event::Start(e) => match e.name().as_ref() {
                                 TAG_DISTRO => {
                                     let cpeid = (&e).try_get_attribute("cpeid")?.and_then(|a| {
                                         a.unescape_and_decode_value(&mut reader).ok()
@@ -176,7 +176,7 @@ fn read_repomd_xml<R: BufRead>(
                                 _ => (),
                             },
 
-                            Event::End(e) if e.name() == TAG_TAGS => break,
+                            Event::End(e) if e.name().as_ref() == TAG_TAGS => break,
                             _ => (),
                         }
                         text_buf.clear();
@@ -225,7 +225,7 @@ pub fn parse_repomdrecord<R: BufRead>(
 
     loop {
         match reader.read_event(&mut buf)? {
-            Event::Start(e) => match e.name() {
+            Event::Start(e) => match e.name().as_ref() {
                 TAG_CHECKSUM => {
                     let checksum_type = e
                         .try_get_attribute("type")?
@@ -289,7 +289,7 @@ pub fn parse_repomdrecord<R: BufRead>(
                 }
                 _ => (),
             },
-            Event::End(e) if e.name() == TAG_DATA => break,
+            Event::End(e) if e.name().as_ref() == TAG_DATA => break,
             _ => (),
         }
         record_buf.clear();

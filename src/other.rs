@@ -173,7 +173,7 @@ fn parse_header<R: BufRead>(reader: &mut Reader<R>) -> Result<usize, MetadataErr
     loop {
         match reader.read_event(&mut buf)? {
             Event::Decl(_) => (),
-            Event::Start(e) if e.name() == TAG_OTHERDATA => {
+            Event::Start(e) if e.name().as_ref() == TAG_OTHERDATA => {
                 let count = e.try_get_attribute("packages")?.unwrap().value;
                 return Ok(std::str::from_utf8(&count)?.parse()?);
             }
@@ -197,8 +197,8 @@ pub fn parse_package<R: BufRead>(
     // TODO: get rid of unwraps, various branches could happen in wrong order
     loop {
         match reader.read_event(&mut buf)? {
-            Event::End(e) if e.name() == TAG_PACKAGE => break,
-            Event::Start(e) => match e.name() {
+            Event::End(e) if e.name().as_ref() == TAG_PACKAGE => break,
+            Event::Start(e) => match e.name().as_ref() {
                 TAG_PACKAGE => {
                     let pkgid = e
                         .try_get_attribute("pkgid")?
