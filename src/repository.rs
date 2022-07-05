@@ -144,7 +144,7 @@ impl Repository {
         for (_, pkg) in self.packages() {
             writer.add_package(pkg)?;
         }
-        for advisory in self.advisories().values() {
+        for (_, advisory) in self.advisories() {
             writer.add_advisory(advisory)?;
         }
 
@@ -248,12 +248,12 @@ pub struct RepositoryWriter {
     primary_xml_writer: Option<PrimaryXmlWriter<Box<dyn Write + Send>>>,
     filelists_xml_writer: Option<FilelistsXmlWriter<Box<dyn Write + Send>>>,
     other_xml_writer: Option<OtherXmlWriter<Box<dyn Write + Send>>>,
+    updateinfo_xml_writer: Option<UpdateinfoXmlWriter<Box<dyn Write + Send>>>,
 
     num_pkgs_written: usize,
     num_pkgs: usize,
 
     repomd_data: RepomdData,
-    updateinfo_xml_writer: Option<UpdateinfoXmlWriter<Box<dyn Write + Send>>>,
 }
 
 impl RepositoryWriter {
@@ -296,15 +296,17 @@ impl RepositoryWriter {
             options,
             path: path.to_owned(),
 
-            num_pkgs: num_pkgs,
-            num_pkgs_written: 0,
-
             primary_xml_writer: Some(primary_xml_writer),
             filelists_xml_writer: Some(filelists_xml_writer),
             other_xml_writer: Some(other_xml_writer),
+            updateinfo_xml_writer: None,
+
+            num_pkgs: num_pkgs,
+            num_pkgs_written: 0,
+
+            metadata_paths: metadata_paths,
 
             repomd_data: RepomdData::default(),
-            updateinfo_xml_writer: None,
         })
     }
 
@@ -405,27 +407,38 @@ impl RepositoryWriter {
             "primary",
             &primary_path.as_ref(),
             &path,
-            ChecksumType::Sha256,
+            self.options.metadata_checksum_type,
         )?;
-        self.repomd_mut().add_record(primary_xml); // TODO configure checksum type
+        self.repomd_mut().add_record(primary_xml);
         let filelists_xml = RepomdRecord::new(
             "filelists",
             &filelists_path.as_ref(),
             &path,
-            ChecksumType::Sha256,
+            self.options.metadata_checksum_type,
         )?;
         self.repomd_mut().add_record(filelists_xml);
         let other_xml = RepomdRecord::new(
             "other",
             &other_path.as_ref(),
             &path,
-            ChecksumType::Sha256
+            self.options.metadata_checksum_type
         )?;
         self.repomd_mut().add_record(other_xml);
 
         if let Some(updateinfo_xml_writer) = &mut self.updateinfo_xml_writer {
             updateinfo_xml_writer.finish()?;
             self.updateinfo_xml_writer = None;
+            let updateinfo_path = utils::apply_compression_suffix(
+                &PathBuf::from("repodata").join("updateinfo.xml"),
+                self.options.metadata_compression_type,
+            );
+            let updateinfo_xml = RepomdRecord::new(
+                "updateinfo",
+                &updateinfo_path.as_ref(),
+                &path,
+                self.options.metadata_checksum_type
+            )?;
+            self.repomd_mut().add_record(updateinfo_xml);
         }
 
         let (_, mut repomd_writer) =
@@ -472,29 +485,15 @@ impl RepositoryReader {
     /// Iterate over the packages of the repo.
     ///
     /// Create an iterator over the package metadata which will yield packages until completion or error.
-    pub fn iter_packages(&self) -> Result<PackageParser, MetadataError> {
-        PackageParser::from_repodata(&self.path, self.repository.repomd())
+    pub fn iter_packages(&self) -> Result<PackageIterator, MetadataError> {
+        PackageIterator::from_repodata(&self.path, self.repository.repomd())
     }
 
     /// Iterate over the advisories of the repo.
     ///
     /// Create an iterator over "advisory" / updateinfo metadata which will yield updaterecords until completion or error.
-    pub fn iter_advisories(&self) -> Option<Result<UpdateinfoXmlReader<impl BufRead>, MetadataError>> {
-
-        let updateinfo = self
-                .repository
-                .repomd()
-                .get_record(crate::metadata::METADATA_UPDATEINFO);
-
-        if let Some(updateinfo) = updateinfo {
-            let updateinfo_path = self.path.join(&updateinfo.location_href);
-            match utils::xml_reader_from_file(&updateinfo_path) {
-                Ok(reader) => Some(Ok(UpdateinfoXml::new_reader(reader))),
-                Err(err) => Some(Err(err)),
-            }
-        } else {
-            None
-        }
+    pub fn iter_advisories(&self) -> Result<UpdateinfoIterator, MetadataError> {
+        UpdateinfoIterator::from_metadata(&self.path, self.repository.repomd())
     }
 
     // pub fn iter_comps(&self) -> Result<> {
@@ -513,13 +512,43 @@ impl RepositoryReader {
             self.repository.packages_mut().insert(package.pkgid().to_owned(), package);
         }
 
-        if let Some(advisories) = self.iter_advisories() {
-            for advisory in advisories? {
-                let advisory = advisory?;
-                self.repository.advisories_mut().insert(advisory.id.to_owned(), advisory);
-            }
+        let advisories = self.iter_advisories()?;
+        for advisory in advisories {
+            let advisory = advisory?;
+            self.repository.advisories_mut().insert(advisory.id.to_owned(), advisory);
         }
 
         Ok(self.repository)
+    }
+}
+
+pub struct UpdateinfoIterator {
+    updateinfo: Option<UpdateinfoXmlReader<BufReader<Box<dyn std::io::Read + Send>>>>,
+}
+
+impl UpdateinfoIterator {
+    fn from_metadata(base: &Path, repomd: &RepomdData) -> Result<Self, MetadataError> {
+        let updateinfo_href = repomd
+            .get_record(crate::metadata::METADATA_UPDATEINFO)
+            .map(|u| base.join(&u.location_href));
+
+        let reader = if let Some(updateinfo_href) = updateinfo_href {
+            let reader = UpdateinfoXml::new_reader(utils::xml_reader_from_file(
+                &base.join(updateinfo_href),
+            )?);
+            Some(reader)
+        } else {
+            None
+        };
+
+        Ok(Self { updateinfo: reader })
+    }
+}
+
+impl Iterator for UpdateinfoIterator {
+    type Item = Result<UpdateRecord, MetadataError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.updateinfo.as_mut()?.read_update().transpose()
     }
 }

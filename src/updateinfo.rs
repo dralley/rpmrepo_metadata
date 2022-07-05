@@ -265,8 +265,9 @@ fn parse_updaterecord<R: BufRead>(
     Ok(Some(record))
 }
 
-pub fn parse_pkglist<R: BufRead>(reader: &mut Reader<R>) -> Result<Vec<UpdateCollection>, MetadataError> {
-
+pub fn parse_pkglist<R: BufRead>(
+    reader: &mut Reader<R>,
+) -> Result<Vec<UpdateCollection>, MetadataError> {
     let mut current_collection = None;
     let mut current_package = None;
     let mut buf = Vec::with_capacity(256);

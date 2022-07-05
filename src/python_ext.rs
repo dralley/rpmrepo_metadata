@@ -106,11 +106,11 @@ impl RepositoryReader {
         Ok(py_pkg_reader)
     }
 
-    // fn iter_advisories(&self) -> PyResult<PackageReader> {
-    //     let pkg_reader = self.inner.iter_packages()?;
-    //     let py_pkg_reader = PackageReader { inner: pkg_reader };
-    //     Ok(py_pkg_reader)
-    // }
+    fn iter_advisories(&self) -> PyResult<UpdateinfoReader> {
+        let pkg_reader = self.inner.iter_packages()?;
+        let py_pkg_reader = UpdateinfoReader { inner: pkg_reader };
+        Ok(py_pkg_reader)
+    }
 }
 #[pyclass]
 struct Package {
@@ -789,6 +789,38 @@ impl PackageReader {
 }
 
 #[pyclass]
+struct UpdateinfoReader {
+    inner: crate::UpdateinfoIterator,
+}
+
+#[pymethods]
+impl UpdateinfoReader {
+    fn parse_updaterecord(&mut self) -> PyResult<Option<UpdateRecord>> {
+        let rec = self.inner.parse_updaterecord()?;
+        let py_rec = rec.map(|rec| UpdateRecord { inner: rec });
+        Ok(py_rec)
+    }
+
+    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
+        slf
+    }
+
+    fn __next__(mut slf: PyRefMut<Self>) -> PyResult<Option<Package>> {
+        slf.parse_updaterecord()
+    }
+}
+
+#[pyclass]
+struct UpdateinfoWriter {
+    inner: crate::UpdateinfoXmlWriter,
+}
+
+#[pymethods]
+impl UpdateinfoWriter {
+
+}
+
+#[pyclass]
 struct EVR {
     inner: crate::EVR,
 }
@@ -870,10 +902,13 @@ fn rpmrepo_metadata(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<EVR>()?;
     m.add_class::<Package>()?;
     m.add_class::<PackageReader>()?;
+    m.add_class::<UpdateinfoReader>()?;
+
     // m.add_class::<RepomdXml>()?;
     // m.add_class::<PrimaryXml>()?;
     // m.add_class::<FilelistsXml>()?;
     // m.add_class::<OtherXml>()?;
+    // m.add_class::<UpdateinfoXml>()?;
 
     Ok(())
 }
