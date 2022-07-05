@@ -114,7 +114,7 @@ impl TryFrom<RepomdRecordBuilder> for RepomdRecord {
         record.open_checksum = builder.open_checksum; // TODO: do these need to be conditionally required?
         record.header_size = builder.header_size;
         record.header_checksum = builder.header_checksum;
-        record.database_version = builder.database_version;
+        record.database_version = builder.database_version;  // TODO: get rid of this
 
         Ok(record)
     }

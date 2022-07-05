@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use criterion::{self, criterion_group, criterion_main, Criterion};
 use rpmrepo_metadata::{
-    utils, FilelistsXml, OtherXml, PackageParser, PrimaryXml, RepomdXml, Repository,
+    utils, FilelistsXml, OtherXml, PackageIterator, PrimaryXml, RepomdXml, Repository,
 };
 use std::io::{BufReader, Cursor, Read};
 
@@ -114,7 +114,7 @@ fn metadata_parse_benchmark(c: &mut Criterion) {
             )));
 
             let mut parser =
-                PackageParser::from_readers(primary_xml, filelists_xml, other_xml).unwrap();
+                PackageIterator::from_readers(primary_xml, filelists_xml, other_xml).unwrap();
             while let Some(pkg) = parser.parse_package().unwrap() {
                 criterion::black_box(pkg);
             }

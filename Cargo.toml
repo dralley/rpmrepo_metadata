@@ -1,12 +1,15 @@
 [package]
 name = "rpmrepo_metadata"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Daniel Alley <dalley@redhat.com>"]
 edition = "2021"
 license = "MPL-2.0"
 description = "A library for parsing RPM repository metadata."
-include = ["/src", "benches/", "pyproject.toml", "README.md"]
+include = ["/src", "/benches", "/pyproject.toml", "/README.md"]
 readme = "README.md"
+repository = "https://github.com/dralley/rpmrepo_metadata/"
+homepage = "https://github.com/dralley/rpmrepo_metadata/"
+documentation = "https://docs.rs/rpmrepo_metadata/"
 
 [features]
 python_ext = ["pyo3"]
@@ -16,7 +19,7 @@ read_rpm = ["rpm-rs"]
 quick-xml = { version = "0.23.0", default-features = false }
 # rayon = "1.5.1"
 thiserror = "1.0.30"
-niffler = { path = "/home/dalley/Devel/rpm-dev/niffler", features = ["bz2", "xz", "gz"], default-features = false }
+niffler = { version = "2.4.0", features = ["bz2", "xz", "gz"], default-features = false }
 rpm-rs = { version = "0.8.1", default-features = true, optional = true }
 # tempdir = "0.3.7"
 digest = "0.10.3"

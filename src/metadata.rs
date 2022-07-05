@@ -28,9 +28,9 @@ pub struct UpdateinfoXml;
 pub const METADATA_PRIMARY: &str = "primary";
 pub const METADATA_FILELISTS: &str = "filelists";
 pub const METADATA_OTHER: &str = "other";
-pub const METADATA_PRIMARY_ZCK: &str = "primary_zck";
-pub const METADATA_FILELISTS_ZCK: &str = "filelists_zck";
-pub const METADATA_OTHER_ZCK: &str = "other_zck";
+// pub const METADATA_PRIMARY_ZCK: &str = "primary_zck";
+// pub const METADATA_FILELISTS_ZCK: &str = "filelists_zck";
+// pub const METADATA_OTHER_ZCK: &str = "other_zck";
 pub const METADATA_UPDATEINFO: &str = "updateinfo";
 
 // TODO: probably this can / should be broken up better rather than being a kitchen sink
@@ -812,13 +812,13 @@ pub enum MetadataType {
     Filelists,
     Other,
 
-    PrimaryZck,
-    FilelistsZck,
-    OtherZck,
+    // PrimaryZck,
+    // FilelistsZck,
+    // OtherZck,
 
-    PrimaryDb,
-    FilelistsDb,
-    OtherDb,
+    // PrimaryDb,
+    // FilelistsDb,
+    // OtherDb,
 
     Unknown,
 }
@@ -830,13 +830,13 @@ impl From<&str> for MetadataType {
             METADATA_FILELISTS => MetadataType::Filelists,
             METADATA_OTHER => MetadataType::Other,
 
-            METADATA_PRIMARY_DB => MetadataType::PrimaryDb,
-            METADATA_FILELISTS_DB => MetadataType::FilelistsDb,
-            METADATA_OTHER_DB => MetadataType::OtherDb,
+            // METADATA_PRIMARY_DB => MetadataType::PrimaryDb,
+            // METADATA_FILELISTS_DB => MetadataType::FilelistsDb,
+            // METADATA_OTHER_DB => MetadataType::OtherDb,
 
-            METADATA_PRIMARY_ZCK => MetadataType::PrimaryZck,
-            METADATA_FILELISTS_ZCK => MetadataType::FilelistsZck,
-            METADATA_OTHER_ZCK => MetadataType::OtherZck,
+            // METADATA_PRIMARY_ZCK => MetadataType::PrimaryZck,
+            // METADATA_FILELISTS_ZCK => MetadataType::FilelistsZck,
+            // METADATA_OTHER_ZCK => MetadataType::OtherZck,
 
             _ => MetadataType::Unknown,
         }
@@ -933,12 +933,12 @@ impl RepomdData {
                 MetadataType::Primary => 1,
                 MetadataType::Filelists => 2,
                 MetadataType::Other => 3,
-                MetadataType::PrimaryDb => 4,
-                MetadataType::FilelistsDb => 5,
-                MetadataType::OtherDb => 6,
-                MetadataType::PrimaryZck => 7,
-                MetadataType::FilelistsZck => 8,
-                MetadataType::OtherZck => 9,
+                // MetadataType::PrimaryDb => 4,
+                // MetadataType::FilelistsDb => 5,
+                // MetadataType::OtherDb => 6,
+                // MetadataType::PrimaryZck => 7,
+                // MetadataType::FilelistsZck => 8,
+                // MetadataType::OtherZck => 9,
                 MetadataType::Unknown => 10,
             }
         }

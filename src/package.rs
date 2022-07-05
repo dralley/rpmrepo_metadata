@@ -72,7 +72,7 @@ pub mod rpm_parsing {
     }
 }
 
-pub struct PackageParser {
+pub struct PackageIterator {
     primary_xml: PrimaryXmlReader<BufReader<Box<dyn std::io::Read + Send>>>,
     filelists_xml: FilelistsXmlReader<BufReader<Box<dyn std::io::Read + Send>>>,
     other_xml: OtherXmlReader<BufReader<Box<dyn std::io::Read + Send>>>,
@@ -82,7 +82,7 @@ pub struct PackageParser {
     in_progress_package: Option<Package>,
 }
 
-impl PackageParser {
+impl PackageIterator {
     pub fn from_repodata(base: &Path, repomd: &RepomdData) -> Result<Self, MetadataError> {
         let primary_path = base.join(&repomd.get_record(METADATA_PRIMARY).unwrap().location_href);
         let filelists_path =
@@ -108,14 +108,13 @@ impl PackageParser {
         filelists_xml: FilelistsXmlReader<BufReader<Box<dyn std::io::Read + Send>>>,
         other_xml: OtherXmlReader<BufReader<Box<dyn std::io::Read + Send>>>,
     ) -> Result<Self, MetadataError> {
-        let mut parser = PackageParser {
+        let mut parser = Self {
             primary_xml,
             filelists_xml,
             other_xml,
             num_packages: 0,
             num_remaining: 0,
             in_progress_package: None,
-            // unfinished_packages: HashMap::new(),
         };
         parser.parse_headers()?;
 
@@ -177,7 +176,7 @@ impl PackageParser {
     }
 }
 
-impl Iterator for PackageParser {
+impl Iterator for PackageIterator {
     type Item = Result<Package, MetadataError>;
     fn next(&mut self) -> Option<Self::Item> {
         self.parse_package().transpose()

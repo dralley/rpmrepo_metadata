@@ -25,6 +25,6 @@ pub use metadata::{
     UpdateCollection, UpdateCollectionModule, UpdateCollectionPackage, UpdateRecord,
     UpdateReference, UpdateinfoXml,
 };
-pub use package::PackageParser;
+pub use package::PackageIterator;
 pub use repository::{Repository, RepositoryOptions, RepositoryReader, RepositoryWriter};
 pub use updateinfo::UpdateinfoXmlReader;

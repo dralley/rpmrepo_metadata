@@ -4,12 +4,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 
 use crate::updateinfo::{UpdateinfoXmlReader, UpdateinfoXmlWriter};
 use crate::UpdateinfoXml;
-use crate::{utils, PackageParser};
+use crate::{utils, PackageIterator};
 
 use super::filelist::FilelistsXmlWriter;
 use super::metadata::{
@@ -303,8 +304,6 @@ impl RepositoryWriter {
 
             num_pkgs: num_pkgs,
             num_pkgs_written: 0,
-
-            metadata_paths: metadata_paths,
 
             repomd_data: RepomdData::default(),
         })
