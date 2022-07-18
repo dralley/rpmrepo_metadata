@@ -819,7 +819,6 @@ pub enum MetadataType {
     // PrimaryDb,
     // FilelistsDb,
     // OtherDb,
-
     Unknown,
 }
 
@@ -837,7 +836,6 @@ impl From<&str> for MetadataType {
             // METADATA_PRIMARY_ZCK => MetadataType::PrimaryZck,
             // METADATA_FILELISTS_ZCK => MetadataType::FilelistsZck,
             // METADATA_OTHER_ZCK => MetadataType::OtherZck,
-
             _ => MetadataType::Unknown,
         }
     }

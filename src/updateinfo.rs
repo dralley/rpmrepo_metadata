@@ -222,12 +222,10 @@ fn parse_updaterecord<R: BufRead>(
                             Event::Start(e) if e.name().as_ref() == TAG_REFERENCE => {
                                 let mut reference = UpdateReference::default();
                                 // for attr in e.attributes() {
-                                    // let attr = attr?;
+                                // let attr = attr?;
                                 reference.href = e
                                     .try_get_attribute("href")?
-                                    .ok_or_else(|| {
-                                        MetadataError::MissingAttributeError("href")
-                                    })?
+                                    .ok_or_else(|| MetadataError::MissingAttributeError("href"))?
                                     .unescape_and_decode_value(reader)?;
                                 reference.id = e
                                     .try_get_attribute("id")?
@@ -235,15 +233,11 @@ fn parse_updaterecord<R: BufRead>(
                                     .unescape_and_decode_value(reader)?;
                                 reference.reftype = e
                                     .try_get_attribute("type")?
-                                    .ok_or_else(|| {
-                                        MetadataError::MissingAttributeError("type")
-                                    })?
+                                    .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
                                     .unescape_and_decode_value(reader)?;
                                 reference.title = e
                                     .try_get_attribute("title")?
-                                    .ok_or_else(|| {
-                                        MetadataError::MissingAttributeError("title")
-                                    })?
+                                    .ok_or_else(|| MetadataError::MissingAttributeError("title"))?
                                     .unescape_and_decode_value(reader)?;
                                 record.references.push(reference);
                             }

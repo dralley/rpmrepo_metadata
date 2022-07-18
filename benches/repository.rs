@@ -36,7 +36,6 @@ use std::io::{BufReader, Cursor, Read};
 
 const REPO_PATH: &str = "./tests/assets/external_repos/fedora35-updates/";
 
-
 /// Test parsing metadata
 ///
 /// Benchmark does not perform any IO
@@ -75,7 +74,8 @@ fn metadata_parse_benchmark(c: &mut Criterion) {
     group.bench_function("filelists_xml", |b| {
         b.iter(|| {
             let mut repo = Repository::new();
-            repo.load_metadata_bytes::<FilelistsXml>(&filelists).unwrap();
+            repo.load_metadata_bytes::<FilelistsXml>(&filelists)
+                .unwrap();
         })
     });
 
@@ -97,7 +97,8 @@ fn metadata_parse_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let mut repo = Repository::new();
             repo.load_metadata_bytes::<PrimaryXml>(&primary).unwrap();
-            repo.load_metadata_bytes::<FilelistsXml>(&filelists).unwrap();
+            repo.load_metadata_bytes::<FilelistsXml>(&filelists)
+                .unwrap();
             repo.load_metadata_bytes::<OtherXml>(&other).unwrap();
         })
     });
@@ -186,8 +187,10 @@ fn metadata_write_benchmark(c: &mut Criterion) {
         let num_pkgs = repo.packages().values().count();
 
         b.iter(|| {
-            let mut primary_xml_writer = PrimaryXml::new_writer(utils::create_xml_writer(Vec::new()));
-            let mut filelists_xml_writer = FilelistsXml::new_writer(utils::create_xml_writer(Vec::new()));
+            let mut primary_xml_writer =
+                PrimaryXml::new_writer(utils::create_xml_writer(Vec::new()));
+            let mut filelists_xml_writer =
+                FilelistsXml::new_writer(utils::create_xml_writer(Vec::new()));
             let mut other_xml_writer = OtherXml::new_writer(utils::create_xml_writer(Vec::new()));
 
             primary_xml_writer.write_header(num_pkgs).unwrap();

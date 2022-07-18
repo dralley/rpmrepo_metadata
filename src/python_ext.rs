@@ -816,9 +816,7 @@ struct UpdateinfoWriter {
 }
 
 #[pymethods]
-impl UpdateinfoWriter {
-
-}
+impl UpdateinfoWriter {}
 
 #[pyclass]
 struct EVR {

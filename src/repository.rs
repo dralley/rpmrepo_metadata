@@ -420,7 +420,7 @@ impl RepositoryWriter {
             "other",
             &other_path.as_ref(),
             &path,
-            self.options.metadata_checksum_type
+            self.options.metadata_checksum_type,
         )?;
         self.repomd_mut().add_record(other_xml);
 
@@ -435,7 +435,7 @@ impl RepositoryWriter {
                 "updateinfo",
                 &updateinfo_path.as_ref(),
                 &path,
-                self.options.metadata_checksum_type
+                self.options.metadata_checksum_type,
             )?;
             self.repomd_mut().add_record(updateinfo_xml);
         }
@@ -508,13 +508,17 @@ impl RepositoryReader {
 
         for package in packages {
             let package = package?;
-            self.repository.packages_mut().insert(package.pkgid().to_owned(), package);
+            self.repository
+                .packages_mut()
+                .insert(package.pkgid().to_owned(), package);
         }
 
         let advisories = self.iter_advisories()?;
         for advisory in advisories {
             let advisory = advisory?;
-            self.repository.advisories_mut().insert(advisory.id.to_owned(), advisory);
+            self.repository
+                .advisories_mut()
+                .insert(advisory.id.to_owned(), advisory);
         }
 
         Ok(self.repository)
