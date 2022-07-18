@@ -5,7 +5,7 @@ set -euo pipefail
 ### Download external repositories
 
 # CentOS 6
-rpmrepo download --only-metadata external_repos/centos6 https://vault.centos.org/centos/6/os/x86_64/
+rpmrepo download --only-metadata assets/external_repos/centos6 https://vault.centos.org/centos/6/os/x86_64/
 
 # CentOS 7
 rpmrepo download --only-metadata assets/external_repos/centos7 http://mirror.centos.org/centos/7/os/x86_64/
@@ -35,16 +35,16 @@ rpmrepo download --only-metadata external_repos/cs9-baseos-src http://mirror.str
 rpmrepo download --only-metadata external_repos/cs9-appstream http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/
 
 # Fedora 35
-rpmrepo download --only-metadata external_repos/fedora35 https://dl.fedoraproject.org/pub/fedora/linux/releases/35/Everything/x86_64/os/
+rpmrepo download --only-metadata external_repos/fedora36 https://dl.fedoraproject.org/pub/fedora/linux/releases/36/Everything/x86_64/os/
 
 # Fedora 35 Modular
-rpmrepo download --only-metadata external_repos/fedora35-modular https://dl.fedoraproject.org/pub/fedora/linux/releases/35/Modular/x86_64/os/
+rpmrepo download --only-metadata external_repos/fedora36-modular https://dl.fedoraproject.org/pub/fedora/linux/releases/36/Modular/x86_64/os/
 
 # Fedora 35 Updates
-rpmrepo download --only-metadata external_repos/fedora35-updates https://dl.fedoraproject.org/pub/fedora/linux/updates/35/Everything/x86_64/
+rpmrepo download --only-metadata external_repos/fedora36-updates https://dl.fedoraproject.org/pub/fedora/linux/updates/36/Everything/x86_64/
 
 # Fedora 35 Modular Updates
-rpmrepo download --only-metadata external_repos/fedora35-modular-updates https://dl.fedoraproject.org/pub/fedora/linux/updates/35/Modular/x86_64/
+rpmrepo download --only-metadata external_repos/fedora36-modular-updates https://dl.fedoraproject.org/pub/fedora/linux/updates/36/Modular/x86_64/
 
 # EPEL 7
 rpmrepo download --only-metadata external_repos/epel7 https://download.fedoraproject.org/pub/epel/7/x86_64/
@@ -62,7 +62,7 @@ rpmrepo download --only-metadata external_repos/epel9 https://download.fedorapro
 rpmrepo download --only-metadata external_repos/epel9-modular https://download.fedoraproject.org/pub/epel/9/Modular/x86_64/
 
 # RPMFusion - Fedora 35
-rpmrepo download --only-metadata external_repos/rpmfusion-f35 https://download1.rpmfusion.org/free/fedora/releases/35/Everything/x86_64/os/
+rpmrepo download --only-metadata external_repos/rpmfusion-f36 https://download1.rpmfusion.org/free/fedora/releases/36/Everything/x86_64/os/
 
 # OpenSUSE Tumbleweed
 rpmrepo download --only-metadata external_repos/opensuse-tumbleweed https://download.opensuse.org/tumbleweed/repo/oss/

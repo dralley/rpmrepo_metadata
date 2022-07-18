@@ -184,9 +184,9 @@ fn parse_header<R: BufRead>(reader: &mut Reader<R>) -> Result<usize, MetadataErr
 
 //   <package pkgid="6a915b6e1ad740994aa9688d70a67ff2b6b72e0ced668794aeb27b2d0f2e237b" name="fontconfig" arch="x86_64">
 //     <version epoch="0" ver="2.8.0" rel="5.el6"/>
-//     <changelog author="Behdad Esfahbod &lt;besfahbo@redhat.com&gt; - 2.7.2-1" date="1251720000">- Update to 2.7.2</changelog>
-//     <changelog author="Behdad Esfahbod &lt;besfahbo@redhat.com&gt; - 2.7.3-1" date="1252411200">- Update to 2.7.3</changelog>
-//     <changelog author="Behdad Esfahbod &lt;besfahbo@redhat.com&gt; - 2.8.0-1" date="1259841600">- Update to 2.8.0</changelog>
+//     <changelog author="Lucille Bluth &lt;lucille@bluthcompany.com&gt; - 2.7.2-1" date="1251720000">- Update to 2.7.2</changelog>
+//     <changelog author="Lucille Bluth &lt;lucille@bluthcompany.com&gt; - 2.7.3-1" date="1252411200">- Update to 2.7.3</changelog>
+//     <changelog author="Lucille Bluth &lt;lucille@bluthcompany.com&gt; - 2.8.0-1" date="1259841600">- Update to 2.8.0</changelog>
 //   </package>
 pub fn parse_package<R: BufRead>(
     package: &mut Option<Package>,
@@ -268,7 +268,7 @@ pub fn parse_evr<R: BufRead>(
     Ok(EVR::new(&epoch, &version, &release))
 }
 
-// <changelog author="Behdad Esfahbod &lt;besfahbo@redhat.com&gt; - 2.7.2-1" date="1251720000">- Update to 2.7.2</changelog>
+// <changelog author="Lucille Bluth &lt;lucille@bluthcompany.com&gt; - 2.7.2-1" date="1251720000">- Update to 2.7.2</changelog>
 pub fn parse_changelog<R: BufRead>(
     reader: &mut Reader<R>,
     open_tag: &BytesStart,

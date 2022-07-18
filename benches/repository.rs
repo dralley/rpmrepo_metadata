@@ -36,6 +36,7 @@ use std::io::{BufReader, Cursor, Read};
 
 const REPO_PATH: &str = "./tests/assets/external_repos/fedora35-updates/";
 
+
 /// Test parsing metadata
 ///
 /// Benchmark does not perform any IO
