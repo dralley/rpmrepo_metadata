@@ -10,12 +10,61 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  lint:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
+
+    - name: Check formatting
+      run: cargo fmt -- --check
+
+  # build_test_fixtures:
+  #   runs-on: ubuntu-latest
+  #   container: fedora:latest
+  #   steps:
+  #   - uses: actions/checkout@v3
+
+  #   # - name: Cache test fixtures
+  #   #   id: cache-fixtures
+  #   #   uses: actions/cache@v2
+  #   #   with:
+  #   #     path: cache-fixtures
+  #   #     key: ${{ runner.os }}-primes
+
+  #   - name: Build test fixtures
+  #     # if: steps.cache-fixtures.outputs.cache-hit != 'true'
+  #     run: |
+  #       sudo dnf install -y createrepo_c
+  #       pushd ./tests/assets/
+  #       sh ./build_fixtures.sh
+  #       popd
+
+  #   - name: Upload test fixtures
+  #     uses: actions/upload-artifact@v3
+  #     with:
+  #       name: my-artifact
+  #       path: tests/assets/
+  #       retention-days: 1
+
+  test:
+    # needs: build_test_fixtures
+    strategy:
+      matrix:
+        os: [ubuntu-latest]  # todo: windows-latest doesn't work yet because I'm using unix MetadataExt
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@v1
+      with:
+        toolchain: stable
+        components: rustfmt
+
+    - name: Download all workflow run artifacts e.g. test fixtures
+      uses: actions/download-artifact@v3
+      with:
+        path: ./tests/assets/
 
     - name: Build
       run: cargo build --verbose

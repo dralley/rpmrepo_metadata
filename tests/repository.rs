@@ -14,6 +14,7 @@ mod common;
 static COMPLEX_REPO_PATH: &str = "./tests/assets/fixture_repos/complex_repo/";
 
 #[test]
+#[ignore = "Have to upload packages before this will work"]
 fn test_repository_complex_repo() -> Result<(), MetadataError> {
     use pretty_assertions::assert_eq;
     let repo = Repository::load_from_directory(COMPLEX_REPO_PATH.as_ref())?;
@@ -49,6 +50,7 @@ fn test_repository_complex_repo() -> Result<(), MetadataError> {
 }
 
 #[test]
+#[ignore = "Have to upload packages before this will work"]
 fn test_repository_reader_iter_packages() -> Result<(), MetadataError> {
     use pretty_assertions::assert_eq;
 

@@ -81,6 +81,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "TODO: Have to upload the RPMs before this will work"]
     fn test_deserialization() -> Result<(), MetadataError> {
         let actual =
             RepomdXml::read_data(utils::xml_reader_from_file(Path::new(FIXTURE_REPOMD_PATH))?)?;
@@ -125,6 +126,7 @@ mod tests {
 
     /// Test Serialization on a real repomd.xml
     #[test]
+    #[ignore = "TODO: Have to upload the RPMs before this will work"]
     fn test_serialization() -> Result<(), MetadataError> {
         let mut buffer = Vec::new();
         RepomdXml::write_data(fixture_data(), &mut utils::create_xml_writer(&mut buffer))?;
@@ -139,6 +141,7 @@ mod tests {
 
     /// Test roundtrip (serialize + deserialize) on a real repomd.xml
     #[test]
+    #[ignore = "TODO: Have to upload the RPMs before this will work"]
     fn test_roundtrip() -> Result<(), MetadataError> {
         let mut first_buffer = Vec::new();
         let mut second_buffer = Vec::new();
