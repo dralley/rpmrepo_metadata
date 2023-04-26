@@ -263,7 +263,7 @@ impl RepositoryWriter {
         Self::new_with_options(path, num_pkgs, RepositoryOptions::default())
     }
 
-    /// Constructur for a new [`RepositoryWriter`] with user-provided options. See [`RepositoryOptions`].
+    /// Constructor for a new [`RepositoryWriter`] with user-provided options. See [`RepositoryOptions`].
     pub fn new_with_options(
         path: &Path,
         num_pkgs: usize,
