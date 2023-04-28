@@ -200,7 +200,7 @@ impl Default for RepositoryOptions {
     fn default() -> Self {
         Self {
             simple_metadata_filenames: false,
-            metadata_compression_type: CompressionType::Gzip,
+            metadata_compression_type: CompressionType::Zstd,
             metadata_checksum_type: ChecksumType::Sha256,
             package_checksum_type: ChecksumType::Sha256,
         }
@@ -263,7 +263,7 @@ impl RepositoryWriter {
         Self::new_with_options(path, num_pkgs, RepositoryOptions::default())
     }
 
-    /// Constructur for a new [`RepositoryWriter`] with user-provided options. See [`RepositoryOptions`].
+    /// Constructor for a new [`RepositoryWriter`] with user-provided options. See [`RepositoryOptions`].
     pub fn new_with_options(
         path: &Path,
         num_pkgs: usize,

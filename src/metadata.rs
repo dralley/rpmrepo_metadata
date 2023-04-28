@@ -107,6 +107,7 @@ pub enum CompressionType {
     Gzip,
     Xz,
     Bz2,
+    Zstd,
 }
 
 impl CompressionType {
@@ -116,6 +117,7 @@ impl CompressionType {
             CompressionType::Gzip => ".gz",
             CompressionType::Xz => ".xz",
             CompressionType::Bz2 => ".bz2",
+            CompressionType::Zstd => ".zst",
         }
     }
 }
@@ -128,6 +130,7 @@ impl TryInto<CompressionType> for &str {
             "gzip" => Ok(CompressionType::Gzip),
             "bz2" => Ok(CompressionType::Bz2),
             "xz" => Ok(CompressionType::Xz),
+            "zstd" => Ok(CompressionType::Zstd),
             "none" => Ok(CompressionType::None),
             _ => Err(MetadataError::UnsupportedChecksumTypeError(self.to_owned())),
         }

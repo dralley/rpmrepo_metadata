@@ -13,14 +13,14 @@ documentation = "https://docs.rs/rpmrepo_metadata/"
 
 [features]
 python_ext = ["pyo3"]
-read_rpm = ["rpm-rs"]
+read_rpm = ["rpm"]
 
 [dependencies]
 quick-xml = { version = "0.23.0", default-features = false }
 # rayon = "1.5.1"
 thiserror = "1.0.30"
-niffler = { version = "2.4.0", features = ["bz2", "xz", "gz"], default-features = false }
-rpm-rs = { version = "0.8.1", default-features = true, optional = true }
+niffler = { version = "2.4.0", features = ["bz2", "xz", "gz", "zstd"], default-features = false }
+rpm = { version = "0.9.0", default-features = true, optional = true }
 # tempdir = "0.3.7"
 digest = "0.10.3"
 sha1 = "0.10.1"
@@ -29,7 +29,7 @@ md-5 = "0.10.1"
 # bitflags = "1.3.2"
 hex = "0.4.3"
 indexmap = "1.8.0"
-pyo3 = { version = "0.16.5", features = ["extension-module"], optional = true }
+pyo3 = { version = "0.18.1", features = ["extension-module"], optional = true }
 
 [lib]
 name = "rpmrepo_metadata"

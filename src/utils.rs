@@ -134,6 +134,7 @@ pub fn writer_to_file(
         CompressionType::Gzip => niffler::send::compression::Format::Gzip,
         CompressionType::Xz => niffler::send::compression::Format::Lzma,
         CompressionType::Bz2 => niffler::send::compression::Format::Bzip,
+        CompressionType::Zstd => niffler::send::compression::Format::Zstd,
     };
     let writer = niffler::send::to_path(&filename, format, niffler::Level::Nine)?;
     Ok((filename, writer))

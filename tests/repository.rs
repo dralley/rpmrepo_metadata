@@ -118,6 +118,43 @@ fn test_read_write_uncompressed() -> Result<(), MetadataError> {
 }
 
 #[test]
+fn test_read_write_zstd_compressed() -> Result<(), MetadataError> {
+    let tmp_dir = TempDir::new("test_repository_writer")?;
+    let test_repodata_dir = tmp_dir.path().join("repodata");
+
+    let options = RepositoryOptions::default()
+        .metadata_checksum_type(rpmrepo_metadata::ChecksumType::Sha1)
+        .metadata_compression_type(rpmrepo_metadata::CompressionType::Zstd);
+    let mut repo_writer = RepositoryWriter::new_with_options(&tmp_dir.path(), 1, options)?;
+    repo_writer.add_package(&*common::COMPLEX_PACKAGE)?;
+    repo_writer.finish()?;
+
+    assert!(
+        test_repodata_dir.exists(),
+        "A repodata/ directory wasn't created for the repo"
+    );
+    assert!(
+        test_repodata_dir.join("primary.xml.zst").exists(),
+        "primary.xml.zst is missing"
+    );
+    assert!(
+        test_repodata_dir.join("filelists.xml.zst").exists(),
+        "filelists.xml.zst is missing"
+    );
+    assert!(
+        test_repodata_dir.join("other.xml.zst").exists(),
+        "other.xml.zst is missing"
+    );
+
+    let repo = Repository::load_from_directory(&tmp_dir.path())?;
+    let mut packages_iter = repo.packages().iter().map(|(_, p)| p);
+
+    assert_eq!(packages_iter.next(), Some(&*common::COMPLEX_PACKAGE));
+
+    Ok(())
+}
+
+#[test]
 fn test_read_write_xz_compressed() -> Result<(), MetadataError> {
     let tmp_dir = TempDir::new("test_repository_writer")?;
     let test_repodata_dir = tmp_dir.path().join("repodata");
