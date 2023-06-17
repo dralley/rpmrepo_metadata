@@ -160,7 +160,7 @@ pub struct Package {
     // pub(crate) parse_state: ParseState,
     pub name: String,
     pub arch: String,
-    pub evr: EVR,
+    pub evr: EVR<'static>,
     pub checksum: Checksum,
     pub location_href: String,
     pub location_base: Option<String>,
@@ -205,7 +205,12 @@ impl Package {
         Package {
             name: name.to_owned(),
             arch: arch.to_owned(),
-            evr: version.clone(), // TODO
+            // TODO: https://github.com/rust-lang/rust/issues/107115
+            evr: EVR::new(
+                version.epoch().to_owned(),
+                version.version().to_owned(),
+                version.release().to_owned(),
+            ),
             checksum: checksum.clone(),
             location_href: location_href.to_owned(),
             ..Package::default()
@@ -221,17 +226,17 @@ impl Package {
         &self.name
     }
 
-    pub fn set_epoch(&mut self, epoch: i32) -> &mut Self {
-        self.evr.epoch = epoch.to_string();
+    pub fn set_epoch(&mut self, epoch: u32) -> &mut Self {
+        self.evr.epoch = epoch.to_string().into();
         self
     }
 
-    pub fn epoch(&self) -> i32 {
+    pub fn epoch(&self) -> u32 {
         self.evr.epoch.parse().expect("TODO: don't do this")
     }
 
     pub fn set_version(&mut self, version: impl Into<String>) -> &mut Self {
-        self.evr.version = version.into();
+        self.evr.version = version.into().into();
         self
     }
 
@@ -240,7 +245,7 @@ impl Package {
     }
 
     pub fn set_release(&mut self, release: impl Into<String>) -> &mut Self {
-        self.evr.release = release.into();
+        self.evr.release = release.into().into();
         self
     }
 
@@ -258,7 +263,13 @@ impl Package {
     }
 
     // TODO: signature
+    // TODO: https://github.com/rust-lang/rust/issues/107115
     pub fn set_evr(&mut self, evr: EVR) -> &mut Self {
+        let evr = EVR::new(
+            evr.epoch().to_owned(),
+            evr.version().to_owned(),
+            evr.release().to_owned(),
+        );
         self.evr = evr;
         self
     }

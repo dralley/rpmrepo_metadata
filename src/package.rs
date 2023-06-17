@@ -16,59 +16,204 @@ use crate::{FilelistsXml, MetadataError, OtherXml, Package, PrimaryXml};
 
 #[cfg(feature = "read_rpm")]
 pub mod rpm_parsing {
+    use std::fs::File;
+    use std::time::SystemTime;
+
+    use crate::{Changelog, ChecksumType, PackageFile, Requirement, EVR};
+
     use super::*;
-    use rpm::{self, Header};
+    use rpm::{DependencyFlags, FileEntry, Header};
 
-    impl TryFrom<rpm::RPMPackage> for Package {
-        type Error = rpm::RPMError;
+    impl TryFrom<rpm::Dependency> for Requirement {
+        type Error = MetadataError;
 
-        fn try_from(pkg: rpm::RPMPackage) -> Result<Package, Self::Error> {
-            let mut pkg_metadata = Package::default();
-            pkg_metadata.set_name(pkg.metadata.header.get_name()?);
-            pkg_metadata.set_arch(pkg.metadata.header.get_arch()?);
-            pkg_metadata.set_epoch(pkg.metadata.header.get_epoch()?);
-            pkg_metadata.set_version(pkg.metadata.header.get_version()?);
-            pkg_metadata.set_release(pkg.metadata.header.get_release()?);
+        fn try_from(d: rpm::Dependency) -> Result<Self, Self::Error> {
+            let flags = if d.flags.contains(DependencyFlags::GE) {
+                Some("GE".to_owned())
+            } else if d.flags.contains(DependencyFlags::LE) {
+                Some("LE".to_owned())
+            } else if d.flags.contains(DependencyFlags::EQUAL) {
+                Some("EQ".to_owned())
+            } else if d.flags.contains(DependencyFlags::LESS) {
+                Some("LT".to_owned())
+            } else if d.flags.contains(DependencyFlags::GREATER) {
+                Some("GT".to_owned())
+            } else {
+                None
+            };
 
-            //     checksum: todo!(),
-            //     location_href: todo!(),
-            //     summary: todo!(),
-            //     description: todo!(),
-            //     packager: todo!(),
-            //     url: todo!(),
-            //     time: todo!(),
-            //     size: todo!(),
+            let pre = d.flags
+                & (DependencyFlags::SCRIPT_PRE
+                    | DependencyFlags::SCRIPT_POST
+                    | DependencyFlags::PREREQ);
 
-            //     rpm_license: todo!(),
-            //     rpm_vendor: todo!(),
-            //     rpm_group: todo!(),
-            //     rpm_buildhost: todo!(),
-            //     rpm_sourcerpm: todo!(),
-            //     rpm_header_range: todo!(),
+            let evr = EVR::parse(&d.version);
 
-            //     rpm_requires: todo!(),
-            //     rpm_provides: todo!(),
-            //     rpm_conflicts: todo!(),
-            //     rpm_obsoletes: todo!(),
-            //     rpm_suggests: todo!(),
-            //     rpm_enhances: todo!(),
-            //     rpm_recommends: todo!(),
-            //     rpm_supplements: todo!(),
+            let epoch = if evr.epoch().is_empty() {
+                if d.version.is_empty() {
+                    None
+                } else {
+                    Some("0".to_string())
+                }
+            } else {
+                Some(evr.epoch.to_string())
+            };
+            let version = if evr.version().is_empty() && d.version.is_empty() {
+                None
+            } else {
+                Some(evr.version.to_string())
+            };
+            let release = if evr.release().is_empty() {
+                None
+            } else {
+                Some(evr.release.to_string())
+            };
 
-            //     rpm_changelogs: todo!(),
-            //     rpm_files: todo!(),
-            // };
-
-            Ok(pkg_metadata)
+            Ok(Requirement {
+                name: d.name,
+                flags,
+                epoch,
+                version,
+                release,
+                preinstall: !pre.is_empty(),
+            })
         }
     }
 
-    pub fn load_rpm_package(path: &Path) -> Result<Package, MetadataError> {
-        let rpm_file = std::fs::File::open(path)?;
-        let mut buf_reader = std::io::BufReader::new(rpm_file);
-        let pkg = rpm::RPMPackage::parse(&mut buf_reader)?;
+    impl From<rpm::ChangelogEntry> for Changelog {
+        fn from(value: rpm::ChangelogEntry) -> Self {
+            Changelog {
+                author: value.name,
+                timestamp: value.timestamp,
+                description: value.description,
+            }
+        }
+    }
 
-        Ok(Package::try_from(pkg)?)
+    impl From<rpm::FileEntry> for PackageFile {
+        fn from(value: rpm::FileEntry) -> Self {
+            let ft = if value.flags.contains(rpm::FileFlags::GHOST) {
+                crate::FileType::Ghost
+            } else {
+                match value.mode {
+                    rpm::FileMode::Dir { .. } => crate::FileType::Dir,
+                    rpm::FileMode::Regular { .. } => crate::FileType::File,
+                    _ => unreachable!("Failed to detect file type"),
+                }
+            };
+            let path = value
+                .path
+                .into_os_string()
+                .into_string()
+                .expect("failed to convert PathBuf to String");
+            PackageFile { filetype: ft, path }
+        }
+    }
+
+    // todo: restrict # of changelogs
+    // todo: location_href, location_base
+    // todo: checksum type
+    pub fn load_rpm_package(path: &str) -> Result<Package, MetadataError> {
+        let file = File::open(&path)?;
+        let file_metadata = file.metadata()?;
+
+        let pkg = rpm::RPMPackageMetadata::parse(&mut BufReader::new(&file))?;
+
+        let mut pkg_metadata = Package::default();
+
+        pkg_metadata.set_name(pkg.get_name()?);
+
+        let arch = if pkg.is_source_package() {
+            "src"
+        } else {
+            pkg.get_arch()?
+        };
+
+        // TODO: handle tags that aren't guaranteed to exist
+        // like url, description, time_build, group, etc.
+        pkg_metadata.set_arch(arch);
+        pkg_metadata.set_epoch(pkg.get_epoch().unwrap_or(0));
+        pkg_metadata.set_version(pkg.get_version()?);
+        pkg_metadata.set_release(pkg.get_release()?);
+
+        pkg_metadata.set_summary(pkg.get_summary()?);
+        pkg_metadata.set_description(pkg.get_description()?);
+        pkg_metadata.set_packager(pkg.get_packager()?);
+        pkg_metadata.set_url(pkg.get_url()?);
+        pkg_metadata.set_description(pkg.get_description()?);
+        pkg_metadata.set_time_build(pkg.get_build_time()?);
+        pkg_metadata.set_rpm_license(pkg.get_license()?);
+        pkg_metadata.set_rpm_vendor(pkg.get_vendor()?);
+        pkg_metadata.set_rpm_group(pkg.get_group()?);
+        pkg_metadata.set_rpm_buildhost(pkg.get_build_host()?);
+        pkg_metadata.set_rpm_sourcerpm(pkg.get_source_rpm()?);
+
+        let archive_size = pkg
+            .signature
+            .get_entry_data_as_u64(rpm::IndexSignatureTag::RPMSIGTAG_LONGARCHIVESIZE)
+            .unwrap_or_else(|_| {
+                pkg.signature
+                    .get_entry_data_as_u32(rpm::IndexSignatureTag::RPMSIGTAG_PAYLOADSIZE)
+                    .unwrap_or(0) as u64
+            });
+        pkg_metadata.set_size_archive(archive_size);
+        pkg_metadata.set_size_installed(pkg.get_installed_size()?);
+
+        fn convert_deps(
+            requirements: Vec<rpm::Dependency>,
+        ) -> Result<Vec<Requirement>, MetadataError> {
+            let mut out = Vec::new();
+            for r in requirements.into_iter() {
+                if r.name.starts_with("rpmlib(") {
+                    continue;
+                }
+                out.push(r.try_into()?)
+            }
+            Ok(out)
+        }
+        // todo: only apply rpmlib filter to requires
+        // todo: deduplicate requires with provides, remove provided deps from requires
+        pkg_metadata.set_requires(convert_deps(pkg.get_requires()?)?);
+        pkg_metadata.set_provides(convert_deps(pkg.get_provides()?)?);
+        pkg_metadata.set_conflicts(convert_deps(pkg.get_conflicts()?)?);
+        pkg_metadata.set_obsoletes(convert_deps(pkg.get_obsoletes()?)?);
+        pkg_metadata.set_suggests(convert_deps(pkg.get_suggests()?)?);
+        pkg_metadata.set_enhances(convert_deps(pkg.get_enhances()?)?);
+        pkg_metadata.set_recommends(convert_deps(pkg.get_recommends()?)?);
+        pkg_metadata.set_supplements(convert_deps(pkg.get_supplements()?)?);
+
+        // todo: restrict number
+        let mut changelogs: Vec<Changelog> = Vec::new();
+        for f in pkg.get_changelog_entries()?.into_iter() {
+            changelogs.push(f.into())
+        }
+        changelogs.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+        pkg_metadata.set_changelogs(changelogs);
+
+        // todo: filter files
+        let mut files: Vec<PackageFile> = Vec::new();
+        for f in pkg.get_file_entries()?.into_iter() {
+            files.push(f.into())
+        }
+        pkg_metadata.set_files(files);
+
+        pkg_metadata.set_checksum(utils::checksum_file(Path::new(path), ChecksumType::Sha256)?);
+        pkg_metadata.set_location_href(path);
+
+        let file_size = file_metadata.len();
+        let unix_timestamp = file_metadata
+            .modified()?
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        pkg_metadata.set_size_package(file_size);
+        pkg_metadata.set_time_file(unix_timestamp);
+
+        let offsets = pkg.get_package_segment_offsets();
+        pkg_metadata.set_rpm_header_range(offsets.header, offsets.payload);
+
+        Ok(pkg_metadata)
     }
 }
 

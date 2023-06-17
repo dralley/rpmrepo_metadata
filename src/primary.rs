@@ -182,7 +182,7 @@ pub fn parse_package<R: BufRead>(
                         .unescape_and_decode_value(reader)?;
 
                     // TODO: temporary conversions
-                    let evr = EVR::new(epoch.as_str(), version.as_str(), release.as_str());
+                    let evr = EVR::new(epoch, version, release);
                     package.as_mut().unwrap().set_evr(evr);
                 }
                 TAG_CHECKSUM => {

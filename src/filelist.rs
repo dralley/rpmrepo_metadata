@@ -258,7 +258,7 @@ pub fn parse_package<R: BufRead>(
 pub fn parse_evr<R: BufRead>(
     reader: &mut Reader<R>,
     open_tag: &BytesStart,
-) -> Result<EVR, MetadataError> {
+) -> Result<EVR<'static>, MetadataError> {
     let epoch = open_tag
         .try_get_attribute("epoch")?
         .ok_or_else(|| MetadataError::MissingAttributeError("epoch"))?
@@ -272,8 +272,7 @@ pub fn parse_evr<R: BufRead>(
         .ok_or_else(|| MetadataError::MissingAttributeError("rel"))?
         .unescape_and_decode_value(reader)?;
 
-    // TODO: unnecessary allocations
-    Ok(EVR::new(&epoch, &version, &release))
+    Ok(EVR::new(epoch, version, release))
 }
 
 // <file type="dir">/etc/fonts/conf.avail</file>

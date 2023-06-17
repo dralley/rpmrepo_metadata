@@ -20,8 +20,8 @@ mod python_ext;
 
 pub use common::EVR;
 pub use metadata::{
-    Checksum, ChecksumType, CompressionType, FileType, FilelistsXml, MetadataError, OtherXml,
-    Package, PackageFile, PrimaryXml, RepomdData, RepomdRecord, RepomdXml, Requirement,
+    Changelog, Checksum, ChecksumType, CompressionType, FileType, FilelistsXml, MetadataError,
+    OtherXml, Package, PackageFile, PrimaryXml, RepomdData, RepomdRecord, RepomdXml, Requirement,
     UpdateCollection, UpdateCollectionModule, UpdateCollectionPackage, UpdateRecord,
     UpdateReference, UpdateinfoXml,
 };

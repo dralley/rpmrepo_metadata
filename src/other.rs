@@ -250,7 +250,7 @@ pub fn parse_package<R: BufRead>(
 pub fn parse_evr<R: BufRead>(
     reader: &mut Reader<R>,
     open_tag: &BytesStart,
-) -> Result<EVR, MetadataError> {
+) -> Result<EVR<'static>, MetadataError> {
     let epoch = open_tag
         .try_get_attribute("epoch")?
         .unwrap()
@@ -264,8 +264,7 @@ pub fn parse_evr<R: BufRead>(
         .unwrap()
         .unescape_and_decode_value(reader)?;
 
-    // TODO: double-allocations
-    Ok(EVR::new(&epoch, &version, &release))
+    Ok(EVR::new(epoch, version, release))
 }
 
 // <changelog author="Lucille Bluth &lt;lucille@bluthcompany.com&gt; - 2.7.2-1" date="1251720000">- Update to 2.7.2</changelog>

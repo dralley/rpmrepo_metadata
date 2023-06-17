@@ -18,10 +18,10 @@ mod common;
 pub const COMPLEX_PKG_PATH: &str = "./tests/assets/packages/complex-package-2.3.4-5.el8.x86_64.rpm";
 
 #[test]
-#[cfg(feature = "read_rpm")]
 fn test_read_rpm_from_file() -> Result<(), MetadataError> {
-    let pkg = utils::load_rpm_package(Path::new(COMPLEX_PKG_PATH));
-    assert_eq!(&pkg.unwrap(), &*common::COMPLEX_PACKAGE);
+    let mut pkg = utils::load_rpm_package(COMPLEX_PKG_PATH)?;
+    pkg.location_href = "complex-package-2.3.4-5.el8.x86_64.rpm".to_owned();
+    assert_eq!(&pkg, &*common::COMPLEX_PACKAGE);
 
     Ok(())
 }
