@@ -118,7 +118,7 @@ impl<W: Write> OtherXmlWriter<W> {
             self.writer
                 .create_element(TAG_CHANGELOG)
                 .with_attribute(("author", changelog.author.as_str()))
-                .with_attribute(("date", changelog.date.to_string().as_str()))
+                .with_attribute(("date", changelog.timestamp.to_string().as_str()))
                 .write_text_content(BytesText::from_escaped(partial_escape(
                     &changelog.description.as_bytes(),
                 )))?;
@@ -232,7 +232,7 @@ pub fn parse_package<R: BufRead>(
                     package.as_mut().unwrap().add_changelog(
                         &changelog.author,
                         &changelog.description,
-                        changelog.date,
+                        changelog.timestamp,
                     );
                 }
                 _ => (),
@@ -278,7 +278,7 @@ pub fn parse_changelog<R: BufRead>(
         .try_get_attribute("author")?
         .unwrap()
         .unescape_and_decode_value(reader)?;
-    changelog.date = open_tag
+    changelog.timestamp = open_tag
         .try_get_attribute("date")?
         .unwrap()
         .unescape_and_decode_value(reader)?

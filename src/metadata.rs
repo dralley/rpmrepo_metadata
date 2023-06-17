@@ -560,7 +560,7 @@ impl Package {
     pub fn add_changelog(&mut self, author: &str, description: &str, date: u64) -> &mut Self {
         self.rpm_changelogs.push(Changelog {
             author: author.to_owned(),
-            date: date,
+            timestamp: date,
             description: description.to_owned(),
         });
         self
@@ -722,7 +722,7 @@ impl Checksum {
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct Changelog {
     pub author: String,
-    pub date: u64,
+    pub timestamp: u64,
     pub description: String,
 }
 
