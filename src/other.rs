@@ -250,7 +250,7 @@ pub fn parse_package<R: BufRead>(
 pub fn parse_evr<R: BufRead>(
     reader: &mut Reader<R>,
     open_tag: &BytesStart,
-) -> Result<EVR<'static>, MetadataError> {
+) -> Result<EVR, MetadataError> {
     let epoch = open_tag
         .try_get_attribute("epoch")?
         .unwrap()

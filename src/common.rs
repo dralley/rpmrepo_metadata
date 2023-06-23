@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt;
 
@@ -23,14 +22,14 @@ use std::fmt;
 /// not directly associated with an upstream release and will force it to sort higher, e.g.
 /// 0.5.0 vs 0.5.0^deadbeef
 #[derive(Debug, Eq, Default, Clone)]
-pub struct EVR<'a> {
-    pub epoch: Cow<'a, str>,
-    pub version: Cow<'a, str>,
-    pub release: Cow<'a, str>,
+pub struct EVR {
+    pub epoch: String,
+    pub version: String,
+    pub release: String,
 }
 
-impl<'a> EVR<'a> {
-    pub fn new<T: Into<Cow<'a, str>>>(epoch: T, version: T, release: T) -> EVR<'a> {
+impl EVR {
+    pub fn new<T: Into<String>>(epoch: T, version: T, release: T) -> EVR {
         EVR {
             epoch: epoch.into(),
             version: version.into(),
@@ -54,25 +53,25 @@ impl<'a> EVR<'a> {
         (&self.epoch, &self.version, &self.release)
     }
 
-    pub fn parse_values(evr: &'a str) -> (&'a str, &'a str, &'a str) {
+    pub fn parse_values(evr: & str) -> (& str, & str, & str) {
         let (epoch, vr) = evr.split_once(':').unwrap_or(evr.split_at(0));
         let (version, release) = vr.split_once('-').unwrap_or((vr, ""));
 
         (epoch, version, release)
     }
 
-    pub fn parse(evr: &'a str) -> Self {
+    pub fn parse(evr: & str) -> Self {
         EVR::parse_values(evr).into()
     }
 }
 
-impl<'a> From<(&'a str, &'a str, &'a str)> for EVR<'a> {
-    fn from(val: (&'a str, &'a str, &'a str)) -> Self {
+impl From<(&str, &str, &str)> for EVR {
+    fn from(val: (&str, &str, &str)) -> Self {
         EVR::new(val.0, val.1, val.2)
     }
 }
 
-impl<'a> PartialEq for EVR<'a> {
+impl PartialEq for EVR {
     fn eq(&self, other: &Self) -> bool {
         ((self.epoch == other.epoch)
             || (self.epoch == "" && other.epoch == "0")
@@ -82,7 +81,7 @@ impl<'a> PartialEq for EVR<'a> {
     }
 }
 
-impl<'a> fmt::Display for EVR<'a> {
+impl fmt::Display for EVR {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if !self.epoch.is_empty() {
             write!(f, "{}:", self.epoch)?;
@@ -92,13 +91,13 @@ impl<'a> fmt::Display for EVR<'a> {
     }
 }
 
-impl<'a> PartialOrd for EVR<'a> {
+impl PartialOrd for EVR  {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<'a> Ord for EVR<'a> {
+impl Ord for EVR {
     fn cmp(&self, other: &Self) -> Ordering {
         let epoch_1 = if self.epoch.is_empty() {
             "0"

@@ -101,7 +101,7 @@ pub trait RpmMetadata {
 
 // TODO: Trait impl tests https://github.com/rust-lang/rfcs/issues/616
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CompressionType {
     None,
     Gzip,
@@ -160,7 +160,7 @@ pub struct Package {
     // pub(crate) parse_state: ParseState,
     pub name: String,
     pub arch: String,
-    pub evr: EVR<'static>,
+    pub evr: EVR,
     pub checksum: Checksum,
     pub location_href: String,
     pub location_base: Option<String>,
