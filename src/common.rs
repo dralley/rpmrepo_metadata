@@ -53,14 +53,14 @@ impl EVR {
         (&self.epoch, &self.version, &self.release)
     }
 
-    pub fn parse_values(evr: & str) -> (& str, & str, & str) {
+    pub fn parse_values(evr: &str) -> (&str, &str, &str) {
         let (epoch, vr) = evr.split_once(':').unwrap_or(evr.split_at(0));
         let (version, release) = vr.split_once('-').unwrap_or((vr, ""));
 
         (epoch, version, release)
     }
 
-    pub fn parse(evr: & str) -> Self {
+    pub fn parse(evr: &str) -> Self {
         EVR::parse_values(evr).into()
     }
 }
@@ -91,7 +91,7 @@ impl fmt::Display for EVR {
     }
 }
 
-impl PartialOrd for EVR  {
+impl PartialOrd for EVR {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }

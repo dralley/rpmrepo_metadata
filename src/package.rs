@@ -22,30 +22,30 @@ pub mod rpm_parsing {
     use crate::{Changelog, ChecksumType, PackageFile, Requirement, EVR};
 
     use super::*;
-    use rpm::{DependencyFlags, FileEntry, Header};
+    use rpm;
 
     impl TryFrom<rpm::Dependency> for Requirement {
         type Error = MetadataError;
 
         fn try_from(d: rpm::Dependency) -> Result<Self, Self::Error> {
-            let flags = if d.flags.contains(DependencyFlags::GE) {
+            let flags = if d.flags.contains(rpm::DependencyFlags::GE) {
                 Some("GE".to_owned())
-            } else if d.flags.contains(DependencyFlags::LE) {
+            } else if d.flags.contains(rpm::DependencyFlags::LE) {
                 Some("LE".to_owned())
-            } else if d.flags.contains(DependencyFlags::EQUAL) {
+            } else if d.flags.contains(rpm::DependencyFlags::EQUAL) {
                 Some("EQ".to_owned())
-            } else if d.flags.contains(DependencyFlags::LESS) {
+            } else if d.flags.contains(rpm::DependencyFlags::LESS) {
                 Some("LT".to_owned())
-            } else if d.flags.contains(DependencyFlags::GREATER) {
+            } else if d.flags.contains(rpm::DependencyFlags::GREATER) {
                 Some("GT".to_owned())
             } else {
                 None
             };
 
             let pre = d.flags
-                & (DependencyFlags::SCRIPT_PRE
-                    | DependencyFlags::SCRIPT_POST
-                    | DependencyFlags::PREREQ);
+                & (rpm::DependencyFlags::SCRIPT_PRE
+                    | rpm::DependencyFlags::SCRIPT_POST
+                    | rpm::DependencyFlags::PREREQ);
 
             let evr = EVR::parse(&d.version);
 
@@ -117,7 +117,7 @@ pub mod rpm_parsing {
         let file = File::open(&path)?;
         let file_metadata = file.metadata()?;
 
-        let pkg = rpm::RPMPackageMetadata::parse(&mut BufReader::new(&file))?;
+        let pkg = rpm::PackageMetadata::parse(&mut BufReader::new(&file))?;
 
         let mut pkg_metadata = Package::default();
 

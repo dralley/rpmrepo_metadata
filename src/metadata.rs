@@ -38,7 +38,7 @@ pub const METADATA_UPDATEINFO: &str = "updateinfo";
 pub enum MetadataError {
     #[cfg(feature = "read_rpm")]
     #[error(transparent)]
-    RpmReadError(#[from] rpm::RPMError),
+    RpmReadError(#[from] rpm::Error),
     #[error(transparent)]
     XmlParseError(#[from] quick_xml::Error),
     #[error(transparent)]
