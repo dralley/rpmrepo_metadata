@@ -188,7 +188,7 @@ impl Repository {
 /// - `metadata_compression_type` - The type of compression to use for repository metadata.
 /// - `metadata_checksum_type` - The type of checksums to use for metadata.
 /// - `package_checksum_type` - The type of checksums to use for packages.
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct RepositoryOptions {
     pub simple_metadata_filenames: bool,
     pub metadata_compression_type: CompressionType,

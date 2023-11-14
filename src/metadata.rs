@@ -6,6 +6,7 @@
 
 use std::convert::TryInto;
 use std::io::{BufRead, Write};
+use std::hash::{Hash, Hasher};
 use std::os::unix::prelude::MetadataExt;
 use std::path::{Path, PathBuf};
 
@@ -155,7 +156,7 @@ impl TryInto<CompressionType> for &str {
 //     }
 // }
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Clone, Default, Debug, PartialEq, Hash)]
 pub struct Package {
     // pub(crate) parse_state: ParseState,
     pub name: String,
@@ -576,7 +577,7 @@ impl Package {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ChecksumType {
     Md5,
     Sha1,
@@ -593,7 +594,7 @@ impl Default for ChecksumType {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Checksum {
     Md5(String),
     Sha1(String),
@@ -608,6 +609,23 @@ pub enum Checksum {
 impl Default for Checksum {
     fn default() -> Self {
         Checksum::Empty
+    }
+}
+
+impl Hash for Checksum {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Md5(hash) => format!("md5:{}", hash).hash(state),
+            Self::Sha1(hash) => format!("sha1:{}", hash).hash(state),
+            Self::Sha224(hash) => format!("sha224:{}", hash).hash(state),
+            Self::Sha256(hash) => format!("sha256:{}", hash).hash(state),
+            Self::Sha384(hash) => format!("sha384:{}", hash).hash(state),
+            Self::Sha512(hash) => format!("sha512:{}", hash).hash(state),
+            // TODO: adjust this representation. Currently these exist because of reuse of these enums
+            // to represent intermediate parsing states, but those probably ought to be pulled out somehow
+            Self::Unknown(hash) => unimplemented!(),
+            Self::Empty => unimplemented!(),
+        }
     }
 }
 
@@ -719,21 +737,21 @@ impl Checksum {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct Changelog {
     pub author: String,
     pub timestamp: u64,
     pub description: String,
 }
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Copy, Clone, Debug, Default, Hash, PartialEq)]
 pub struct HeaderRange {
     pub start: u64,
     pub end: u64,
 }
 
 // Requirement (Provides, Conflicts, Obsoletes, Requires).
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct Requirement {
     pub name: String,
     pub flags: Option<String>,
@@ -743,6 +761,7 @@ pub struct Requirement {
     pub preinstall: bool,
 }
 
+#[derive(Copy, Clone, Debug, Hash, PartialEq)]
 pub enum RequirementType {
     LT,
     GT,
@@ -780,7 +799,7 @@ impl TryFrom<&str> for RequirementType {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Hash)]
 pub enum FileType {
     File,
     Dir,
@@ -814,7 +833,7 @@ impl Default for FileType {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct PackageFile {
     pub filetype: FileType,
     pub path: String,

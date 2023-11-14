@@ -21,7 +21,7 @@ use std::fmt;
 /// without a caret, e.g. 0.5.0 vs 0.5.0~rc1. Including ^ in a version is used for denoting snapshots
 /// not directly associated with an upstream release and will force it to sort higher, e.g.
 /// 0.5.0 vs 0.5.0^deadbeef
-#[derive(Debug, Eq, Default, Clone)]
+#[derive(Clone, Debug, Default, Eq, Hash)]
 pub struct EVR {
     pub epoch: String,
     pub version: String,
