@@ -14,12 +14,18 @@ documentation = "https://docs.rs/rpmrepo_metadata/"
 [features]
 python_ext = ["pyo3"]
 read_rpm = ["rpm"]
+serde = ["dep:serde", "indexmap/serde"]
 
 [dependencies]
 quick-xml = { version = "0.23.0", default-features = false }
 # rayon = "1.5.1"
 thiserror = "1.0.40"
-niffler = { version = "2.5.0", features = ["bz2", "xz", "gz", "zstd"], default-features = false }
+niffler = { version = "2.5.0", features = [
+    "bz2",
+    "xz",
+    "gz",
+    "zstd",
+], default-features = false }
 rpm = { version = "0.12.0", default-features = false, optional = true }
 # tempdir = "0.3.7"
 digest = "0.10.6"
@@ -30,6 +36,7 @@ md-5 = "0.10.5"
 hex = "0.4.3"
 indexmap = "2.0.0"
 pyo3 = { version = "0.20.0", features = ["extension-module"], optional = true }
+serde = { version = "1.0.203", features = ["derive"], optional = true }
 
 [lib]
 name = "rpmrepo_metadata"
