@@ -5,8 +5,8 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 use std::convert::TryInto;
-use std::io::{BufRead, Write};
 use std::hash::{Hash, Hasher};
+use std::io::{BufRead, Write};
 use std::os::unix::prelude::MetadataExt;
 use std::path::{Path, PathBuf};
 
@@ -157,6 +157,7 @@ impl TryInto<CompressionType> for &str {
 // }
 
 #[derive(Clone, Default, Debug, PartialEq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Package {
     // pub(crate) parse_state: ParseState,
     pub name: String,
@@ -595,6 +596,7 @@ impl Default for ChecksumType {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Checksum {
     Md5(String),
     Sha1(String),
@@ -738,6 +740,7 @@ impl Checksum {
 }
 
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Changelog {
     pub author: String,
     pub timestamp: u64,
@@ -745,6 +748,7 @@ pub struct Changelog {
 }
 
 #[derive(Copy, Clone, Debug, Default, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HeaderRange {
     pub start: u64,
     pub end: u64,
@@ -752,6 +756,7 @@ pub struct HeaderRange {
 
 // Requirement (Provides, Conflicts, Obsoletes, Requires).
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Requirement {
     pub name: String,
     pub flags: Option<String>,
@@ -800,6 +805,7 @@ impl TryFrom<&str> for RequirementType {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum FileType {
     File,
     Dir,
@@ -834,6 +840,7 @@ impl Default for FileType {
 }
 
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PackageFile {
     pub filetype: FileType,
     pub path: String,
@@ -875,6 +882,7 @@ impl From<&str> for MetadataType {
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DistroTag {
     pub cpeid: Option<String>,
     pub name: String,
@@ -887,6 +895,7 @@ impl DistroTag {
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RepomdData {
     revision: Option<String>,
     metadata_files: Vec<RepomdRecord>,
@@ -994,6 +1003,7 @@ impl RepomdData {
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RepomdRecord {
     base_path: Option<PathBuf>,
 
@@ -1064,6 +1074,7 @@ impl RepomdRecord {
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct UpdateRecord {
     pub from: String,
     pub update_type: String,
@@ -1087,6 +1098,7 @@ pub struct UpdateRecord {
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct UpdateCollection {
     pub name: String,
     pub shortname: String,
@@ -1095,6 +1107,7 @@ pub struct UpdateCollection {
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct UpdateReference {
     pub href: String,
     pub id: String,
@@ -1103,6 +1116,7 @@ pub struct UpdateReference {
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct UpdateCollectionPackage {
     pub epoch: String,
     pub filename: String,
@@ -1118,6 +1132,7 @@ pub struct UpdateCollectionPackage {
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct UpdateCollectionModule {
     pub name: String,
     pub stream: String,

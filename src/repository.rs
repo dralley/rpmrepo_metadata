@@ -41,6 +41,7 @@ use indexmap::IndexMap;
 ///
 /// All metadata is maintained in working memory (this can be large).
 #[derive(Debug, PartialEq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Repository {
     repomd_data: RepomdData,
     packages: IndexMap<String, Package>,
