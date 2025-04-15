@@ -11,12 +11,12 @@ use rpmrepo_metadata::{utils, MetadataError, RepomdData, RepomdRecord, RepomdXml
 #[cfg(test)]
 mod tests {
     use super::*;
-    use once_cell::sync::OnceCell;
     use pretty_assertions::assert_eq;
     use rpmrepo_metadata::Checksum;
     use std::{
         io::Read,
         path::{Path, PathBuf},
+        sync::OnceLock,
     };
 
     static FIXTURE_REPOMD_PATH: &str =
@@ -26,7 +26,7 @@ mod tests {
     /// Started w/ Fedora 33 updates repodata, added repo, content, distro tags
     /// FilelistsDb covers standard fields + database_version, UpdateInfoZck covers header_size, header_checksum
     fn fixture_data() -> &'static RepomdData {
-        static INSTANCE: OnceCell<RepomdData> = OnceCell::new();
+        static INSTANCE: OnceLock<RepomdData> = OnceLock::new();
         INSTANCE.get_or_init(|| {
             let mut repomd = RepomdData::default();
             repomd.set_revision("1615686706");

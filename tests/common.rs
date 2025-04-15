@@ -4,7 +4,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
+
 use rpmrepo_metadata::{Checksum, FileType, Package, Requirement, EVR};
 
 // const FIXTURE_FILELIST_PATH: &str = "./tests/assets/complex_repo/repodata/filelists.xml.gz";
@@ -12,7 +13,7 @@ use rpmrepo_metadata::{Checksum, FileType, Package, Requirement, EVR};
 pub const COMPLEX_REPO_FIXTURE_PATH: &str = "./tests/assets/complex_repo/";
 pub const EMPTY_REPO_FIXTURE_PATH: &str = "./tests/assets/empty_repo/";
 
-pub static COMPLEX_PACKAGE: Lazy<Package> = Lazy::new(|| {
+pub static COMPLEX_PACKAGE: LazyLock<Package> = LazyLock::new(|| {
     let mut package = Package::default();
 
     package.set_name("complex-package");
@@ -207,7 +208,7 @@ pub static COMPLEX_PACKAGE: Lazy<Package> = Lazy::new(|| {
     package
 });
 
-pub static RPM_WITH_INVALID_CHARS: Lazy<Package> = Lazy::new(|| {
+pub static RPM_WITH_INVALID_CHARS: LazyLock<Package> = LazyLock::new(|| {
     let mut package = Package::default();
 
     package.set_name("rpm-with-invalid-chars");
@@ -247,7 +248,7 @@ within text content, and not all XML libraries do so. However, it is generally r
     package
 });
 
-pub static RPM_EMPTY: Lazy<Package> = Lazy::new(|| {
+pub static RPM_EMPTY: LazyLock<Package> = LazyLock::new(|| {
     let mut package = Package::default();
 
     package.set_name("rpm-empty");
@@ -292,7 +293,7 @@ pub static RPM_EMPTY: Lazy<Package> = Lazy::new(|| {
     package
 });
 
-pub static RPM_WITH_NON_ASCII: Lazy<Package> = Lazy::new(|| {
+pub static RPM_WITH_NON_ASCII: LazyLock<Package> = LazyLock::new(|| {
     let mut package = Package::default();
     package.set_name("rpm-with-non-ascii");
     package.set_arch("noarch");

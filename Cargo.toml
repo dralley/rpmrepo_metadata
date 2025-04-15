@@ -18,9 +18,11 @@ read_rpm = ["rpm"]
 [dependencies]
 quick-xml = { version = "0.23.0", default-features = false }
 # rayon = "1.5.1"
-thiserror = "1.0.40"
-niffler = "3.0.0"
-rpm = { version = "0.16.0", default-features = false, optional = true }
+thiserror = "2"
+niffler = { version = "3", features = ["bz2", "lzma", "gz", "zstd"], default-features = false }
+flate2 = { version = "1", default-features = false, features = ["zlib-ng"] }
+bzip2 = { version = "0.5.2", default-features = false, features = ["libbz2-rs-sys"] }
+rpm = { version = "0.17.0", default-features = false, optional = true }
 # tempdir = "0.3.7"
 digest = "0.10.6"
 sha1 = "0.10.5"
@@ -37,8 +39,7 @@ crate-type = ["lib", "cdylib"]
 
 [dev-dependencies]
 tempdir = "0.3.7"
-pretty_assertions = "1.1.0"
-once_cell = "1.17.0"
+pretty_assertions = "1.4.0"
 criterion = "0.5.1"
 
 [[test]]
