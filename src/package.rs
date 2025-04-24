@@ -97,8 +97,12 @@ pub mod rpm_parsing {
             } else {
                 match value.mode {
                     rpm::FileMode::Dir { .. } => crate::FileType::Dir,
-                    rpm::FileMode::Regular { .. } => crate::FileType::File,
-                    _ => unreachable!("Failed to detect file type"),
+                    rpm::FileMode::Regular { .. } | rpm::FileMode::SymbolicLink { .. } => {
+                        crate::FileType::File
+                    }
+                    _ => {
+                        unreachable!("Failed to detect file type")
+                    }
                 }
             };
             let path = value
