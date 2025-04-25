@@ -751,7 +751,7 @@ pub struct HeaderRange {
 }
 
 // Requirement (Provides, Conflicts, Obsoletes, Requires).
-#[derive(Clone, Debug, Default, Hash, PartialEq)]
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
 pub struct Requirement {
     pub name: String,
     pub flags: Option<String>,

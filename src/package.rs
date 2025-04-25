@@ -16,8 +16,8 @@ use crate::{RepomdData, utils};
 
 #[cfg(feature = "read_rpm")]
 pub mod rpm_parsing {
-    use std::fs::File;
     use std::time::SystemTime;
+    use std::{collections::HashSet, fs::File};
 
     use crate::{Changelog, ChecksumType, EVR, PackageFile, Requirement};
 
@@ -166,14 +166,14 @@ pub mod rpm_parsing {
         fn convert_deps(
             requirements: Vec<rpm::Dependency>,
         ) -> Result<Vec<Requirement>, MetadataError> {
-            let mut out = Vec::new();
+            let mut out = HashSet::new();
             for r in requirements.into_iter() {
                 if r.name.starts_with("rpmlib(") {
                     continue;
                 }
-                out.push(r.try_into()?)
+                out.insert(r.try_into()?);
             }
-            Ok(out)
+            Ok(out.into_iter().collect())
         }
         // todo: only apply rpmlib filter to requires
         // todo: deduplicate requires with provides, remove provided deps from requires
