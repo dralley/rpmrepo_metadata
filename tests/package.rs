@@ -45,7 +45,7 @@ fn test_parse_rpm_with_symbolic_link() -> Result<(), MetadataError> {
 
     rpm_package.write_file(&out)?;
 
-    utils::load_rpm_package(&out.to_string_lossy())?;
+    utils::load_rpm_package(&out)?;
 
     Ok(())
 }

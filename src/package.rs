@@ -117,7 +117,7 @@ pub mod rpm_parsing {
     // todo: restrict # of changelogs
     // todo: location_href, location_base
     // todo: checksum type
-    pub fn load_rpm_package(path: &str) -> Result<Package, MetadataError> {
+    pub fn load_rpm_package<A: AsRef<Path>>(path: A) -> Result<Package, MetadataError> {
         let file = File::open(&path)?;
         let file_metadata = file.metadata()?;
 
@@ -201,8 +201,8 @@ pub mod rpm_parsing {
         }
         pkg_metadata.set_files(files);
 
-        pkg_metadata.set_checksum(utils::checksum_file(Path::new(path), ChecksumType::Sha256)?);
-        pkg_metadata.set_location_href(path);
+        pkg_metadata.set_checksum(utils::checksum_file(path.as_ref(), ChecksumType::Sha256)?);
+        pkg_metadata.set_location_href(path.as_ref().to_string_lossy());
 
         let file_size = file_metadata.len();
         let unix_timestamp = file_metadata
