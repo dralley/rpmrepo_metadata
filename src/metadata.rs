@@ -5,8 +5,8 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 use std::convert::TryInto;
-use std::io::{BufRead, Write};
 use std::hash::{Hash, Hasher};
+use std::io::{BufRead, Write};
 use std::os::unix::prelude::MetadataExt;
 use std::path::{Path, PathBuf};
 
