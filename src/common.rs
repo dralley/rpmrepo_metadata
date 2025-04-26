@@ -129,8 +129,8 @@ fn compare_version_string(version1: &str, version2: &str) -> Ordering {
         return Ordering::Equal;
     }
 
-    let mut version1_part = version1.clone();
-    let mut version2_part = version2.clone();
+    let mut version1_part = version1;
+    let mut version2_part = version2;
 
     let not_alphanumeric_tilde_or_caret =
         |c: char| !c.is_ascii_alphanumeric() && c != '~' && c != '^';

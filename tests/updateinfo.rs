@@ -7,9 +7,8 @@
 extern crate rpmrepo_metadata;
 
 use pretty_assertions::assert_eq;
-use rpmrepo_metadata::UpdateRecord;
 use rpmrepo_metadata::*;
-use std::fs::{Metadata, OpenOptions};
+use std::fs::OpenOptions;
 use std::io::{Cursor, Read, Seek, SeekFrom};
 use tempdir::TempDir;
 

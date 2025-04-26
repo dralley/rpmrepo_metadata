@@ -6,7 +6,7 @@
 
 use pretty_assertions::assert_eq;
 use rpmrepo_metadata::{
-    MetadataError, Package, Repository, RepositoryOptions, RepositoryReader, RepositoryWriter,
+    MetadataError, Repository, RepositoryOptions, RepositoryReader, RepositoryWriter,
 };
 use tempdir::TempDir;
 mod common;
@@ -234,7 +234,7 @@ fn test_read_write_bz2_compressed() -> Result<(), MetadataError> {
 fn test_repository_writer_not_enough_packages() {
     let tmp_dir = TempDir::new("test_repository_writer").unwrap();
 
-    let mut repo_writer = RepositoryWriter::new(&tmp_dir.path(), 1).unwrap();
+    let repo_writer = RepositoryWriter::new(&tmp_dir.path(), 1).unwrap();
     repo_writer.finish().unwrap();
 }
 
