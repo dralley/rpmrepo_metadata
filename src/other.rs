@@ -13,7 +13,7 @@ use quick_xml::{Reader, Writer};
 use crate::Checksum;
 
 use super::metadata::{Changelog, OtherXml, Package, RpmMetadata, XML_NS_OTHER};
-use super::{MetadataError, Repository, EVR};
+use super::{EVR, MetadataError, Repository};
 
 const TAG_OTHERDATA: &[u8] = b"otherdata";
 const TAG_PACKAGE: &[u8] = b"package";

@@ -14,11 +14,11 @@ use std::time::SystemTime;
 use quick_xml::events::{BytesDecl, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 
+use super::Repository;
 use super::metadata::RepomdData;
 use super::metadata::{
     Checksum, MetadataError, RepomdRecord, RepomdXml, RpmMetadata, XML_NS_REPO, XML_NS_RPM,
 };
-use super::Repository;
 
 // RepoMd
 const TAG_REPOMD: &[u8] = b"repomd";

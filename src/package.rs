@@ -11,15 +11,15 @@ use crate::filelist::FilelistsXmlReader;
 use crate::metadata::{METADATA_FILELISTS, METADATA_OTHER, METADATA_PRIMARY};
 use crate::other::OtherXmlReader;
 use crate::primary::PrimaryXmlReader;
-use crate::{utils, RepomdData};
 use crate::{FilelistsXml, MetadataError, OtherXml, Package, PrimaryXml};
+use crate::{RepomdData, utils};
 
 #[cfg(feature = "read_rpm")]
 pub mod rpm_parsing {
     use std::fs::File;
     use std::time::SystemTime;
 
-    use crate::{Changelog, ChecksumType, PackageFile, Requirement, EVR};
+    use crate::{Changelog, ChecksumType, EVR, PackageFile, Requirement};
 
     use super::*;
     use rpm;

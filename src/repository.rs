@@ -7,10 +7,11 @@
 use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 
-use crate::updateinfo::{UpdateinfoXmlReader, UpdateinfoXmlWriter};
 use crate::UpdateinfoXml;
-use crate::{utils, PackageIterator};
+use crate::updateinfo::{UpdateinfoXmlReader, UpdateinfoXmlWriter};
+use crate::{PackageIterator, utils};
 
+use super::MetadataError;
 use super::filelist::FilelistsXmlWriter;
 use super::metadata::{
     ChecksumType,
@@ -27,7 +28,6 @@ use super::metadata::{
 };
 use super::other::OtherXmlWriter;
 use super::primary::PrimaryXmlWriter;
-use super::MetadataError;
 use indexmap::IndexMap;
 
 /// A high level API for working with RPM repositories.

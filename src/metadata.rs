@@ -18,7 +18,7 @@ use quick_xml::{Reader, Writer};
 use rpm;
 use thiserror::Error;
 
-use crate::{utils, Repository, EVR};
+use crate::{EVR, Repository, utils};
 
 pub struct RepomdXml;
 pub struct PrimaryXml;
@@ -717,7 +717,7 @@ impl Checksum {
             _ => {
                 return Err(MetadataError::UnsupportedChecksumTypeError(bytes_to_str(
                     checksum_type.as_ref(),
-                )))
+                )));
             }
         }
     }

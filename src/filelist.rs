@@ -14,7 +14,7 @@ use crate::Checksum;
 use super::metadata::{
     FileType, FilelistsXml, Package, PackageFile, RpmMetadata, XML_NS_FILELISTS,
 };
-use super::{MetadataError, Repository, EVR};
+use super::{EVR, MetadataError, Repository};
 
 const TAG_FILELISTS: &[u8] = b"filelists";
 const TAG_PACKAGE: &[u8] = b"package";

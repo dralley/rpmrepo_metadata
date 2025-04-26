@@ -6,7 +6,7 @@
 
 use std::sync::LazyLock;
 
-use rpmrepo_metadata::{Checksum, FileType, Package, Requirement, EVR};
+use rpmrepo_metadata::{Checksum, EVR, FileType, Package, Requirement};
 
 // const FIXTURE_FILELIST_PATH: &str = "./tests/assets/complex_repo/repodata/filelists.xml.gz";
 

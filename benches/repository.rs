@@ -7,9 +7,9 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use criterion::{self, criterion_group, criterion_main, Criterion};
+use criterion::{self, Criterion, criterion_group, criterion_main};
 use rpmrepo_metadata::{
-    utils, FilelistsXml, OtherXml, PackageIterator, PrimaryXml, RepomdXml, Repository,
+    FilelistsXml, OtherXml, PackageIterator, PrimaryXml, RepomdXml, Repository, utils,
 };
 use std::io::{BufReader, Cursor, Read};
 

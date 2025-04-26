@@ -6,7 +6,7 @@
 
 use std::fs::File;
 
-use rpmrepo_metadata::{utils, MetadataError, RepomdData, RepomdRecord, RepomdXml};
+use rpmrepo_metadata::{MetadataError, RepomdData, RepomdRecord, RepomdXml, utils};
 
 #[cfg(test)]
 mod tests {

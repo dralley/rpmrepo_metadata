@@ -14,7 +14,7 @@ use super::metadata::{
     Checksum, MetadataError, Package, PrimaryXml, Requirement, RpmMetadata, XML_NS_COMMON,
     XML_NS_RPM,
 };
-use super::{PackageFile, Repository, EVR};
+use super::{EVR, PackageFile, Repository};
 
 const TAG_METADATA: &[u8] = b"metadata";
 const TAG_PACKAGE: &[u8] = b"package";
@@ -696,7 +696,7 @@ pub fn parse_requirement_list<R: BufRead>(
                             return Err(MetadataError::UnknownAttributeError(format!(
                                 "unrecognized attribute {}",
                                 std::str::from_utf8(a)?
-                            )))
+                            )));
                         }
                     }
                 }

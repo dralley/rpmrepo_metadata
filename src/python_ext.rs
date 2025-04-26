@@ -677,7 +677,7 @@ impl TryFrom<&FileTuple> for crate::metadata::PackageFile {
                 return Err(pyo3::exceptions::PyValueError::new_err(format!(
                     "{} is not a permitted file type",
                     bad_val
-                )))
+                )));
             }
         };
         let pkgfile = crate::metadata::PackageFile {
@@ -715,7 +715,7 @@ impl TryFrom<&CrFileTuple> for crate::metadata::PackageFile {
                 return Err(pyo3::exceptions::PyValueError::new_err(format!(
                     "'{}' is not a permitted file type",
                     bad_val
-                )))
+                )));
             }
         };
         let pkgfile = crate::metadata::PackageFile {
