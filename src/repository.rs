@@ -47,7 +47,6 @@ pub struct Repository {
 }
 
 // TODO: worth doing any allocation tricks? (probably not)
-// TODO: probably consolidate package_checksum_type and metadata_checksum_type, no real need for both
 // TODO: provide a way to e.g. remove N old packages from the repo
 // TODO: what to do with updateinfo, groups, modules when packages added or removed?
 // TODO: uphold invariants
@@ -57,7 +56,6 @@ pub struct Repository {
 
 // configuration options for writing metadata:
 // * checksum types for metadata
-// * compression types. how customizable does it need to be?
 // * zchunk metadata?
 // * signing
 impl Repository {
@@ -184,46 +182,36 @@ impl Repository {
 /// Options for writing RPM repository metadata.
 ///
 /// - `simple_metadata_filenames` - Determines whether filenames should be bare e.g. `filelists.xml` or should include the file checksum.
-/// - `metadata_compression_type` - The type of compression to use for repository metadata.
-/// - `metadata_checksum_type` - The type of checksums to use for metadata.
-/// - `package_checksum_type` - The type of checksums to use for packages.
+/// - `compression_type` - The type of compression to use for repository metadata.
+/// - `checksum_type` - The type of checksums to use for packages and repository metadata.
 #[derive(Copy, Clone, Debug)]
 pub struct RepositoryOptions {
     pub simple_metadata_filenames: bool,
-    pub metadata_compression_type: CompressionType,
-    pub metadata_checksum_type: ChecksumType,
-    pub package_checksum_type: ChecksumType,
+    pub compression_type: CompressionType,
+    pub checksum_type: ChecksumType,
 }
 
 impl Default for RepositoryOptions {
     fn default() -> Self {
         Self {
             simple_metadata_filenames: false,
-            metadata_compression_type: CompressionType::Zstd,
-            metadata_checksum_type: ChecksumType::Sha256,
-            package_checksum_type: ChecksumType::Sha256,
+            compression_type: CompressionType::Zstd,
+            checksum_type: ChecksumType::Sha256,
         }
     }
 }
 
 impl RepositoryOptions {
-    pub fn package_checksum_type(self, chktype: ChecksumType) -> Self {
+    pub fn checksum_type(self, chktype: ChecksumType) -> Self {
         Self {
-            package_checksum_type: chktype,
+            checksum_type: chktype,
             ..self
         }
     }
 
-    pub fn metadata_checksum_type(self, chktype: ChecksumType) -> Self {
+    pub fn compression_type(self, comptype: CompressionType) -> Self {
         Self {
-            metadata_checksum_type: chktype,
-            ..self
-        }
-    }
-
-    pub fn metadata_compression_type(self, comptype: CompressionType) -> Self {
-        Self {
-            metadata_compression_type: comptype,
+            compression_type: comptype,
             ..self
         }
     }
@@ -273,15 +261,15 @@ impl RepositoryWriter {
 
         let (_primary_path, primary_writer) = utils::xml_writer_for_path(
             &repodata_dir.join("primary.xml"),
-            options.metadata_compression_type,
+            options.compression_type,
         )?;
         let (_filelists_path, filelists_writer) = utils::xml_writer_for_path(
             &repodata_dir.join("filelists.xml"),
-            options.metadata_compression_type,
+            options.compression_type,
         )?;
         let (_other_path, other_writer) = utils::xml_writer_for_path(
             &repodata_dir.join("other.xml"),
-            options.metadata_compression_type,
+            options.compression_type,
         )?;
 
         let mut primary_xml_writer = PrimaryXml::new_writer(primary_writer);
@@ -343,7 +331,7 @@ impl RepositoryWriter {
             let repodata_dir = self.path.join("repodata");
             let (updateinfo_path, updateinfo_writer) = utils::xml_writer_for_path(
                 &repodata_dir.join("updateinfo.xml"),
-                self.options.metadata_compression_type,
+                self.options.compression_type,
             )?;
 
             let mut updateinfo_xml_writer = UpdateinfoXml::new_writer(updateinfo_writer);
@@ -377,15 +365,15 @@ impl RepositoryWriter {
         let repodata_dir = self.path.join("repodata");
         let primary_path = utils::apply_compression_suffix(
             &PathBuf::from("repodata").join("primary.xml"),
-            self.options.metadata_compression_type,
+            self.options.compression_type,
         );
         let filelists_path = utils::apply_compression_suffix(
             &PathBuf::from("repodata").join("filelists.xml"),
-            self.options.metadata_compression_type,
+            self.options.compression_type,
         );
         let other_path = utils::apply_compression_suffix(
             &PathBuf::from("repodata").join("other.xml"),
-            self.options.metadata_compression_type,
+            self.options.compression_type,
         );
 
         self.primary_xml_writer.as_mut().unwrap().finish()?;
@@ -405,21 +393,21 @@ impl RepositoryWriter {
             "primary",
             &primary_path.as_ref(),
             &path,
-            self.options.metadata_checksum_type,
+            self.options.checksum_type,
         )?;
         self.repomd_mut().add_record(primary_xml);
         let filelists_xml = RepomdRecord::new(
             "filelists",
             &filelists_path.as_ref(),
             &path,
-            self.options.metadata_checksum_type,
+            self.options.checksum_type,
         )?;
         self.repomd_mut().add_record(filelists_xml);
         let other_xml = RepomdRecord::new(
             "other",
             &other_path.as_ref(),
             &path,
-            self.options.metadata_checksum_type,
+            self.options.checksum_type,
         )?;
         self.repomd_mut().add_record(other_xml);
 
@@ -428,13 +416,13 @@ impl RepositoryWriter {
             self.updateinfo_xml_writer = None;
             let updateinfo_path = utils::apply_compression_suffix(
                 &PathBuf::from("repodata").join("updateinfo.xml"),
-                self.options.metadata_compression_type,
+                self.options.compression_type,
             );
             let updateinfo_xml = RepomdRecord::new(
                 "updateinfo",
                 &updateinfo_path.as_ref(),
                 &path,
-                self.options.metadata_checksum_type,
+                self.options.checksum_type,
             )?;
             self.repomd_mut().add_record(updateinfo_xml);
         }

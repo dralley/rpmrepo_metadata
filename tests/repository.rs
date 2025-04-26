@@ -86,8 +86,8 @@ fn test_read_write_uncompressed() -> Result<(), MetadataError> {
     let test_repodata_dir = tmp_dir.path().join("repodata");
 
     let options = RepositoryOptions::default()
-        .metadata_checksum_type(rpmrepo_metadata::ChecksumType::Sha1)
-        .metadata_compression_type(rpmrepo_metadata::CompressionType::None);
+        .checksum_type(rpmrepo_metadata::ChecksumType::Sha1)
+        .compression_type(rpmrepo_metadata::CompressionType::None);
     let mut repo_writer = RepositoryWriter::new_with_options(&tmp_dir.path(), 1, options)?;
     repo_writer.add_package(&*common::COMPLEX_PACKAGE)?;
     repo_writer.finish()?;
@@ -123,8 +123,8 @@ fn test_read_write_zstd_compressed() -> Result<(), MetadataError> {
     let test_repodata_dir = tmp_dir.path().join("repodata");
 
     let options = RepositoryOptions::default()
-        .metadata_checksum_type(rpmrepo_metadata::ChecksumType::Sha1)
-        .metadata_compression_type(rpmrepo_metadata::CompressionType::Zstd);
+        .checksum_type(rpmrepo_metadata::ChecksumType::Sha1)
+        .compression_type(rpmrepo_metadata::CompressionType::Zstd);
     let mut repo_writer = RepositoryWriter::new_with_options(&tmp_dir.path(), 1, options)?;
     repo_writer.add_package(&*common::COMPLEX_PACKAGE)?;
     repo_writer.finish()?;
@@ -160,8 +160,8 @@ fn test_read_write_xz_compressed() -> Result<(), MetadataError> {
     let test_repodata_dir = tmp_dir.path().join("repodata");
 
     let options = RepositoryOptions::default()
-        .metadata_checksum_type(rpmrepo_metadata::ChecksumType::Sha1)
-        .metadata_compression_type(rpmrepo_metadata::CompressionType::Xz);
+        .checksum_type(rpmrepo_metadata::ChecksumType::Sha1)
+        .compression_type(rpmrepo_metadata::CompressionType::Xz);
     let mut repo_writer = RepositoryWriter::new_with_options(&tmp_dir.path(), 1, options)?;
     repo_writer.add_package(&*common::COMPLEX_PACKAGE)?;
     repo_writer.finish()?;
@@ -197,8 +197,8 @@ fn test_read_write_bz2_compressed() -> Result<(), MetadataError> {
     let test_repodata_dir = tmp_dir.path().join("repodata");
 
     let options = RepositoryOptions::default()
-        .metadata_checksum_type(rpmrepo_metadata::ChecksumType::Sha1)
-        .metadata_compression_type(rpmrepo_metadata::CompressionType::Bz2);
+        .checksum_type(rpmrepo_metadata::ChecksumType::Sha1)
+        .compression_type(rpmrepo_metadata::CompressionType::Bz2);
     let mut repo_writer = RepositoryWriter::new_with_options(&tmp_dir.path(), 1, options)?;
     repo_writer.add_package(&*common::COMPLEX_PACKAGE)?;
     repo_writer.finish()?;
