@@ -78,6 +78,7 @@ def compare_pkgs(rpmrepo_pkg, cr_pkg):
     # * pkgid and checksum_type are read-only
     #   * both are set by the "checksum" getter/setter that takes a tuple of (checksum_type, checksum),
     #     which validates that the length of the checksum matches the checksum type
+    # * returns epoch as an integer whereas createrepo_c returns string e.g. '0'
     # * fields that are always present in the metadata are non-nullable, return "" when unset
     # * text fields are stripped of leading and trailing newlines
     #   * This can be fixed but would require some work on the parser
@@ -89,7 +90,7 @@ def compare_pkgs(rpmrepo_pkg, cr_pkg):
     # * rpm_packager -> packager, since the tag name isn't in the rpm: namespace
 
     assert rpmrepo_pkg.name == cr_pkg.name, "name"
-    assert rpmrepo_pkg.epoch == cr_pkg.epoch, "epoch"
+    assert rpmrepo_pkg.epoch == int(cr_pkg.epoch), "epoch"
     assert rpmrepo_pkg.version == cr_pkg.version, "version"
     assert rpmrepo_pkg.release == cr_pkg.release, "release"
     assert rpmrepo_pkg.arch == cr_pkg.arch, "arch"
@@ -137,35 +138,19 @@ def compare_pkgs(rpmrepo_pkg, cr_pkg):
 
 
 def validate_rpmrepo(repo_path):
-    primary_xml_path   = None
-    filelists_xml_path = None
-    other_xml_path     = None
-    updateinfo_xml_path     = None
+    rpmrepo_reader = rpmmd.RepositoryReader(repo_path)
+    cr_reader = cr.RepositoryReader.from_path(repo_path)
 
-    rpm_repo = rpmmd.RepositoryReader(repo_path)
-    repomd = cr.Repomd(os.path.join(repo_path, "repodata/repomd.xml"))
-    # TODO: warnings?
+    rpmrepo_pkg_parser = rpmrepo_reader.iter_packages()
+    cr_pkg_parser = cr_reader.iter_packages()
 
-    for record in repomd.records:
-        if record.type == "primary":
-            primary_xml_path = os.path.join(repo_path, record.location_href)
-        elif record.type == "filelists":
-            filelists_xml_path = os.path.join(repo_path, record.location_href)
-        elif record.type == "other":
-            other_xml_path = os.path.join(repo_path, record.location_href)
-        elif record.type == "updateinfo":
-            updateinfo_xml_path = os.path.join(repo_path, record.location_href)
-
-    rpmrepo_pkg_parser = rpm_repo.iter_packages()
-    cr_pkg_iterator = cr.PackageIterator(primary_xml_path, filelists_xml_path, other_xml_path)
-
-    for (rpmrepo_pkg, createrepo_pkg) in zip(rpmrepo_pkg_parser, cr_pkg_iterator):
+    for (rpmrepo_pkg, createrepo_pkg) in zip(rpmrepo_pkg_parser, cr_pkg_parser):
         compare_pkgs(rpmrepo_pkg, createrepo_pkg)
 
     assert rpmrepo_pkg_parser.remaining_packages == 0
 
-    rpmrepo_updates = rpmmd.iter_advisories()
-    cr_updates = cr.UpdateInfo(updateinfo_xml_path).updates
+    rpmrepo_updates = rpmrepo_reader.iter_advisories()
+    cr_updates = cr_reader.advisories()
 
     for (rpmrepo_updaterecord, createrepo_updaterecord) in zip(rpmrepo_updates, cr_updates):
         compare_updaterecord(rpmrepo_updaterecord, createrepo_updaterecord)
@@ -201,4 +186,4 @@ if __name__ == "__main__":
         print(GREEN + "OK" + RESET)
     except AssertionError:
         print(RED + "FAIL" + RESET)
-        sys.exit(1)
+        raise

@@ -267,10 +267,8 @@ impl RepositoryWriter {
             &repodata_dir.join("filelists.xml"),
             options.compression_type,
         )?;
-        let (_other_path, other_writer) = utils::xml_writer_for_path(
-            &repodata_dir.join("other.xml"),
-            options.compression_type,
-        )?;
+        let (_other_path, other_writer) =
+            utils::xml_writer_for_path(&repodata_dir.join("other.xml"), options.compression_type)?;
 
         let mut primary_xml_writer = PrimaryXml::new_writer(primary_writer);
         let mut filelists_xml_writer = FilelistsXml::new_writer(filelists_writer);

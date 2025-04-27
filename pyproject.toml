@@ -1,9 +1,9 @@
 [project]
 name = "rpmrepo_metadata"
-version = "0.1.0.post3"
+version = "0.4.0"
 
 [build-system]
-requires = ["maturin==0.12.5"]
+requires = ["maturin~=1.8"]
 build-backend = "maturin"
 
 [tool.maturin]

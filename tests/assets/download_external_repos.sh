@@ -34,26 +34,26 @@ rpmrepo download --only-metadata external_repos/cs9-baseos-src http://mirror.str
 # CentOS Stream 9 - Appstream
 rpmrepo download --only-metadata external_repos/cs9-appstream http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/
 
-# Fedora 35
-rpmrepo download --only-metadata external_repos/fedora36 https://dl.fedoraproject.org/pub/fedora/linux/releases/36/Everything/x86_64/os/
+# CentOS Stream 10 - BaseOS - source
+rpmrepo download --only-metadata external_repos/cs10-baseos-src http://mirror.stream.centos.org/10-stream/BaseOS/source/tree/
 
-# Fedora 35 Modular
-rpmrepo download --only-metadata external_repos/fedora36-modular https://dl.fedoraproject.org/pub/fedora/linux/releases/36/Modular/x86_64/os/
+# CentOS Stream 10 - Appstream
+rpmrepo download --only-metadata external_repos/cs10-appstream http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/
 
-# Fedora 35 Updates
-rpmrepo download --only-metadata external_repos/fedora36-updates https://dl.fedoraproject.org/pub/fedora/linux/updates/36/Everything/x86_64/
+# CentOS Stream 10 - Appstream
+rpmrepo download --only-metadata external_repos/cs10-appstream http://mirror.stream.centos.org/10-stream/AppStream/x86_64/os/
 
-# Fedora 35 Modular Updates
-rpmrepo download --only-metadata external_repos/fedora36-modular-updates https://dl.fedoraproject.org/pub/fedora/linux/updates/36/Modular/x86_64/
+# Fedora 42
+rpmrepo download --only-metadata external_repos/fedora42 https://dl.fedoraproject.org/pub/fedora/linux/releases/42/Everything/x86_64/os/
+
+# Fedora 42 Updates
+rpmrepo download --only-metadata external_repos/fedora42-updates https://dl.fedoraproject.org/pub/fedora/linux/updates/42/Everything/x86_64/
 
 # EPEL 7
 rpmrepo download --only-metadata external_repos/epel7 https://download.fedoraproject.org/pub/epel/7/x86_64/
 
 # EPEL 8 - Everything
 rpmrepo download --only-metadata external_repos/epel8 https://download.fedoraproject.org/pub/epel/8/Everything/x86_64/
-
-# EPEL 8 - Modular
-rpmrepo download --only-metadata external_repos/epel8-modular https://download.fedoraproject.org/pub/epel/8/Modular/x86_64/
 
 # EPEL 9 - Everything
 rpmrepo download --only-metadata external_repos/epel9 https://download.fedoraproject.org/pub/epel/9/Everything/x86_64/
@@ -88,7 +88,7 @@ rpmrepo download --only-metadata external_repos/convert2rhel https://ftp.redhat.
 # Harbottle - has an externally-pointing location base
 # rpmrepo download --only-metadata external_repos/harbottle-location-base http://harbottle.gitlab.io/harbottle-main/8-stream/x86_64/
 
-# Rundeck - has a backwards-pionting location href and multiple checksums in repomd.xml
+# Rundeck - has a backwards-pointing location href and multiple checksums in repomd.xml
 rpmrepo download --only-metadata external_repos/rundeck-location-href https://packages.rundeck.com/pagerduty/rundeck/rpm_any/rpm_any/x86_64/
 
 # Puppet 7 - sha checksum
