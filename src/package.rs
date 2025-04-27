@@ -42,10 +42,23 @@ pub mod rpm_parsing {
                 None
             };
 
+            /*
+            ogriginal source: https://github.com/rpm-software-management/createrepo_c/blob/70e92f6a802059f1f8d003299cea925e838745b1/src/parsehdr.c#L425
+            // Calculate pre value
+                    if (num_flags & (RPMSENSE_PREREQ |
+                                     RPMSENSE_SCRIPT_PRE |
+                                     RPMSENSE_POSTTRANS |
+                                     RPMSENSE_PRETRANS |
+                                     RPMSENSE_SCRIPT_POST))
+                    {
+                        pre = 1;
+                    }
+             */
             let pre = d.flags
                 & (rpm::DependencyFlags::SCRIPT_PRE
-                    | rpm::DependencyFlags::SCRIPT_POST
-                    | rpm::DependencyFlags::PREREQ);
+                    | rpm::DependencyFlags::PREREQ
+                    | rpm::DependencyFlags::POSTTRANS
+                    | rpm::DependencyFlags::SCRIPT_POST);
 
             let evr = EVR::parse(&d.version);
 
