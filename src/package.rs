@@ -22,7 +22,7 @@ pub mod rpm_parsing {
     use crate::{Changelog, ChecksumType, EVR, PackageFile, Requirement};
 
     use super::*;
-    use rpm;
+    use rpm::{self, Dependency, FileMode};
 
     impl TryFrom<rpm::Dependency> for Requirement {
         type Error = MetadataError;
@@ -92,18 +92,28 @@ pub mod rpm_parsing {
 
     impl From<rpm::FileEntry> for PackageFile {
         fn from(value: rpm::FileEntry) -> Self {
-            let ft = if value.flags.contains(rpm::FileFlags::GHOST) {
+            // first check if it is a dir, then if it is ghost, everything else is file
+            /*
+            original source:
+            https://github.com/rpm-software-management/createrepo_c/blob/70e92f6a802059f1f8d003299cea925e838745b1/src/parsehdr.c#L313
+            if (S_ISDIR(rpmtdGetNumber(filemodes))) {
+                // Directory
+                packagefile->type = cr_safe_string_chunk_insert(pkg->chunk, "dir");
+            } else if (rpmtdGetNumber(fileflags) & RPMFILE_GHOST) {
+                // Ghost
+                packagefile->type = cr_safe_string_chunk_insert(pkg->chunk, "ghost");
+            } else {
+                // Regular file
+                packagefile->type = cr_safe_string_chunk_insert(pkg->chunk, "");
+            }
+            */
+
+            let ft = if let FileMode::Dir { .. } = value.mode {
+                crate::FileType::Dir
+            } else if value.flags.contains(rpm::FileFlags::GHOST) {
                 crate::FileType::Ghost
             } else {
-                match value.mode {
-                    rpm::FileMode::Dir { .. } => crate::FileType::Dir,
-                    rpm::FileMode::Regular { .. } | rpm::FileMode::SymbolicLink { .. } => {
-                        crate::FileType::File
-                    }
-                    _ => {
-                        unreachable!("Failed to detect file type")
-                    }
-                }
+                crate::FileType::File
             };
             let path = value
                 .path
