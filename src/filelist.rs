@@ -255,7 +255,7 @@ pub fn parse_package<R: BufRead>(
 
 // <version epoch="0" ver="2.8.0" rel="5.fc33"/>
 pub fn parse_evr<R: BufRead>(
-    reader: &mut Reader<R>,
+    _reader: &mut Reader<R>,
     open_tag: &BytesStart,
 ) -> Result<EVR, MetadataError> {
     let epoch = open_tag

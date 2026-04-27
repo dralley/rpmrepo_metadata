@@ -327,7 +327,7 @@ impl RepositoryWriter {
         // TODO: clean this up
         if self.updateinfo_xml_writer.is_none() {
             let repodata_dir = self.path.join("repodata");
-            let (updateinfo_path, updateinfo_writer) = utils::xml_writer_for_path(
+            let (_updateinfo_path, updateinfo_writer) = utils::xml_writer_for_path(
                 &repodata_dir.join("updateinfo.xml"),
                 self.options.compression_type,
             )?;

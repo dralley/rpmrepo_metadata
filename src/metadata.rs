@@ -636,7 +636,7 @@ impl Hash for Checksum {
             Self::Sha512(hash) => format!("sha512:{}", hash).hash(state),
             // TODO: adjust this representation. Currently these exist because of reuse of these enums
             // to represent intermediate parsing states, but those probably ought to be pulled out somehow
-            Self::Unknown(hash) => unimplemented!(),
+            Self::Unknown(_hash) => unimplemented!(),
             Self::Empty => unimplemented!(),
         }
     }
@@ -735,7 +735,7 @@ impl Checksum {
         }
     }
 
-    pub fn to_values<'a>(&'a self) -> Result<(&str, &'a str), MetadataError> {
+    pub fn to_values<'a>(&'a self) -> Result<(&'a str, &'a str), MetadataError> {
         let values = match self {
             Checksum::Md5(c) => ("md5", c.as_str()),
             Checksum::Sha1(c) => ("sha1", c.as_str()),

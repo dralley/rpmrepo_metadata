@@ -824,6 +824,7 @@ mod rpmrepo_metadata {
 
     #[pyclass]
     struct UpdateRecord {
+        #[allow(dead_code)]
         inner: crate::UpdateRecord,
     }
 

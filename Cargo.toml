@@ -57,5 +57,5 @@ harness = false
 opt-level = 1
 
 [profile.release]
-debuginfo = 1
+debug = 1
 lto = "thin"

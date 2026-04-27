@@ -23,11 +23,13 @@ static EMPTY_UPDATEINFO_NO_FOOTER: &str = r#"<?xml version="1.0" encoding="UTF-8
 <updates>
 "#;
 
+#[allow(dead_code)]
 static EMPTY_UPDATEINFO_NO_DECL: &str = r#"
 <updates>
 </updates>
 "#;
 
+#[allow(dead_code)]
 static COMPLEX_UPDATEINFO: &str = r#""#;
 
 #[test]

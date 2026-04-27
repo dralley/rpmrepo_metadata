@@ -248,6 +248,7 @@ fn compare_version_string(version1: &str, version2: &str) -> Ordering {
 }
 
 /// Compare two strings as RPM EVR values
+#[allow(dead_code)]
 pub fn rpmvercmp(evr1: &str, evr2: &str) -> Ordering {
     let evr1 = EVR::parse(evr1);
     let evr2 = EVR::parse(evr2);

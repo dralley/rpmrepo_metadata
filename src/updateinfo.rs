@@ -35,6 +35,7 @@ const TAG_NAME: &str = "name";
 const TAG_MODULE: &str = "module";
 const TAG_PACKAGE: &str = "package";
 const TAG_FILENAME: &str = "filename";
+#[allow(dead_code)]
 const TAG_REBOOT_SUGGESTED: &str = "reboot_suggested";
 const TAG_REFERENCES: &str = "references";
 const TAG_REFERENCE: &str = "reference";
