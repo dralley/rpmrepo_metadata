@@ -95,11 +95,9 @@ pub mod rpm_parsing {
             let ft = if value.flags.contains(rpm::FileFlags::GHOST) {
                 crate::FileType::Ghost
             } else {
-                match value.mode {
-                    rpm::FileMode::Dir { .. } => crate::FileType::Dir,
-                    rpm::FileMode::Regular { .. } | rpm::FileMode::SymbolicLink { .. } => {
-                        crate::FileType::File
-                    }
+                match value.mode.file_type() {
+                    rpm::FileType::Dir => crate::FileType::Dir,
+                    rpm::FileType::Regular | rpm::FileType::SymbolicLink => crate::FileType::File,
                     _ => {
                         unreachable!("Failed to detect file type")
                     }
