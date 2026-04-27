@@ -7,6 +7,7 @@
 use std::io::{BufRead, Write};
 
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
+use quick_xml::name::QName;
 use quick_xml::{Reader, Writer};
 
 use super::filelist;
@@ -16,38 +17,38 @@ use super::metadata::{
 };
 use super::{EVR, PackageFile, Repository};
 
-const TAG_METADATA: &[u8] = b"metadata";
-const TAG_PACKAGE: &[u8] = b"package";
-const TAG_NAME: &[u8] = b"name";
-const TAG_VERSION: &[u8] = b"version";
-const TAG_CHECKSUM: &[u8] = b"checksum";
-const TAG_ARCH: &[u8] = b"arch";
-const TAG_SUMMARY: &[u8] = b"summary";
-const TAG_DESCRIPTION: &[u8] = b"description";
-const TAG_PACKAGER: &[u8] = b"packager";
-const TAG_URL: &[u8] = b"url";
-const TAG_TIME: &[u8] = b"time";
-const TAG_SIZE: &[u8] = b"size";
-const TAG_LOCATION: &[u8] = b"location";
-const TAG_FORMAT: &[u8] = b"format";
+const TAG_METADATA: &str = "metadata";
+const TAG_PACKAGE: &str = "package";
+const TAG_NAME: &str = "name";
+const TAG_VERSION: &str = "version";
+const TAG_CHECKSUM: &str = "checksum";
+const TAG_ARCH: &str = "arch";
+const TAG_SUMMARY: &str = "summary";
+const TAG_DESCRIPTION: &str = "description";
+const TAG_PACKAGER: &str = "packager";
+const TAG_URL: &str = "url";
+const TAG_TIME: &str = "time";
+const TAG_SIZE: &str = "size";
+const TAG_LOCATION: &str = "location";
+const TAG_FORMAT: &str = "format";
 
-const TAG_RPM_LICENSE: &[u8] = b"rpm:license";
-const TAG_RPM_VENDOR: &[u8] = b"rpm:vendor";
-const TAG_RPM_GROUP: &[u8] = b"rpm:group";
-const TAG_RPM_BUILDHOST: &[u8] = b"rpm:buildhost";
-const TAG_RPM_SOURCERPM: &[u8] = b"rpm:sourcerpm";
-const TAG_RPM_HEADER_RANGE: &[u8] = b"rpm:header-range";
+const TAG_RPM_LICENSE: &str = "rpm:license";
+const TAG_RPM_VENDOR: &str = "rpm:vendor";
+const TAG_RPM_GROUP: &str = "rpm:group";
+const TAG_RPM_BUILDHOST: &str = "rpm:buildhost";
+const TAG_RPM_SOURCERPM: &str = "rpm:sourcerpm";
+const TAG_RPM_HEADER_RANGE: &str = "rpm:header-range";
 
-const TAG_RPM_ENTRY: &[u8] = b"rpm:entry";
-const TAG_RPM_PROVIDES: &[u8] = b"rpm:provides";
-const TAG_RPM_REQUIRES: &[u8] = b"rpm:requires";
-const TAG_RPM_CONFLICTS: &[u8] = b"rpm:conflicts";
-const TAG_RPM_OBSOLETES: &[u8] = b"rpm:obsoletes";
-const TAG_RPM_SUGGESTS: &[u8] = b"rpm:suggests";
-const TAG_RPM_ENHANCES: &[u8] = b"rpm:enhances";
-const TAG_RPM_RECOMMENDS: &[u8] = b"rpm:recommends";
-const TAG_RPM_SUPPLEMENTS: &[u8] = b"rpm:supplements";
-const TAG_FILE: &[u8] = b"file";
+const TAG_RPM_ENTRY: &str = "rpm:entry";
+const TAG_RPM_PROVIDES: &str = "rpm:provides";
+const TAG_RPM_REQUIRES: &str = "rpm:requires";
+const TAG_RPM_CONFLICTS: &str = "rpm:conflicts";
+const TAG_RPM_OBSOLETES: &str = "rpm:obsoletes";
+const TAG_RPM_SUGGESTS: &str = "rpm:suggests";
+const TAG_RPM_ENHANCES: &str = "rpm:enhances";
+const TAG_RPM_RECOMMENDS: &str = "rpm:recommends";
+const TAG_RPM_SUPPLEMENTS: &str = "rpm:supplements";
+const TAG_FILE: &str = "file";
 
 impl RpmMetadata for PrimaryXml {
     fn filename() -> &'static str {
@@ -119,9 +120,9 @@ fn parse_header<R: BufRead>(reader: &mut Reader<R>) -> Result<usize, MetadataErr
 
     // TODO: get rid of this buffer
     loop {
-        match reader.read_event(&mut buf)? {
+        match reader.read_event_into(&mut buf)? {
             Event::Decl(_) => (),
-            Event::Start(e) if e.name().as_ref() == TAG_METADATA => {
+            Event::Start(e) if e.name().as_ref() == TAG_METADATA.as_bytes() => {
                 let count = e.try_get_attribute("packages")?.unwrap().value;
                 return Ok(std::str::from_utf8(&count)?.parse()?);
             }
@@ -138,16 +139,13 @@ pub fn parse_package<R: BufRead>(
     let mut text_buf = Vec::with_capacity(512);
 
     loop {
-        match reader.read_event(&mut buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_PACKAGE => break,
-            Event::Start(e) => match e.name().as_ref() {
+        match reader.read_event_into(&mut buf)? {
+            Event::End(e) if e.name().as_ref() == TAG_PACKAGE.as_bytes() => break,
+            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
                 TAG_PACKAGE => {
-                    let ptype = e
-                        .try_get_attribute(b"type")?
-                        .unwrap()
-                        .unescape_and_decode_value(reader)?;
+                    let ptype = e.try_get_attribute(b"type")?.unwrap().unescape_value()?;
 
-                    assert_eq!(&ptype, "rpm"); // TODO: better error handling
+                    assert_eq!(ptype.as_ref(), "rpm"); // TODO: better error handling
 
                     if let Some(_pkg) = package {
                         // TODO: need a temporary place to store this since we don't know the pkgid yet
@@ -159,27 +157,26 @@ pub fn parse_package<R: BufRead>(
                     };
                 }
                 TAG_NAME => {
-                    package
-                        .as_mut()
-                        .unwrap()
-                        .set_name(reader.read_text(TAG_NAME, &mut text_buf)?.as_str());
+                    let text = reader
+                        .read_text_into(QName(TAG_NAME.as_bytes()), &mut text_buf)?
+                        .decode()?;
+                    package.as_mut().unwrap().set_name(text);
                 }
                 TAG_VERSION => {
-                    // TODO: unescape_and_decode_value allocates, that can probably be avoided
                     let epoch = e
                         .try_get_attribute("epoch")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("epoch"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?;
 
                     let version = e
                         .try_get_attribute("ver")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("ver"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?;
 
                     let release = e
                         .try_get_attribute("rel")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("rel"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?;
 
                     // TODO: temporary conversions
                     let evr = EVR::new(epoch, version, release);
@@ -189,53 +186,57 @@ pub fn parse_package<R: BufRead>(
                     let checksum_type = e
                         .try_get_attribute("type")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
-                        .unescape_and_decode_value(reader)?;
-                    let checksum_value = reader.read_text(TAG_CHECKSUM, &mut text_buf)?;
-                    package
-                        .as_mut()
-                        .unwrap()
-                        .set_checksum(Checksum::try_create(checksum_type, checksum_value)?);
+                        .unescape_value()?;
+                    let checksum_value = reader
+                        .read_text_into(QName(TAG_CHECKSUM.as_bytes()), &mut text_buf)?
+                        .decode()?
+                        .into_owned();
+                    package.as_mut().unwrap().set_checksum(Checksum::try_create(
+                        checksum_type.as_bytes(),
+                        checksum_value.as_bytes(),
+                    )?);
                 }
                 TAG_ARCH => {
-                    package
-                        .as_mut()
-                        .unwrap()
-                        .set_arch(reader.read_text(TAG_ARCH, &mut text_buf)?.as_str());
+                    let text = reader
+                        .read_text_into(QName(TAG_ARCH.as_bytes()), &mut text_buf)?
+                        .decode()?;
+                    package.as_mut().unwrap().set_arch(text);
                 }
                 TAG_SUMMARY => {
-                    package
-                        .as_mut()
-                        .unwrap()
-                        .set_summary(reader.read_text(TAG_SUMMARY, &mut text_buf)?.as_str());
+                    let text = reader
+                        .read_text_into(QName(TAG_SUMMARY.as_bytes()), &mut text_buf)?
+                        .decode()?;
+                    package.as_mut().unwrap().set_summary(text);
                 }
                 TAG_DESCRIPTION => {
-                    package.as_mut().unwrap().set_description(
-                        reader.read_text(TAG_DESCRIPTION, &mut text_buf)?.as_str(),
-                    );
+                    let text = reader
+                        .read_text_into(QName(TAG_DESCRIPTION.as_bytes()), &mut text_buf)?
+                        .decode()?;
+                    package.as_mut().unwrap().set_description(text);
                 }
                 TAG_PACKAGER => {
-                    package
-                        .as_mut()
-                        .unwrap()
-                        .set_packager(reader.read_text(TAG_PACKAGER, &mut text_buf)?.as_str());
+                    let text = reader
+                        .read_text_into(QName(TAG_PACKAGER.as_bytes()), &mut text_buf)?
+                        .decode()?;
+                    package.as_mut().unwrap().set_packager(text);
                 }
                 TAG_URL => {
-                    package
-                        .as_mut()
-                        .unwrap()
-                        .set_url(reader.read_text(TAG_URL, &mut text_buf)?.as_str());
+                    let text = reader
+                        .read_text_into(QName(TAG_URL.as_bytes()), &mut text_buf)?
+                        .decode()?;
+                    package.as_mut().unwrap().set_url(text);
                 }
                 TAG_TIME => {
                     let time_file = e
                         .try_get_attribute("file")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("file"))?
-                        .unescape_and_decode_value(reader)?
+                        .unescape_value()?
                         .parse()?;
 
                     let time_build = e
                         .try_get_attribute("build")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("build"))?
-                        .unescape_and_decode_value(reader)?
+                        .unescape_value()?
                         .parse()?;
 
                     package
@@ -248,19 +249,19 @@ pub fn parse_package<R: BufRead>(
                     let package_size = e
                         .try_get_attribute("package")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("package"))?
-                        .unescape_and_decode_value(reader)?
+                        .unescape_value()?
                         .parse()?;
 
                     let installed_size = e
                         .try_get_attribute("installed")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("installed"))?
-                        .unescape_and_decode_value(reader)?
+                        .unescape_value()?
                         .parse()?;
 
                     let archive_size = e
                         .try_get_attribute("archive")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("archive"))?
-                        .unescape_and_decode_value(reader)?
+                        .unescape_value()?
                         .parse()?;
 
                     package
@@ -274,55 +275,71 @@ pub fn parse_package<R: BufRead>(
                     let location_href = e
                         .try_get_attribute("href")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("href"))?
-                        .unescape_and_decode_value(reader)?;
-                    let location_base = e
-                        .try_get_attribute("base")?
-                        .map(|a| a.unescape_and_decode_value(reader).unwrap());
+                        .unescape_value()?;
 
-                    if let Some(location_base) = location_base {
+                    if let Some(base_attr) = e.try_get_attribute("base")? {
+                        let location_base = base_attr.unescape_value()?;
                         package
                             .as_mut()
                             .unwrap()
-                            .set_location_base(Some(location_base.as_str()));
+                            .set_location_base(Some(location_base));
                     }
-                    package.as_mut().unwrap().set_location_href(&location_href);
+                    package.as_mut().unwrap().set_location_href(location_href);
                 }
                 TAG_FORMAT => {
                     // TODO: allocations
                     buf.clear();
                     text_buf.clear();
                     loop {
-                        match reader.read_event(&mut buf)? {
-                            Event::End(e) if e.name().as_ref() == TAG_FORMAT => break,
-                            Event::Start(e) => match e.name().as_ref() {
+                        match reader.read_event_into(&mut buf)? {
+                            Event::End(e) if e.name().as_ref() == TAG_FORMAT.as_bytes() => break,
+                            Event::Start(e) => match std::str::from_utf8(e.name().as_ref())
+                                .unwrap_or("")
+                            {
                                 TAG_RPM_LICENSE => {
-                                    package.as_mut().unwrap().set_rpm_license(
-                                        reader.read_text(TAG_RPM_LICENSE, &mut text_buf)?.as_str(),
-                                    );
+                                    let text = reader
+                                        .read_text_into(
+                                            QName(TAG_RPM_LICENSE.as_bytes()),
+                                            &mut text_buf,
+                                        )?
+                                        .decode()?;
+                                    package.as_mut().unwrap().set_rpm_license(text);
                                 }
                                 TAG_RPM_VENDOR => {
-                                    package.as_mut().unwrap().set_rpm_vendor(
-                                        reader.read_text(TAG_RPM_VENDOR, &mut text_buf)?.as_str(),
-                                    );
+                                    let text = reader
+                                        .read_text_into(
+                                            QName(TAG_RPM_VENDOR.as_bytes()),
+                                            &mut text_buf,
+                                        )?
+                                        .decode()?;
+                                    package.as_mut().unwrap().set_rpm_vendor(text);
                                 }
                                 TAG_RPM_GROUP => {
-                                    package.as_mut().unwrap().set_rpm_group(
-                                        reader.read_text(TAG_RPM_GROUP, &mut text_buf)?.as_str(),
-                                    );
+                                    let text = reader
+                                        .read_text_into(
+                                            QName(TAG_RPM_GROUP.as_bytes()),
+                                            &mut text_buf,
+                                        )?
+                                        .decode()?;
+                                    package.as_mut().unwrap().set_rpm_group(text);
                                 }
                                 TAG_RPM_BUILDHOST => {
-                                    package.as_mut().unwrap().set_rpm_buildhost(
-                                        reader
-                                            .read_text(TAG_RPM_BUILDHOST, &mut text_buf)?
-                                            .as_str(),
-                                    );
+                                    let text = reader
+                                        .read_text_into(
+                                            QName(TAG_RPM_BUILDHOST.as_bytes()),
+                                            &mut text_buf,
+                                        )?
+                                        .decode()?;
+                                    package.as_mut().unwrap().set_rpm_buildhost(text);
                                 }
                                 TAG_RPM_SOURCERPM => {
-                                    package.as_mut().unwrap().set_rpm_sourcerpm(
-                                        reader
-                                            .read_text(TAG_RPM_SOURCERPM, &mut text_buf)?
-                                            .as_str(),
-                                    );
+                                    let text = reader
+                                        .read_text_into(
+                                            QName(TAG_RPM_SOURCERPM.as_bytes()),
+                                            &mut text_buf,
+                                        )?
+                                        .decode()?;
+                                    package.as_mut().unwrap().set_rpm_sourcerpm(text);
                                 }
                                 TAG_RPM_HEADER_RANGE => {
                                     let start = e
@@ -330,13 +347,13 @@ pub fn parse_package<R: BufRead>(
                                         .ok_or_else(|| {
                                             MetadataError::MissingAttributeError("start")
                                         })?
-                                        .unescape_and_decode_value(reader)?
+                                        .unescape_value()?
                                         .parse()?;
 
                                     let end = e
                                         .try_get_attribute("end")?
                                         .ok_or_else(|| MetadataError::MissingAttributeError("end"))?
-                                        .unescape_and_decode_value(reader)?
+                                        .unescape_value()?
                                         .parse()?;
 
                                     package.as_mut().unwrap().set_rpm_header_range(start, end);
@@ -420,15 +437,15 @@ impl<W: Write> PrimaryXmlWriter<W> {
     pub fn write_header(&mut self, num_pkgs: usize) -> Result<(), MetadataError> {
         // <?xml version="1.0" encoding="UTF-8"?>
         self.writer
-            .write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
+            .write_event(Event::Decl(BytesDecl::new("1.0", Some("UTF-8"), None)))?;
 
         // <metadata xmlns="http://linux.duke.edu/metadata/common" xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="210">
-        let mut metadata_tag = BytesStart::borrowed_name(TAG_METADATA);
+        let mut metadata_tag = BytesStart::new(TAG_METADATA);
         metadata_tag.push_attribute(("xmlns", XML_NS_COMMON));
         metadata_tag.push_attribute(("xmlns:rpm", XML_NS_RPM));
         metadata_tag.push_attribute(("packages", num_pkgs.to_string().as_str()));
         self.writer
-            .write_event(Event::Start(metadata_tag.to_borrowed()))?;
+            .write_event(Event::Start(metadata_tag.borrow()))?;
 
         Ok(())
     }
@@ -441,14 +458,13 @@ impl<W: Write> PrimaryXmlWriter<W> {
     pub fn finish(&mut self) -> Result<(), MetadataError> {
         // </metadata>
         self.writer
-            .write_event(Event::End(BytesEnd::borrowed(TAG_METADATA)))?;
+            .write_event(Event::End(BytesEnd::new(TAG_METADATA)))?;
 
         // trailing newline
-        self.writer
-            .write_event(Event::Text(BytesText::from_plain_str("\n")))?;
+        self.writer.write_event(Event::Text(BytesText::new("\n")))?;
 
         // write everything out to disk - otherwise it won't happen until drop() which impedes debugging
-        self.writer.inner().flush()?;
+        self.writer.get_mut().flush()?;
 
         Ok(())
     }
@@ -463,19 +479,19 @@ pub fn write_package<W: Write>(
     package: &Package,
 ) -> Result<(), MetadataError> {
     // <package type="rpm">
-    let mut package_tag = BytesStart::borrowed_name(TAG_PACKAGE);
+    let mut package_tag = BytesStart::new(TAG_PACKAGE);
     package_tag.push_attribute(("type", "rpm"));
-    writer.write_event(Event::Start(package_tag.to_borrowed()))?;
+    writer.write_event(Event::Start(package_tag.borrow()))?;
 
     // <name>horse</name>
     writer
         .create_element(TAG_NAME)
-        .write_text_content(BytesText::from_plain_str(package.name()))?;
+        .write_text_content(BytesText::new(package.name()))?;
 
     // <arch>noarch</arch>
     writer
         .create_element(TAG_ARCH)
-        .write_text_content(BytesText::from_plain_str(package.arch()))?;
+        .write_text_content(BytesText::new(package.arch()))?;
 
     // <version epoch="0" ver="4.1" rel="1"/>
     let (epoch, version, release) = package.evr().values();
@@ -492,27 +508,27 @@ pub fn write_package<W: Write>(
         .create_element(TAG_CHECKSUM)
         .with_attribute(("type", checksum_type))
         .with_attribute(("pkgid", "YES"))
-        .write_text_content(BytesText::from_plain_str(checksum_value))?;
+        .write_text_content(BytesText::new(checksum_value))?;
 
     // <summary>A dummy package of horse</summary>
     writer
         .create_element(TAG_SUMMARY)
-        .write_text_content(BytesText::from_plain_str(package.summary()))?;
+        .write_text_content(BytesText::new(package.summary()))?;
 
     // <description>A dummy package of horse</description>
     writer
         .create_element(TAG_DESCRIPTION)
-        .write_text_content(BytesText::from_plain_str(package.description()))?;
+        .write_text_content(BytesText::new(package.description()))?;
 
     // <packager>Bojack Horseman</packager>
     writer
         .create_element(TAG_PACKAGER)
-        .write_text_content(BytesText::from_plain_str(package.packager()))?;
+        .write_text_content(BytesText::new(package.packager()))?;
 
     // <url>http://arandomaddress.com</url>
     writer
         .create_element(TAG_URL)
-        .write_text_content(BytesText::from_plain_str(package.url()))?;
+        .write_text_content(BytesText::new(package.url()))?;
 
     // <time file="1615451135" build="1331831374"/>
     writer
@@ -536,33 +552,33 @@ pub fn write_package<W: Write>(
         .write_empty()?;
 
     // <format>
-    let format_tag = BytesStart::borrowed_name(TAG_FORMAT);
-    writer.write_event(Event::Start(format_tag.to_borrowed()))?;
+    let format_tag = BytesStart::new(TAG_FORMAT);
+    writer.write_event(Event::Start(format_tag.borrow()))?;
 
     // <rpm:license>GPLv2</rpm:license>
     writer
         .create_element(TAG_RPM_LICENSE)
-        .write_text_content(BytesText::from_plain_str(package.rpm_license()))?;
+        .write_text_content(BytesText::new(package.rpm_license()))?;
 
     // <rpm:vendor></rpm:vendor>
     writer
         .create_element(TAG_RPM_VENDOR)
-        .write_text_content(BytesText::from_plain_str(package.rpm_vendor()))?;
+        .write_text_content(BytesText::new(package.rpm_vendor()))?;
 
     // <rpm:group>Internet/Applications</rpm:group>
     writer
         .create_element(TAG_RPM_GROUP)
-        .write_text_content(BytesText::from_plain_str(&package.rpm_group()))?;
+        .write_text_content(BytesText::new(&package.rpm_group()))?;
 
     // <rpm:buildhost>smqe-ws15</rpm:buildhost>
     writer
         .create_element(TAG_RPM_BUILDHOST)
-        .write_text_content(BytesText::from_plain_str(&package.rpm_buildhost()))?;
+        .write_text_content(BytesText::new(&package.rpm_buildhost()))?;
 
     // <rpm:sourcerpm>horse-4.1-1.src.rpm</rpm:sourcerpm>
     writer
         .create_element(TAG_RPM_SOURCERPM)
-        .write_text_content(BytesText::from_plain_str(&package.rpm_sourcerpm()))?;
+        .write_text_content(BytesText::new(&package.rpm_sourcerpm()))?;
 
     // <rpm:header-range start="280" end="1697"/>
     let header_start = package.rpm_header_range().start.to_string();
@@ -611,9 +627,9 @@ pub fn write_package<W: Write>(
 // <rpm:supplements>
 //   <rpm:entry name="horse" flags="EQ" epoch="0" ver="4.1" rel="1"/>
 // </rpm:supplements>
-fn write_requirement_section<W: Write, N: AsRef<[u8]> + Sized>(
+fn write_requirement_section<W: Write>(
     writer: &mut Writer<W>,
-    section_name: N,
+    section_name: &str,
     entry_list: &[Requirement],
 ) -> Result<(), MetadataError> {
     // skip writing empty sections
@@ -621,11 +637,11 @@ fn write_requirement_section<W: Write, N: AsRef<[u8]> + Sized>(
         return Ok(());
     }
 
-    let section_tag = BytesStart::borrowed_name(section_name.as_ref());
-    writer.write_event(Event::Start(section_tag.to_borrowed()))?;
+    let section_tag = BytesStart::new(section_name);
+    writer.write_event(Event::Start(section_tag.borrow()))?;
 
     for entry in entry_list {
-        let mut entry_tag = BytesStart::borrowed_name(b"rpm:entry");
+        let mut entry_tag = BytesStart::new("rpm:entry");
         entry_tag.push_attribute(("name", entry.name.as_str()));
 
         if let Some(flags) = &entry.flags {
@@ -664,33 +680,23 @@ pub fn parse_requirement_list<R: BufRead>(
     let mut buf = Vec::with_capacity(128);
 
     loop {
-        match reader.read_event(&mut buf)? {
-            Event::Start(e) if e.name().as_ref() == TAG_RPM_ENTRY => {
+        match reader.read_event_into(&mut buf)? {
+            Event::Start(e) if e.name().as_ref() == TAG_RPM_ENTRY.as_bytes() => {
                 let mut requirement = Requirement::default();
                 for attr in e.attributes() {
-                    let attr = attr.map_err(|e| quick_xml::Error::from(e))?;
+                    let attr = attr?;
                     match attr.key.as_ref() {
                         b"name" => {
-                            requirement.name = attr.unescape_and_decode_value(reader)?;
+                            requirement.name = attr.unescape_value()?.into_owned();
                         }
-                        b"flags" => {
-                            requirement.flags = Some(attr.unescape_and_decode_value(reader)?)
-                        }
-                        b"epoch" => {
-                            requirement.epoch = Some(attr.unescape_and_decode_value(reader)?)
-                        }
-                        b"ver" => {
-                            requirement.version = Some(attr.unescape_and_decode_value(reader)?)
-                        }
-                        b"rel" => {
-                            requirement.release = Some(attr.unescape_and_decode_value(reader)?)
-                        }
+                        b"flags" => requirement.flags = Some(attr.unescape_value()?.into_owned()),
+                        b"epoch" => requirement.epoch = Some(attr.unescape_value()?.into_owned()),
+                        b"ver" => requirement.version = Some(attr.unescape_value()?.into_owned()),
+                        b"rel" => requirement.release = Some(attr.unescape_value()?.into_owned()),
                         b"pre" => {
-                            requirement.preinstall = attr
-                                .unescape_and_decode_value(reader)
-                                .ok()
-                                .filter(|val| val != "0" && !val.eq_ignore_ascii_case("false"))
-                                .is_some()
+                            let val = attr.unescape_value()?;
+                            requirement.preinstall =
+                                val != "0" && !val.eq_ignore_ascii_case("false");
                         }
                         a @ _ => {
                             return Err(MetadataError::UnknownAttributeError(format!(

@@ -17,7 +17,7 @@ read_rpm = ["rpm"]
 default = ["python_ext", "read_rpm"]
 
 [dependencies]
-quick-xml = { version = "0.23.0", default-features = false }
+quick-xml = { version = "0.39", default-features = false }
 # rayon = "1.5.1"
 thiserror = "2"
 niffler = { version = "3", features = ["bz2", "lzma", "gz", "zstd"], default-features = false }

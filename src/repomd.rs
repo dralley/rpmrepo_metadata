@@ -12,6 +12,7 @@ use std::time::SystemTime;
 
 // use super::metadata::RpmMetadata;
 use quick_xml::events::{BytesDecl, BytesStart, BytesText, Event};
+use quick_xml::name::QName;
 use quick_xml::{Reader, Writer};
 
 use super::Repository;
@@ -21,24 +22,24 @@ use super::metadata::{
 };
 
 // RepoMd
-const TAG_REPOMD: &[u8] = b"repomd";
-const TAG_REVISION: &[u8] = b"revision";
-const TAG_TAGS: &[u8] = b"tags";
-const TAG_DATA: &[u8] = b"data";
+const TAG_REPOMD: &str = "repomd";
+const TAG_REVISION: &str = "revision";
+const TAG_TAGS: &str = "tags";
+const TAG_DATA: &str = "data";
 // Tags
-const TAG_REPO: &[u8] = b"repo";
-const TAG_CONTENT: &[u8] = b"content";
-const TAG_DISTRO: &[u8] = b"distro";
+const TAG_REPO: &str = "repo";
+const TAG_CONTENT: &str = "content";
+const TAG_DISTRO: &str = "distro";
 // RepoMdRecord
-const TAG_LOCATION: &[u8] = b"location";
-const TAG_CHECKSUM: &[u8] = b"checksum";
-const TAG_OPEN_CHECKSUM: &[u8] = b"open-checksum";
-const TAG_HEADER_CHECKSUM: &[u8] = b"header-checksum";
-const TAG_TIMESTAMP: &[u8] = b"timestamp";
-const TAG_SIZE: &[u8] = b"size";
-const TAG_OPEN_SIZE: &[u8] = b"open-size";
-const TAG_HEADER_SIZE: &[u8] = b"header-size";
-const TAG_DATABASE_VERSION: &[u8] = b"database_version";
+const TAG_LOCATION: &str = "location";
+const TAG_CHECKSUM: &str = "checksum";
+const TAG_OPEN_CHECKSUM: &str = "open-checksum";
+const TAG_HEADER_CHECKSUM: &str = "header-checksum";
+const TAG_TIMESTAMP: &str = "timestamp";
+const TAG_SIZE: &str = "size";
+const TAG_OPEN_SIZE: &str = "open-size";
+const TAG_HEADER_SIZE: &str = "header-size";
+const TAG_DATABASE_VERSION: &str = "database_version";
 
 impl RpmMetadata for RepomdXml {
     fn filename() -> &'static str {
@@ -136,14 +137,14 @@ fn read_repomd_xml<R: BufRead>(
     let mut found_metadata_tag = false;
 
     loop {
-        match reader.read_event(&mut event_buf)? {
-            Event::Start(e) => match e.name().as_ref() {
+        match reader.read_event_into(&mut event_buf)? {
+            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
                 TAG_REPOMD => {
                     found_metadata_tag = true;
                 }
                 TAG_REVISION => {
-                    let revision = reader.read_text(e.name(), &mut text_buf)?;
-                    repomd_data.set_revision(&revision);
+                    let revision = reader.read_text_into(e.name(), &mut text_buf)?.decode()?;
+                    repomd_data.set_revision(revision.as_ref());
                 }
                 TAG_DATA => {
                     let data = parse_repomdrecord(&mut reader, &e)?;
@@ -156,27 +157,41 @@ fn read_repomd_xml<R: BufRead>(
                     //     <distro cpeid="cpe:/o:fedoraproject:fedora:33">Fedora 33</distro>
                     //   </tags>
                     loop {
-                        match reader.read_event(&mut event_buf)? {
-                            Event::Start(e) => match e.name().as_ref() {
+                        match reader.read_event_into(&mut event_buf)? {
+                            Event::Start(e) => match std::str::from_utf8(e.name().as_ref())
+                                .unwrap_or("")
+                            {
                                 TAG_DISTRO => {
                                     let cpeid = (&e).try_get_attribute("cpeid")?.and_then(|a| {
-                                        a.unescape_and_decode_value(&mut reader).ok()
+                                        a.unescape_value().ok().map(|v| v.into_owned())
                                     });
-                                    let name = reader.read_text(TAG_DISTRO, &mut text_buf)?;
+                                    let name = reader
+                                        .read_text_into(
+                                            QName(TAG_DISTRO.as_bytes()),
+                                            &mut text_buf,
+                                        )?
+                                        .decode()?
+                                        .into_owned();
                                     repomd_data.add_distro_tag(name, cpeid);
                                 }
                                 TAG_REPO => {
-                                    let repo = reader.read_text(e.name(), &mut text_buf)?;
+                                    let repo = reader
+                                        .read_text_into(e.name(), &mut text_buf)?
+                                        .decode()?
+                                        .into_owned();
                                     repomd_data.add_repo_tag(repo);
                                 }
                                 TAG_CONTENT => {
-                                    let content = reader.read_text(e.name(), &mut text_buf)?;
+                                    let content = reader
+                                        .read_text_into(e.name(), &mut text_buf)?
+                                        .decode()?
+                                        .into_owned();
                                     repomd_data.add_content_tag(content);
                                 }
                                 _ => (),
                             },
 
-                            Event::End(e) if e.name().as_ref() == TAG_TAGS => break,
+                            Event::End(e) if e.name().as_ref() == TAG_TAGS.as_bytes() => break,
                             _ => (),
                         }
                         text_buf.clear();
@@ -224,13 +239,16 @@ pub fn parse_repomdrecord<R: BufRead>(
     let mut record_buf = Vec::new();
 
     loop {
-        match reader.read_event(&mut buf)? {
-            Event::Start(e) => match e.name().as_ref() {
+        match reader.read_event_into(&mut buf)? {
+            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
                 TAG_CHECKSUM => {
                     let checksum_type = e
                         .try_get_attribute("type")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("type"))?;
-                    let checksum_value = reader.read_text(e.name(), &mut record_buf)?;
+                    let checksum_value = reader
+                        .read_text_into(e.name(), &mut record_buf)?
+                        .decode()?
+                        .into_owned();
                     let checksum = Checksum::try_create(
                         checksum_type.value.as_ref(),
                         checksum_value.as_bytes(),
@@ -241,7 +259,10 @@ pub fn parse_repomdrecord<R: BufRead>(
                     let checksum_type = e
                         .try_get_attribute("type")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("type"))?;
-                    let checksum_value = reader.read_text(e.name(), &mut record_buf)?;
+                    let checksum_value = reader
+                        .read_text_into(e.name(), &mut record_buf)?
+                        .decode()?
+                        .into_owned();
                     let checksum = Checksum::try_create(
                         checksum_type.value.as_ref(),
                         checksum_value.as_bytes(),
@@ -252,7 +273,10 @@ pub fn parse_repomdrecord<R: BufRead>(
                     let checksum_type = e
                         .try_get_attribute("type")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("type"))?;
-                    let checksum_value = reader.read_text(e.name(), &mut record_buf)?;
+                    let checksum_value = reader
+                        .read_text_into(e.name(), &mut record_buf)?
+                        .decode()?
+                        .into_owned();
                     let checksum = Checksum::try_create(
                         checksum_type.value.as_ref(),
                         checksum_value.as_bytes(),
@@ -263,33 +287,48 @@ pub fn parse_repomdrecord<R: BufRead>(
                     let location = e
                         .try_get_attribute("href")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("href"))?
-                        .unescape_and_decode_value(reader)?
-                        .into();
-                    record_builder.location_href = Some(location);
+                        .unescape_value()?
+                        .into_owned();
+                    record_builder.location_href = Some(location.into());
                 }
                 TAG_TIMESTAMP => {
-                    let timestamp = reader.read_text(e.name(), &mut record_buf)?.parse()?;
+                    let timestamp = reader
+                        .read_text_into(e.name(), &mut record_buf)?
+                        .decode()?
+                        .parse()?;
                     record_builder.timestamp = Some(timestamp);
                 }
                 TAG_SIZE => {
-                    let size = reader.read_text(e.name(), &mut record_buf)?.parse()?;
+                    let size = reader
+                        .read_text_into(e.name(), &mut record_buf)?
+                        .decode()?
+                        .parse()?;
                     record_builder.size = Some(size);
                 }
                 TAG_HEADER_SIZE => {
-                    let header_size = reader.read_text(e.name(), &mut record_buf)?.parse()?;
+                    let header_size = reader
+                        .read_text_into(e.name(), &mut record_buf)?
+                        .decode()?
+                        .parse()?;
                     record_builder.header_size = Some(header_size);
                 }
                 TAG_OPEN_SIZE => {
-                    let open_size = reader.read_text(e.name(), &mut record_buf)?.parse()?;
+                    let open_size = reader
+                        .read_text_into(e.name(), &mut record_buf)?
+                        .decode()?
+                        .parse()?;
                     record_builder.open_size = Some(open_size);
                 }
                 TAG_DATABASE_VERSION => {
-                    let database_version = reader.read_text(e.name(), &mut record_buf)?.parse()?;
+                    let database_version = reader
+                        .read_text_into(e.name(), &mut record_buf)?
+                        .decode()?
+                        .parse()?;
                     record_builder.database_version = Some(database_version);
                 }
                 _ => (),
             },
-            Event::End(e) if e.name().as_ref() == TAG_DATA => break,
+            Event::End(e) if e.name().as_ref() == TAG_DATA.as_bytes() => break,
             _ => (),
         }
         record_buf.clear();
@@ -302,13 +341,13 @@ fn write_repomd_xml<W: Write>(
     writer: &mut Writer<W>,
 ) -> Result<(), MetadataError> {
     // <?xml version="1.0" encoding="UTF-8"?>
-    writer.write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
+    writer.write_event(Event::Decl(BytesDecl::new("1.0", Some("UTF-8"), None)))?;
 
     // <repomd xmlns="http://linux.duke.edu/metadata/repo" xmlns:rpm="http://linux.duke.edu/metadata/rpm">
-    let mut repomd_tag = BytesStart::borrowed_name(TAG_REPOMD);
+    let mut repomd_tag = BytesStart::new(TAG_REPOMD);
     repomd_tag.push_attribute(("xmlns", XML_NS_REPO));
     repomd_tag.push_attribute(("xmlns:rpm", XML_NS_RPM));
-    writer.write_event(Event::Start(repomd_tag.to_borrowed()))?;
+    writer.write_event(Event::Start(repomd_tag.borrow()))?;
 
     // <revision>123897</revision>
     let get_current_time = || {
@@ -325,7 +364,7 @@ fn write_repomd_xml<W: Write>(
     };
     writer
         .create_element(TAG_REVISION)
-        .write_text_content(BytesText::from_plain_str(revision.as_str()))?;
+        .write_text_content(BytesText::new(revision.as_str()))?;
 
     write_tags(repomd_data, writer)?;
     for record in repomd_data.records() {
@@ -336,7 +375,7 @@ fn write_repomd_xml<W: Write>(
     writer.write_event(Event::End(repomd_tag.to_end()))?;
 
     // trailing newline
-    writer.write_event(Event::Text(BytesText::from_plain_str("\n")))?;
+    writer.write_event(Event::Text(BytesText::new("\n")))?;
     Ok(())
 }
 
@@ -355,31 +394,31 @@ fn write_tags<W: Write>(
 
     if has_distro_tags || has_repo_tags || has_content_tags {
         // <tags>
-        let tags_tag = BytesStart::borrowed_name(TAG_TAGS);
-        writer.write_event(Event::Start(tags_tag.to_borrowed()))?;
+        let tags_tag = BytesStart::new(TAG_TAGS);
+        writer.write_event(Event::Start(tags_tag.borrow()))?;
 
         for item in repomd_data.content_tags() {
             // <content>binary-x86_64</content>
             writer
                 .create_element(TAG_CONTENT)
-                .write_text_content(BytesText::from_plain_str(item))?;
+                .write_text_content(BytesText::new(item))?;
         }
 
         for item in repomd_data.repo_tags() {
             // <repo>Fedora</repo>
             writer
                 .create_element(TAG_REPO)
-                .write_text_content(BytesText::from_plain_str(item))?;
+                .write_text_content(BytesText::new(item))?;
         }
 
         for item in repomd_data.distro_tags() {
             // <distro cpeid="cpe:/o:fedoraproject:fedora:33">Fedora 33</distro>
-            let mut distro_tag = BytesStart::borrowed_name(TAG_DISTRO);
+            let mut distro_tag = BytesStart::new(TAG_DISTRO);
             if let Some(cpeid) = &item.cpeid {
                 distro_tag.push_attribute(("cpeid", cpeid.as_str()))
             }
-            writer.write_event(Event::Start(distro_tag.to_borrowed()))?;
-            writer.write_event(Event::Text(BytesText::from_plain_str(item.name.as_str())))?;
+            writer.write_event(Event::Start(distro_tag.borrow()))?;
+            writer.write_event(Event::Text(BytesText::new(item.name.as_str())))?;
             writer.write_event(Event::End(distro_tag.to_end()))?;
         }
 
@@ -398,16 +437,16 @@ fn write_tags<W: Write>(
 ///  </data>
 fn write_data<W: Write>(data: &RepomdRecord, writer: &mut Writer<W>) -> Result<(), MetadataError> {
     // <data>
-    let mut data_tag = BytesStart::borrowed_name(TAG_DATA);
+    let mut data_tag = BytesStart::new(TAG_DATA);
     data_tag.push_attribute(("type".as_bytes(), data.metadata_name.as_bytes()));
-    writer.write_event(Event::Start(data_tag.to_borrowed()))?;
+    writer.write_event(Event::Start(data_tag.borrow()))?;
 
     // <checksum type="sha256">afdc6dc379e58d097ed0b350536812bc6a604bbce50c5c109d8d98e28301dc4b</checksum>
     let (checksum_type, checksum_value) = data.checksum.to_values()?;
     writer
         .create_element(TAG_CHECKSUM)
         .with_attribute(("type", checksum_type))
-        .write_text_content(BytesText::from_plain_str(checksum_value))?;
+        .write_text_content(BytesText::new(checksum_value))?;
 
     // <open-checksum type="sha256">afdc6dc379e58d097ed0b350536812bc6a604bbce50c5c109d8d98e28301dc4b</open-checksum> (maybe)
     if let Some(open_checksum) = &data.open_checksum {
@@ -415,7 +454,7 @@ fn write_data<W: Write>(data: &RepomdRecord, writer: &mut Writer<W>) -> Result<(
         writer
             .create_element(TAG_OPEN_CHECKSUM)
             .with_attribute(("type", checksum_type))
-            .write_text_content(BytesText::from_plain_str(checksum_value))?;
+            .write_text_content(BytesText::new(checksum_value))?;
     }
 
     // <header-checksum type="sha256">afdc6dc379e58d097ed0b350536812bc6a604bbce50c5c109d8d98e28301dc4b</header-checksum> (maybe)
@@ -424,7 +463,7 @@ fn write_data<W: Write>(data: &RepomdRecord, writer: &mut Writer<W>) -> Result<(
         writer
             .create_element(TAG_HEADER_CHECKSUM)
             .with_attribute(("type", checksum_type))
-            .write_text_content(BytesText::from_plain_str(checksum_value))?;
+            .write_text_content(BytesText::new(checksum_value))?;
     }
 
     // <location href="repodata/primary.xml.gz">
@@ -436,36 +475,34 @@ fn write_data<W: Write>(data: &RepomdRecord, writer: &mut Writer<W>) -> Result<(
     // <timestamp>1602869947</timestamp>
     writer
         .create_element(TAG_TIMESTAMP)
-        .write_text_content(BytesText::from_plain_str(
-            data.timestamp.to_string().as_str(),
-        ))?;
+        .write_text_content(BytesText::new(data.timestamp.to_string().as_str()))?;
 
     // <size>123987</size> (maybe)
     if let Some(size) = data.size {
         writer
             .create_element(TAG_SIZE)
-            .write_text_content(BytesText::from_plain_str(&size.to_string()))?;
+            .write_text_content(BytesText::new(&size.to_string()))?;
     }
 
     // <open-size>68652</open-size> (maybe)
     if let Some(open_size) = data.open_size {
         writer
             .create_element(TAG_OPEN_SIZE)
-            .write_text_content(BytesText::from_plain_str(&open_size.to_string()))?;
+            .write_text_content(BytesText::new(&open_size.to_string()))?;
     }
 
     // <header-size>761487</header-size> (maybe)
     if let Some(size_header) = data.header_size {
         writer
             .create_element(TAG_HEADER_SIZE)
-            .write_text_content(BytesText::from_plain_str(&size_header.to_string()))?;
+            .write_text_content(BytesText::new(&size_header.to_string()))?;
     }
 
     // <database_version>10</database_version>
     if let Some(database_version) = data.database_version {
         writer
             .create_element(TAG_DATABASE_VERSION)
-            .write_text_content(BytesText::from_plain_str(&database_version.to_string()))?;
+            .write_text_content(BytesText::new(&database_version.to_string()))?;
     }
 
     // </data>

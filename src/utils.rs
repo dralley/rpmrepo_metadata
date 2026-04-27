@@ -86,7 +86,8 @@ pub fn size_inner_file(path: &Path) -> Result<Option<u64>, MetadataError> {
 
 pub fn create_xml_reader<R: io::BufRead>(inner: R) -> quick_xml::Reader<R> {
     let mut reader = quick_xml::Reader::from_reader(inner);
-    reader.expand_empty_elements(true).trim_text(true);
+    reader.config_mut().expand_empty_elements = true;
+    reader.config_mut().trim_text(true);
     reader
 }
 

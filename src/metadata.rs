@@ -70,10 +70,23 @@ pub enum MetadataError {
     MissingHeaderError,
 }
 
-// #[derive(Error, Debug)]
-// pub enum RpmrepoError {
+impl From<quick_xml::events::attributes::AttrError> for MetadataError {
+    fn from(e: quick_xml::events::attributes::AttrError) -> Self {
+        MetadataError::XmlParseError(e.into())
+    }
+}
 
-// }
+impl From<quick_xml::escape::EscapeError> for MetadataError {
+    fn from(e: quick_xml::escape::EscapeError) -> Self {
+        MetadataError::XmlParseError(e.into())
+    }
+}
+
+impl From<quick_xml::encoding::EncodingError> for MetadataError {
+    fn from(e: quick_xml::encoding::EncodingError) -> Self {
+        MetadataError::XmlParseError(e.into())
+    }
+}
 
 /// Default namespace for primary.xml
 pub const XML_NS_COMMON: &str = "http://linux.duke.edu/metadata/common";

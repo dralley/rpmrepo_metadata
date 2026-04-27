@@ -15,10 +15,10 @@ use crate::Checksum;
 use super::metadata::{Changelog, OtherXml, Package, RpmMetadata, XML_NS_OTHER};
 use super::{EVR, MetadataError, Repository};
 
-const TAG_OTHERDATA: &[u8] = b"otherdata";
-const TAG_PACKAGE: &[u8] = b"package";
-const TAG_VERSION: &[u8] = b"version";
-const TAG_CHANGELOG: &[u8] = b"changelog";
+const TAG_OTHERDATA: &str = "otherdata";
+const TAG_PACKAGE: &str = "package";
+const TAG_VERSION: &str = "version";
+const TAG_CHANGELOG: &str = "changelog";
 
 impl RpmMetadata for OtherXml {
     fn filename() -> &'static str {
@@ -83,10 +83,10 @@ impl<W: Write> OtherXmlWriter<W> {
     pub fn write_header(&mut self, num_pkgs: usize) -> Result<(), MetadataError> {
         // <?xml version="1.0" encoding="UTF-8"?>
         self.writer
-            .write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
+            .write_event(Event::Decl(BytesDecl::new("1.0", Some("UTF-8"), None)))?;
 
         // <otherdata xmlns="http://linux.duke.edu/metadata/other" packages="200">
-        let mut other_tag = BytesStart::borrowed_name(TAG_OTHERDATA);
+        let mut other_tag = BytesStart::new(TAG_OTHERDATA);
         other_tag.push_attribute(("xmlns", XML_NS_OTHER));
         other_tag.push_attribute(("packages", num_pkgs.to_string().as_str()));
         self.writer.write_event(Event::Start(other_tag))?;
@@ -96,13 +96,13 @@ impl<W: Write> OtherXmlWriter<W> {
 
     pub fn write_package(&mut self, package: &Package) -> Result<(), MetadataError> {
         // <package pkgid="6a915b6e1ad740994aa9688d70a67ff2b6b72e0ced668794aeb27b2d0f2e237b" name="fontconfig" arch="x86_64">
-        let mut package_tag = BytesStart::borrowed_name(TAG_PACKAGE);
+        let mut package_tag = BytesStart::new(TAG_PACKAGE);
         let (_, pkgid) = package.checksum().to_values()?;
         package_tag.push_attribute(("pkgid", pkgid));
         package_tag.push_attribute(("name", package.name()));
         package_tag.push_attribute(("arch", package.arch()));
         self.writer
-            .write_event(Event::Start(package_tag.to_borrowed()))?;
+            .write_event(Event::Start(package_tag.borrow()))?;
 
         let (epoch, version, release) = package.evr().values();
         // <version epoch="0" ver="2.8.0" rel="5.el6"/>
@@ -120,7 +120,7 @@ impl<W: Write> OtherXmlWriter<W> {
                 .with_attribute(("author", changelog.author.as_str()))
                 .with_attribute(("date", changelog.timestamp.to_string().as_str()))
                 .write_text_content(BytesText::from_escaped(partial_escape(
-                    &changelog.description.as_bytes(),
+                    &changelog.description,
                 )))?;
         }
 
@@ -133,14 +133,13 @@ impl<W: Write> OtherXmlWriter<W> {
     pub fn finish(&mut self) -> Result<(), MetadataError> {
         // </otherdata>
         self.writer
-            .write_event(Event::End(BytesEnd::borrowed(TAG_OTHERDATA)))?;
+            .write_event(Event::End(BytesEnd::new(TAG_OTHERDATA)))?;
 
         // trailing newline
-        self.writer
-            .write_event(Event::Text(BytesText::from_plain_str("\n")))?;
+        self.writer.write_event(Event::Text(BytesText::new("\n")))?;
 
         // write everything out to disk - otherwise it won't happen until drop() which impedes debugging
-        self.writer.inner().flush()?;
+        self.writer.get_mut().flush()?;
 
         Ok(())
     }
@@ -171,9 +170,9 @@ fn parse_header<R: BufRead>(reader: &mut Reader<R>) -> Result<usize, MetadataErr
 
     // TODO: get rid of this buffer
     loop {
-        match reader.read_event(&mut buf)? {
+        match reader.read_event_into(&mut buf)? {
             Event::Decl(_) => (),
-            Event::Start(e) if e.name().as_ref() == TAG_OTHERDATA => {
+            Event::Start(e) if e.name().as_ref() == TAG_OTHERDATA.as_bytes() => {
                 let count = e.try_get_attribute("packages")?.unwrap().value;
                 return Ok(std::str::from_utf8(&count)?.parse()?);
             }
@@ -196,30 +195,30 @@ pub fn parse_package<R: BufRead>(
 
     // TODO: get rid of unwraps, various branches could happen in wrong order
     loop {
-        match reader.read_event(&mut buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_PACKAGE => break,
-            Event::Start(e) => match e.name().as_ref() {
+        match reader.read_event_into(&mut buf)? {
+            Event::End(e) if e.name().as_ref() == TAG_PACKAGE.as_bytes() => break,
+            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
                 TAG_PACKAGE => {
                     let pkgid = e
                         .try_get_attribute("pkgid")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("pkgid"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?;
                     let name = e
                         .try_get_attribute("name")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("name"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?;
                     let arch = e
                         .try_get_attribute("arch")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?;
 
                     if let Some(pkg) = package {
-                        assert!(pkg.pkgid() == &pkgid); // TODO err instead of assert
+                        assert!(pkg.pkgid() == pkgid.as_ref()); // TODO err instead of assert
                     } else {
                         let mut pkg = Package::default();
-                        pkg.set_name(&name)
-                            .set_arch(&arch)
-                            .set_checksum(Checksum::Unknown(pkgid));
+                        pkg.set_name(name)
+                            .set_arch(arch)
+                            .set_checksum(Checksum::Unknown(pkgid.into_owned()));
                         *package = Some(pkg);
                     };
                 }
@@ -254,15 +253,15 @@ pub fn parse_evr<R: BufRead>(
     let epoch = open_tag
         .try_get_attribute("epoch")?
         .unwrap()
-        .unescape_and_decode_value(reader)?;
+        .unescape_value()?;
     let version = open_tag
         .try_get_attribute("ver")?
         .unwrap()
-        .unescape_and_decode_value(reader)?;
+        .unescape_value()?;
     let release = open_tag
         .try_get_attribute("rel")?
         .unwrap()
-        .unescape_and_decode_value(reader)?;
+        .unescape_value()?;
 
     Ok(EVR::new(epoch, version, release))
 }
@@ -277,14 +276,19 @@ pub fn parse_changelog<R: BufRead>(
     changelog.author = open_tag
         .try_get_attribute("author")?
         .unwrap()
-        .unescape_and_decode_value(reader)?;
+        .unescape_value()?
+        .into_owned();
     changelog.timestamp = open_tag
         .try_get_attribute("date")?
         .unwrap()
-        .unescape_and_decode_value(reader)?
+        .unescape_value()?
         .parse()?;
 
-    changelog.description = reader.read_text(open_tag.name(), &mut Vec::with_capacity(128))?;
+    let mut buf = Vec::with_capacity(128);
+    changelog.description = reader
+        .read_text_into(open_tag.name(), &mut buf)?
+        .decode()?
+        .into_owned();
 
     Ok(changelog)
 }

@@ -1,6 +1,7 @@
 # rpmrepo_metadata
 
 rpmrepo_metadata is a library for manipulating, reading and writing RPM repositories.
+It comes with Python bindings, and can be downloaded from PyPI as well.
 
 ## Installation
 

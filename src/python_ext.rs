@@ -131,7 +131,9 @@ mod rpmrepo_metadata {
 
         fn iter_advisories(&self) -> PyResult<UpdateinfoReader> {
             let updateinfo_reader = self.inner.iter_advisories()?;
-            let py_updateinfo_reader = UpdateinfoReader { inner: Mutex::new(updateinfo_reader) };
+            let py_updateinfo_reader = UpdateinfoReader {
+                inner: Mutex::new(updateinfo_reader),
+            };
             Ok(py_updateinfo_reader)
         }
     }

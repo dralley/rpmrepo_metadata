@@ -26,5 +26,7 @@ pub use metadata::{
     UpdateReference, UpdateinfoXml,
 };
 pub use package::PackageIterator;
-pub use repository::{Repository, RepositoryOptions, RepositoryReader, RepositoryWriter, UpdateinfoIterator};
+pub use repository::{
+    Repository, RepositoryOptions, RepositoryReader, RepositoryWriter, UpdateinfoIterator,
+};
 pub use updateinfo::UpdateinfoXmlReader;

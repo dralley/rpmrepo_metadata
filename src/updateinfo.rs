@@ -7,6 +7,7 @@
 use std::io::{BufRead, Write};
 
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
+use quick_xml::name::QName;
 use quick_xml::{Reader, Writer};
 
 use crate::metadata::{
@@ -16,27 +17,27 @@ use crate::metadata::{
 use super::metadata::{RpmMetadata, UpdateRecord, UpdateinfoXml};
 use super::{MetadataError, Repository};
 
-const TAG_UPDATES: &[u8] = b"updates";
-const TAG_UPDATE: &[u8] = b"update";
-const TAG_ID: &[u8] = b"id";
-const TAG_TITLE: &[u8] = b"title";
-const TAG_RELEASE: &[u8] = b"release";
-const TAG_SEVERITY: &[u8] = b"severity";
-const TAG_ISSUED: &[u8] = b"issued";
-const TAG_UPDATED: &[u8] = b"updated";
-const TAG_RIGHTS: &[u8] = b"copyright";
-const TAG_SUMMARY: &[u8] = b"summary";
-const TAG_DESCRIPTION: &[u8] = b"description";
-const TAG_SOLUTION: &[u8] = b"solution";
-const TAG_PKGLIST: &[u8] = b"pkglist";
-const TAG_COLLECTION: &[u8] = b"collection";
-const TAG_NAME: &[u8] = b"name";
-const TAG_MODULE: &[u8] = b"module";
-const TAG_PACKAGE: &[u8] = b"package";
-const TAG_FILENAME: &[u8] = b"filename";
-const TAG_REBOOT_SUGGESTED: &[u8] = b"reboot_suggested";
-const TAG_REFERENCES: &[u8] = b"references";
-const TAG_REFERENCE: &[u8] = b"reference";
+const TAG_UPDATES: &str = "updates";
+const TAG_UPDATE: &str = "update";
+const TAG_ID: &str = "id";
+const TAG_TITLE: &str = "title";
+const TAG_RELEASE: &str = "release";
+const TAG_SEVERITY: &str = "severity";
+const TAG_ISSUED: &str = "issued";
+const TAG_UPDATED: &str = "updated";
+const TAG_RIGHTS: &str = "copyright";
+const TAG_SUMMARY: &str = "summary";
+const TAG_DESCRIPTION: &str = "description";
+const TAG_SOLUTION: &str = "solution";
+const TAG_PKGLIST: &str = "pkglist";
+const TAG_COLLECTION: &str = "collection";
+const TAG_NAME: &str = "name";
+const TAG_MODULE: &str = "module";
+const TAG_PACKAGE: &str = "package";
+const TAG_FILENAME: &str = "filename";
+const TAG_REBOOT_SUGGESTED: &str = "reboot_suggested";
+const TAG_REFERENCES: &str = "references";
+const TAG_REFERENCE: &str = "reference";
 
 impl RpmMetadata for UpdateinfoXml {
     fn filename() -> &'static str {
@@ -79,12 +80,12 @@ impl<W: Write> UpdateinfoXmlWriter<W> {
     pub fn write_header(&mut self) -> Result<(), MetadataError> {
         // <?xml version="1.0" encoding="UTF-8"?>
         self.writer
-            .write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
+            .write_event(Event::Decl(BytesDecl::new("1.0", Some("UTF-8"), None)))?;
 
         // <updates>
-        let updates_tag = BytesStart::borrowed_name(TAG_UPDATES);
+        let updates_tag = BytesStart::new(TAG_UPDATES);
         self.writer
-            .write_event(Event::Start(updates_tag.to_borrowed()))?;
+            .write_event(Event::Start(updates_tag.borrow()))?;
 
         Ok(())
     }
@@ -96,14 +97,13 @@ impl<W: Write> UpdateinfoXmlWriter<W> {
     pub fn finish(&mut self) -> Result<(), MetadataError> {
         // </updates>
         self.writer
-            .write_event(Event::End(BytesEnd::borrowed(TAG_UPDATES)))?;
+            .write_event(Event::End(BytesEnd::new(TAG_UPDATES)))?;
 
         // trailing newline
-        self.writer
-            .write_event(Event::Text(BytesText::from_plain_str("\n")))?;
+        self.writer.write_event(Event::Text(BytesText::new("\n")))?;
 
         // write everything out to disk - otherwise it won't happen until drop() which impedes debugging
-        self.writer.inner().flush()?;
+        self.writer.get_mut().flush()?;
 
         Ok(())
     }
@@ -151,97 +151,126 @@ fn parse_updaterecord<R: BufRead>(
 
     // TODO: get rid of unwraps, various branches could happen in wrong order
     loop {
-        match reader.read_event(&mut buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_UPDATE => break,
-            Event::Start(e) => match e.name().as_ref() {
+        match reader.read_event_into(&mut buf)? {
+            Event::End(e) if e.name().as_ref() == TAG_UPDATE.as_bytes() => break,
+            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
                 TAG_UPDATE => {
-                    // for attr in e.attributes() {
-                    //     let attr = attr?;
-
-                    //     match attr.key {
-                    //         b"status" => record.status = attr.unescape_and_decode_value(reader)?,
-                    //         b"from" => record.from = attr.unescape_and_decode_value(reader)?,
-                    //         b"type" => record.update_type = attr.unescape_and_decode_value(reader)?,
-                    //         b"version" => record.version = attr.unescape_and_decode_value(reader)?,
-                    //         a @ _ => panic!("unrecognized attribute {}", std::str::from_utf8(a)?),
-                    //     }
-                    // }
-
                     record.status = e
                         .try_get_attribute("status")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("status"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?
+                        .into_owned();
                     record.from = e
                         .try_get_attribute("from")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("from"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?
+                        .into_owned();
                     record.update_type = e
                         .try_get_attribute("type")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?
+                        .into_owned();
                     record.version = e
                         .try_get_attribute("version")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("version"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?
+                        .into_owned();
                 }
                 TAG_ID => {
-                    record.id = reader.read_text(TAG_ID, &mut format_text_buf)?;
+                    record.id = reader
+                        .read_text_into(QName(TAG_ID.as_bytes()), &mut format_text_buf)?
+                        .decode()?
+                        .into_owned();
                 }
                 TAG_TITLE => {
-                    record.title = reader.read_text(TAG_TITLE, &mut format_text_buf)?;
+                    record.title = reader
+                        .read_text_into(QName(TAG_TITLE.as_bytes()), &mut format_text_buf)?
+                        .decode()?
+                        .into_owned();
                 }
                 TAG_ISSUED => {
-                    record.issued_date = Some(reader.read_text(TAG_ISSUED, &mut format_text_buf)?);
+                    record.issued_date = Some(
+                        reader
+                            .read_text_into(QName(TAG_ISSUED.as_bytes()), &mut format_text_buf)?
+                            .decode()?
+                            .into_owned(),
+                    );
                 }
                 TAG_UPDATED => {
-                    record.updated_date =
-                        Some(reader.read_text(TAG_UPDATED, &mut format_text_buf)?);
+                    record.updated_date = Some(
+                        reader
+                            .read_text_into(QName(TAG_UPDATED.as_bytes()), &mut format_text_buf)?
+                            .decode()?
+                            .into_owned(),
+                    );
                 }
                 TAG_RIGHTS => {
-                    record.rights = reader.read_text(TAG_RIGHTS, &mut format_text_buf)?;
+                    record.rights = reader
+                        .read_text_into(QName(TAG_RIGHTS.as_bytes()), &mut format_text_buf)?
+                        .decode()?
+                        .into_owned();
                 }
                 TAG_RELEASE => {
-                    record.release = reader.read_text(TAG_RELEASE, &mut format_text_buf)?;
+                    record.release = reader
+                        .read_text_into(QName(TAG_RELEASE.as_bytes()), &mut format_text_buf)?
+                        .decode()?
+                        .into_owned();
                 }
                 TAG_SEVERITY => {
-                    record.severity = reader.read_text(TAG_SEVERITY, &mut format_text_buf)?;
+                    record.severity = reader
+                        .read_text_into(QName(TAG_SEVERITY.as_bytes()), &mut format_text_buf)?
+                        .decode()?
+                        .into_owned();
                 }
                 TAG_SUMMARY => {
-                    record.summary = reader.read_text(TAG_SUMMARY, &mut format_text_buf)?;
+                    record.summary = reader
+                        .read_text_into(QName(TAG_SUMMARY.as_bytes()), &mut format_text_buf)?
+                        .decode()?
+                        .into_owned();
                 }
                 TAG_DESCRIPTION => {
-                    record.description = reader.read_text(TAG_DESCRIPTION, &mut format_text_buf)?;
+                    record.description = reader
+                        .read_text_into(QName(TAG_DESCRIPTION.as_bytes()), &mut format_text_buf)?
+                        .decode()?
+                        .into_owned();
                 }
                 TAG_SOLUTION => {
-                    record.solution = reader.read_text(TAG_SOLUTION, &mut format_text_buf)?;
+                    record.solution = reader
+                        .read_text_into(QName(TAG_SOLUTION.as_bytes()), &mut format_text_buf)?
+                        .decode()?
+                        .into_owned();
                 }
                 // reboot_suggested, not clear if it needs to be parsed
                 TAG_REFERENCES => {
                     loop {
-                        match reader.read_event(&mut buf)? {
-                            Event::Start(e) if e.name().as_ref() == TAG_REFERENCE => {
+                        match reader.read_event_into(&mut buf)? {
+                            Event::Start(e) if e.name().as_ref() == TAG_REFERENCE.as_bytes() => {
                                 let mut reference = UpdateReference::default();
-                                // for attr in e.attributes() {
-                                // let attr = attr?;
                                 reference.href = e
                                     .try_get_attribute("href")?
                                     .ok_or_else(|| MetadataError::MissingAttributeError("href"))?
-                                    .unescape_and_decode_value(reader)?;
+                                    .unescape_value()?
+                                    .into_owned();
                                 reference.id = e
                                     .try_get_attribute("id")?
                                     .ok_or_else(|| MetadataError::MissingAttributeError("id"))?
-                                    .unescape_and_decode_value(reader)?;
+                                    .unescape_value()?
+                                    .into_owned();
                                 reference.reftype = e
                                     .try_get_attribute("type")?
                                     .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
-                                    .unescape_and_decode_value(reader)?;
+                                    .unescape_value()?
+                                    .into_owned();
                                 reference.title = e
                                     .try_get_attribute("title")?
                                     .ok_or_else(|| MetadataError::MissingAttributeError("title"))?
-                                    .unescape_and_decode_value(reader)?;
+                                    .unescape_value()?
+                                    .into_owned();
                                 record.references.push(reference);
                             }
-                            Event::End(e) if e.name().as_ref() == TAG_REFERENCES => break,
+                            Event::End(e) if e.name().as_ref() == TAG_REFERENCES.as_bytes() => {
+                                break;
+                            }
                             _ => (), // TODO
                         }
                     }
@@ -269,40 +298,47 @@ pub fn parse_pkglist<R: BufRead>(
     let mut collections = Vec::new();
 
     loop {
-        match reader.read_event(&mut buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_PKGLIST => break,
-            Event::Start(e) if e.name().as_ref() == TAG_COLLECTION => {
+        match reader.read_event_into(&mut buf)? {
+            Event::End(e) if e.name().as_ref() == TAG_PKGLIST.as_bytes() => break,
+            Event::Start(e) if e.name().as_ref() == TAG_COLLECTION.as_bytes() => {
                 current_collection = Some(UpdateCollection::default());
             }
-            Event::End(e) if e.name().as_ref() == TAG_COLLECTION => {
+            Event::End(e) if e.name().as_ref() == TAG_COLLECTION.as_bytes() => {
                 collections.push(current_collection.take().unwrap());
             }
-            Event::Start(e) => match e.name().as_ref() {
+            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
                 TAG_NAME => {
-                    current_collection.as_mut().unwrap().name =
-                        reader.read_text(TAG_NAME, &mut text_buf)?
+                    current_collection.as_mut().unwrap().name = reader
+                        .read_text_into(QName(TAG_NAME.as_bytes()), &mut text_buf)?
+                        .decode()?
+                        .into_owned();
                 }
                 TAG_MODULE => {
                     let name = e
                         .try_get_attribute("name")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("name"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?
+                        .into_owned();
                     let stream = e
                         .try_get_attribute("stream")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("stream"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?
+                        .into_owned();
                     let version = e
                         .try_get_attribute("version")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("version"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?
+                        .into_owned();
                     let context = e
                         .try_get_attribute("context")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("context"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?
+                        .into_owned();
                     let arch = e
                         .try_get_attribute("arch")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?
+                        .into_owned();
 
                     let version = version.parse()?;
 
@@ -321,27 +357,33 @@ pub fn parse_pkglist<R: BufRead>(
                     let name = e
                         .try_get_attribute("name")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("name"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?
+                        .into_owned();
                     let version = e
                         .try_get_attribute("version")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("version"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?
+                        .into_owned();
                     let epoch = e
                         .try_get_attribute("epoch")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("epoch"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?
+                        .into_owned();
                     let src = e
                         .try_get_attribute("src")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("src"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?
+                        .into_owned();
                     let release = e
                         .try_get_attribute("release")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("release"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?
+                        .into_owned();
                     let arch = e
                         .try_get_attribute("arch")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?
+                        .into_owned();
 
                     package.name = name;
                     package.version = version;
@@ -353,10 +395,12 @@ pub fn parse_pkglist<R: BufRead>(
                     // current_collection.unwrap().packages.push(package);
                 }
                 TAG_FILENAME => {
-                    current_package.as_mut().unwrap().filename =
-                        reader.read_text(TAG_FILENAME, &mut text_buf)?;
+                    current_package.as_mut().unwrap().filename = reader
+                        .read_text_into(QName(TAG_FILENAME.as_bytes()), &mut text_buf)?
+                        .decode()?
+                        .into_owned();
                 }
-                e @ _ => panic!("{}", dbg!(std::str::from_utf8(e).unwrap())),
+                e => panic!("{}", dbg!(e)),
             },
             _ => (), // TODO
         }
@@ -372,79 +416,79 @@ fn write_updaterecord<W: Write>(
     writer: &mut Writer<W>,
 ) -> Result<(), MetadataError> {
     // <update from="updates@fedoraproject.org" status="stable" type="bugfix" version="2.0">
-    let mut updates_tag = BytesStart::borrowed_name(TAG_UPDATE);
+    let mut updates_tag = BytesStart::new(TAG_UPDATE);
     updates_tag.push_attribute(("status", record.status.as_str()));
     updates_tag.push_attribute(("from", record.from.as_str()));
     updates_tag.push_attribute(("type", record.update_type.as_str()));
     updates_tag.push_attribute(("version", record.version.as_str()));
-    writer.write_event(Event::Start(updates_tag.to_borrowed()))?;
+    writer.write_event(Event::Start(updates_tag.borrow()))?;
 
     // <id>FEDORA-2020-15f9382449</id>
     writer
         .create_element(TAG_ID)
-        .write_text_content(BytesText::from_plain_str(record.id.as_str()))?;
+        .write_text_content(BytesText::new(record.id.as_str()))?;
 
     // <title>nano-4.9.3-1.fc32</title>
     writer
         .create_element(TAG_TITLE)
-        .write_text_content(BytesText::from_plain_str(record.title.as_str()))?;
+        .write_text_content(BytesText::new(record.title.as_str()))?;
 
     // <issued date="2020-05-27 04:10:31"/>
     if let Some(issued_date) = &record.issued_date {
         writer
             .create_element(TAG_ISSUED)
-            .write_text_content(BytesText::from_plain_str(issued_date.as_str()))?;
+            .write_text_content(BytesText::new(issued_date.as_str()))?;
     }
 
     // <updated date="2021-04-03 00:15:00"/>
     if let Some(updated_date) = &record.updated_date {
         writer
             .create_element(TAG_UPDATED)
-            .write_text_content(BytesText::from_plain_str(updated_date.as_str()))?;
+            .write_text_content(BytesText::new(updated_date.as_str()))?;
     }
 
     // <rights>Copyright (C) 2021 blah blah blah.</rights>
     writer
         .create_element(TAG_RIGHTS)
-        .write_text_content(BytesText::from_plain_str(record.rights.as_str()))?;
+        .write_text_content(BytesText::new(record.rights.as_str()))?;
 
     // <release>Fedora 32</release>
     writer
         .create_element(TAG_RELEASE)
-        .write_text_content(BytesText::from_plain_str(record.release.as_str()))?;
+        .write_text_content(BytesText::new(record.release.as_str()))?;
 
     // <severity>Moderate</severity>
     writer
         .create_element(TAG_SEVERITY)
-        .write_text_content(BytesText::from_plain_str(record.severity.as_str()))?;
+        .write_text_content(BytesText::new(record.severity.as_str()))?;
 
     // <summary>nano-4.9.3-1.fc32 bugfix update</summary>
     writer
         .create_element(TAG_SUMMARY)
-        .write_text_content(BytesText::from_plain_str(record.summary.as_str()))?;
+        .write_text_content(BytesText::new(record.summary.as_str()))?;
 
     // <description>- update to the latest upstream bugfix release</description>
     writer
         .create_element(TAG_DESCRIPTION)
-        .write_text_content(BytesText::from_plain_str(record.description.as_str()))?;
+        .write_text_content(BytesText::new(record.description.as_str()))?;
 
     // <solution>Another description, usually about how the update should be applied</solution>
     writer
         .create_element(TAG_SOLUTION)
-        .write_text_content(BytesText::from_plain_str(record.solution.as_str()))?;
+        .write_text_content(BytesText::new(record.solution.as_str()))?;
 
     // It's not clear that any metadata actually uses this
     // // <reboot_suggested>True</reboot_suggestion> (optional)
     // if record.reboot_suggested {
     //     writer
     //         .create_element(TAG_REBOOT_SUGGESTED)
-    //         .write_text_content(BytesText::from_plain_str("True"))?;
+    //         .write_text_content(BytesText::new("True"))?;
     // }
 
-    let tag_references = BytesStart::borrowed_name(TAG_REFERENCES);
+    let tag_references = BytesStart::new(TAG_REFERENCES);
     if !record.references.is_empty() {
         // <references>
-        writer.write_event(Event::Start(tag_references.to_borrowed()))?;
+        writer.write_event(Event::Start(tag_references.borrow()))?;
 
         for reference in &record.references {
             // <reference href="https://bugzilla.redhat.com/show_bug.cgi?id=1839351" id="1839351" type="bugzilla" title="nano-4.9.3 is available"/>
@@ -461,24 +505,24 @@ fn write_updaterecord<W: Write>(
         writer.write_event(Event::End(tag_references.to_end()))?;
     } else {
         // <references/>
-        writer.write_event(Event::Empty(tag_references.to_borrowed()))?;
+        writer.write_event(Event::Empty(tag_references.borrow()))?;
     }
 
-    let tag_pkglist = BytesStart::borrowed_name(TAG_PKGLIST);
+    let tag_pkglist = BytesStart::new(TAG_PKGLIST);
     if !record.pkglist.is_empty() {
         // <pkglist>
-        writer.write_event(Event::Start(tag_pkglist.to_borrowed()))?;
+        writer.write_event(Event::Start(tag_pkglist.borrow()))?;
 
         for collection in &record.pkglist {
             // <collection short="F35">
-            let mut tag_collection = BytesStart::borrowed_name(TAG_COLLECTION);
+            let mut tag_collection = BytesStart::new(TAG_COLLECTION);
             tag_collection.push_attribute(("short", collection.shortname.as_str()));
-            writer.write_event(Event::Start(tag_collection.to_borrowed()))?;
+            writer.write_event(Event::Start(tag_collection.borrow()))?;
 
             // <name>Fedora 35</name>
             writer
                 .create_element(TAG_NAME)
-                .write_text_content(BytesText::from_plain_str(&collection.name))?;
+                .write_text_content(BytesText::new(&collection.name))?;
 
             // <module stream="3.0" version="8000020190425181943" arch="x86_64" name="freeradius" context="75ec4169" />
             if let Some(module) = &collection.module {
@@ -494,19 +538,19 @@ fn write_updaterecord<W: Write>(
 
             for package in &collection.packages {
                 // <package src="kexec-tools-2.0.4-32.el7_0.1.src.rpm" name="kexec-tools" epoch="0" version="2.0.4" release="32.el7" arch="x86_64">
-                let mut package_tag = BytesStart::borrowed_name(TAG_PACKAGE);
+                let mut package_tag = BytesStart::new(TAG_PACKAGE);
                 package_tag.push_attribute(("name", package.name.as_str()));
                 package_tag.push_attribute(("version", package.version.as_str()));
                 package_tag.push_attribute(("release", package.release.as_str()));
                 package_tag.push_attribute(("epoch", package.epoch.to_string().as_str()));
                 package_tag.push_attribute(("arch", package.arch.as_str()));
                 package_tag.push_attribute(("src", package.src.as_str()));
-                writer.write_event(Event::Start(package_tag.to_borrowed()))?;
+                writer.write_event(Event::Start(package_tag.borrow()))?;
 
                 // <filename>pypy-7.3.6-1.fc35.src.rpm</filename>
                 writer
                     .create_element(TAG_FILENAME)
-                    .write_text_content(BytesText::from_plain_str(&package.filename))?;
+                    .write_text_content(BytesText::new(&package.filename))?;
 
                 // <sum type="sha256">8e214681104e4ba73726e0ce11d21b963ec0390fd70458d439ddc72372082034</sum> (optional)
                 if let Some(checksum) = &package.checksum {
@@ -514,22 +558,22 @@ fn write_updaterecord<W: Write>(
                     writer
                         .create_element("sum")
                         .with_attribute(("type", checksum_type))
-                        .write_text_content(BytesText::from_plain_str(value))?;
+                        .write_text_content(BytesText::new(value))?;
                 }
                 if package.reboot_suggested {
                     writer
                         .create_element("reboot_suggested")
-                        .write_text_content(BytesText::from_plain_str("1"))?;
+                        .write_text_content(BytesText::new("1"))?;
                 }
                 if package.restart_suggested {
                     writer
                         .create_element("restart_suggested")
-                        .write_text_content(BytesText::from_plain_str("1"))?;
+                        .write_text_content(BytesText::new("1"))?;
                 }
                 if package.relogin_suggested {
                     writer
                         .create_element("relogin_suggested")
-                        .write_text_content(BytesText::from_plain_str("1"))?;
+                        .write_text_content(BytesText::new("1"))?;
                 }
 
                 // </package>
@@ -544,17 +588,17 @@ fn write_updaterecord<W: Write>(
         writer.write_event(Event::End(tag_pkglist.to_end()))?;
     } else {
         // <pkglist/>
-        writer.write_event(Event::Empty(tag_pkglist.to_borrowed()))?;
+        writer.write_event(Event::Empty(tag_pkglist.borrow()))?;
     }
 
     // </update>
     writer.write_event(Event::End(updates_tag.to_end()))?;
 
     // trailing newline
-    writer.write_event(Event::Text(BytesText::from_plain_str("\n")))?;
+    writer.write_event(Event::Text(BytesText::new("\n")))?;
 
     // write everything out to disk - otherwise it won't happen until drop() which impedes debugging
-    writer.inner().flush()?;
+    writer.get_mut().flush()?;
 
     Ok(())
 }

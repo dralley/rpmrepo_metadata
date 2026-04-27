@@ -16,10 +16,10 @@ use super::metadata::{
 };
 use super::{EVR, MetadataError, Repository};
 
-const TAG_FILELISTS: &[u8] = b"filelists";
-const TAG_PACKAGE: &[u8] = b"package";
-const TAG_VERSION: &[u8] = b"version";
-const TAG_FILE: &[u8] = b"file";
+const TAG_FILELISTS: &str = "filelists";
+const TAG_PACKAGE: &str = "package";
+const TAG_VERSION: &str = "version";
+const TAG_FILE: &str = "file";
 
 impl RpmMetadata for FilelistsXml {
     fn filename() -> &'static str {
@@ -81,27 +81,27 @@ impl<W: Write> FilelistsXmlWriter<W> {
     pub fn write_header(&mut self, num_pkgs: usize) -> Result<(), MetadataError> {
         // <?xml version="1.0" encoding="UTF-8"?>
         self.writer
-            .write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
+            .write_event(Event::Decl(BytesDecl::new("1.0", Some("UTF-8"), None)))?;
 
         // <filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="210">
-        let mut filelists_tag = BytesStart::borrowed_name(TAG_FILELISTS);
+        let mut filelists_tag = BytesStart::new(TAG_FILELISTS);
         filelists_tag.push_attribute(("xmlns", XML_NS_FILELISTS));
         filelists_tag.push_attribute(("packages", num_pkgs.to_string().as_str()));
         self.writer
-            .write_event(Event::Start(filelists_tag.to_borrowed()))?;
+            .write_event(Event::Start(filelists_tag.borrow()))?;
 
         Ok(())
     }
 
     pub fn write_package(&mut self, package: &Package) -> Result<(), MetadataError> {
         // <package pkgid="a2d3bce512f79b0bc840ca7912a86bbc0016cf06d5c363ffbb6fd5e1ef03de1b" name="fontconfig" arch="x86_64">
-        let mut package_tag = BytesStart::borrowed_name(TAG_PACKAGE);
+        let mut package_tag = BytesStart::new(TAG_PACKAGE);
         let pkgid = package.pkgid();
         package_tag.push_attribute(("pkgid", pkgid));
         package_tag.push_attribute(("name", package.name()));
         package_tag.push_attribute(("arch", package.arch()));
         self.writer
-            .write_event(Event::Start(package_tag.to_borrowed()))?;
+            .write_event(Event::Start(package_tag.borrow()))?;
 
         // <version epoch="0" ver="2.8.0" rel="5.el6"/>
         let (epoch, version, release) = package.evr().values();
@@ -127,14 +127,13 @@ impl<W: Write> FilelistsXmlWriter<W> {
     pub fn finish(&mut self) -> Result<(), MetadataError> {
         // </filelists>
         self.writer
-            .write_event(Event::End(BytesEnd::borrowed(TAG_FILELISTS)))?;
+            .write_event(Event::End(BytesEnd::new(TAG_FILELISTS)))?;
 
         // trailing newline
-        self.writer
-            .write_event(Event::Text(BytesText::from_plain_str("\n")))?;
+        self.writer.write_event(Event::Text(BytesText::new("\n")))?;
 
         // write everything out to disk - otherwise it won't happen until drop() which impedes debugging
-        self.writer.inner().flush()?;
+        self.writer.get_mut().flush()?;
 
         Ok(())
     }
@@ -149,12 +148,12 @@ pub(crate) fn write_file_element<W: Write>(
     writer: &mut Writer<W>,
     file: &PackageFile,
 ) -> Result<(), MetadataError> {
-    let mut file_tag = BytesStart::borrowed_name(TAG_FILE);
+    let mut file_tag = BytesStart::new(TAG_FILE);
     if file.filetype != FileType::File {
         file_tag.push_attribute(("type".as_bytes(), file.filetype.to_values()));
     }
-    writer.write_event(Event::Start(file_tag.to_borrowed()))?;
-    writer.write_event(Event::Text(BytesText::from_plain_str(&file.path)))?;
+    writer.write_event(Event::Start(file_tag.borrow()))?;
+    writer.write_event(Event::Text(BytesText::new(&file.path)))?;
     writer.write_event(Event::End(file_tag.to_end()))?;
     Ok(())
 }
@@ -180,9 +179,9 @@ fn parse_header<R: BufRead>(reader: &mut Reader<R>) -> Result<usize, MetadataErr
 
     // TODO: get rid of this buffer
     loop {
-        match reader.read_event(&mut buf)? {
+        match reader.read_event_into(&mut buf)? {
             Event::Decl(_) => (),
-            Event::Start(e) if e.name().as_ref() == TAG_FILELISTS => {
+            Event::Start(e) if e.name().as_ref() == TAG_FILELISTS.as_bytes() => {
                 let count = e.try_get_attribute("packages")?.unwrap().value;
                 return Ok(std::str::from_utf8(&count)?.parse()?);
             }
@@ -204,31 +203,31 @@ pub fn parse_package<R: BufRead>(
     let mut buf = Vec::with_capacity(128);
 
     loop {
-        match reader.read_event(&mut buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_PACKAGE => break,
+        match reader.read_event_into(&mut buf)? {
+            Event::End(e) if e.name().as_ref() == TAG_PACKAGE.as_bytes() => break,
 
-            Event::Start(e) => match e.name().as_ref() {
+            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
                 TAG_PACKAGE => {
                     let pkgid = e
                         .try_get_attribute("pkgid")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("pkgid"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?;
                     let name = e
                         .try_get_attribute("name")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("name"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?;
                     let arch = e
                         .try_get_attribute("arch")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
-                        .unescape_and_decode_value(reader)?;
+                        .unescape_value()?;
 
                     if let Some(pkg) = package {
-                        assert!(pkg.pkgid() == &pkgid); // TODO err instead of assert
+                        assert!(pkg.pkgid() == pkgid.as_ref()); // TODO err instead of assert
                     } else {
                         let mut pkg = Package::default();
-                        pkg.set_name(&name)
-                            .set_arch(&arch)
-                            .set_checksum(Checksum::Unknown(pkgid));
+                        pkg.set_name(name)
+                            .set_arch(arch)
+                            .set_checksum(Checksum::Unknown(pkgid.into_owned()));
                         *package = Some(pkg);
                     };
                 }
@@ -262,15 +261,15 @@ pub fn parse_evr<R: BufRead>(
     let epoch = open_tag
         .try_get_attribute("epoch")?
         .ok_or_else(|| MetadataError::MissingAttributeError("epoch"))?
-        .unescape_and_decode_value(reader)?;
+        .unescape_value()?;
     let version = open_tag
         .try_get_attribute("ver")?
         .ok_or_else(|| MetadataError::MissingAttributeError("ver"))?
-        .unescape_and_decode_value(reader)?;
+        .unescape_value()?;
     let release = open_tag
         .try_get_attribute("rel")?
         .ok_or_else(|| MetadataError::MissingAttributeError("rel"))?
-        .unescape_and_decode_value(reader)?;
+        .unescape_value()?;
 
     Ok(EVR::new(epoch, version, release))
 }
@@ -281,7 +280,11 @@ pub fn parse_file<R: BufRead>(
     open_tag: &BytesStart,
 ) -> Result<PackageFile, MetadataError> {
     let mut file = PackageFile::default();
-    file.path = reader.read_text(open_tag.name(), &mut Vec::with_capacity(128))?;
+    let mut buf = Vec::with_capacity(128);
+    file.path = reader
+        .read_text_into(open_tag.name(), &mut buf)?
+        .decode()?
+        .into_owned();
 
     if let Some(filetype) = open_tag.try_get_attribute("type")? {
         file.filetype = FileType::try_create(filetype.value.as_ref())?;
