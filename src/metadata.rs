@@ -25,13 +25,11 @@ pub struct PrimaryXml;
 pub struct FilelistsXml;
 pub struct OtherXml;
 pub struct UpdateinfoXml;
+pub struct CompsXml;
 
 pub const METADATA_PRIMARY: &str = "primary";
 pub const METADATA_FILELISTS: &str = "filelists";
 pub const METADATA_OTHER: &str = "other";
-// pub const METADATA_PRIMARY_ZCK: &str = "primary_zck";
-// pub const METADATA_FILELISTS_ZCK: &str = "filelists_zck";
-// pub const METADATA_OTHER_ZCK: &str = "other_zck";
 pub const METADATA_UPDATEINFO: &str = "updateinfo";
 
 // TODO: probably this can / should be broken up better rather than being a kitchen sink
@@ -1137,4 +1135,68 @@ pub struct UpdateCollectionModule {
     pub version: u64,
     pub context: String,
     pub arch: String,
+}
+
+/// A package group from comps.xml, grouping related packages for installation.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct CompsGroup {
+    pub id: String,
+    pub name: String,
+    pub name_by_lang: Vec<(String, String)>,
+    pub description: String,
+    pub desc_by_lang: Vec<(String, String)>,
+    pub default: bool,
+    pub uservisible: bool,
+    pub biarchonly: bool,
+    pub langonly: Option<String>,
+    pub display_order: Option<u32>,
+    pub packages: Vec<CompsPackageReq>,
+}
+
+/// A package requirement within a comps group.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct CompsPackageReq {
+    pub name: String,
+    pub reqtype: String,
+    pub requires: Option<String>,
+    pub basearchonly: bool,
+}
+
+/// A category from comps.xml, organizing groups into higher-level groupings.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct CompsCategory {
+    pub id: String,
+    pub name: String,
+    pub name_by_lang: Vec<(String, String)>,
+    pub description: String,
+    pub desc_by_lang: Vec<(String, String)>,
+    pub display_order: Option<u32>,
+    pub group_ids: Vec<String>,
+}
+
+/// An environment from comps.xml, defining a complete installation profile.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct CompsEnvironment {
+    pub id: String,
+    pub name: String,
+    pub name_by_lang: Vec<(String, String)>,
+    pub description: String,
+    pub desc_by_lang: Vec<(String, String)>,
+    pub display_order: Option<u32>,
+    pub group_ids: Vec<String>,
+    pub option_ids: Vec<CompsEnvironmentOption>,
+}
+
+/// An optional group within a comps environment, with a default selection state.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct CompsEnvironmentOption {
+    pub group_id: String,
+    pub default: bool,
+}
+
+/// A langpack mapping from comps.xml, associating packages with language pack patterns.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct CompsLangpack {
+    pub name: String,
+    pub install: String,
 }

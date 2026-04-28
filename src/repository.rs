@@ -16,6 +16,10 @@ use super::filelist::FilelistsXmlWriter;
 use super::metadata::{
     ChecksumType,
     CompressionType,
+    CompsCategory,
+    CompsEnvironment,
+    CompsGroup,
+    CompsLangpack,
     FilelistsXml,
     OtherXml,
     Package,
@@ -44,6 +48,10 @@ pub struct Repository {
     repomd_data: RepomdData,
     packages: IndexMap<String, Package>,
     advisories: IndexMap<String, UpdateRecord>,
+    groups: Vec<CompsGroup>,
+    categories: Vec<CompsCategory>,
+    environments: Vec<CompsEnvironment>,
+    langpacks: Vec<CompsLangpack>,
 }
 
 // TODO: worth doing any allocation tricks? (probably not)
@@ -87,6 +95,38 @@ impl Repository {
     // TODO: better API for package access (entry-like)
     pub fn advisories_mut(&mut self) -> &mut IndexMap<String, UpdateRecord> {
         &mut self.advisories
+    }
+
+    pub fn groups(&self) -> &[CompsGroup] {
+        &self.groups
+    }
+
+    pub fn groups_mut(&mut self) -> &mut Vec<CompsGroup> {
+        &mut self.groups
+    }
+
+    pub fn categories(&self) -> &[CompsCategory] {
+        &self.categories
+    }
+
+    pub fn categories_mut(&mut self) -> &mut Vec<CompsCategory> {
+        &mut self.categories
+    }
+
+    pub fn environments(&self) -> &[CompsEnvironment] {
+        &self.environments
+    }
+
+    pub fn environments_mut(&mut self) -> &mut Vec<CompsEnvironment> {
+        &mut self.environments
+    }
+
+    pub fn langpacks(&self) -> &[CompsLangpack] {
+        &self.langpacks
+    }
+
+    pub fn langpacks_mut(&mut self) -> &mut Vec<CompsLangpack> {
+        &mut self.langpacks
     }
 
     /// Sorts the package entries by `location_href`.
