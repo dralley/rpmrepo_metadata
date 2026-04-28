@@ -11,15 +11,38 @@ use crate::filelist::FilelistsXmlReader;
 use crate::metadata::{METADATA_FILELISTS, METADATA_OTHER, METADATA_PRIMARY};
 use crate::other::OtherXmlReader;
 use crate::primary::PrimaryXmlReader;
-use crate::{FilelistsXml, MetadataError, OtherXml, Package, PrimaryXml};
+use crate::{ChecksumType, FilelistsXml, MetadataError, OtherXml, Package, PrimaryXml};
 use crate::{RepomdData, utils};
+
+/// Options for reading an RPM package file into a [`Package`].
+pub struct PackageOptions {
+    /// Checksum algorithm used to hash the RPM file. Default: SHA-256.
+    pub checksum_type: ChecksumType,
+    /// Override for the `location_href` field. If `None`, defaults to the RPM filename.
+    pub location_href: Option<String>,
+    /// Optional base URL prepended to `location_href` when resolving the package location.
+    pub location_base: Option<String>,
+    /// Maximum number of changelog entries to keep (most recent first). Default: 10.
+    pub changelog_limit: usize,
+}
+
+impl Default for PackageOptions {
+    fn default() -> Self {
+        Self {
+            checksum_type: ChecksumType::Sha256,
+            location_href: None,
+            location_base: None,
+            changelog_limit: 10,
+        }
+    }
+}
 
 #[cfg(feature = "read_rpm")]
 pub mod rpm_parsing {
     use std::fs::File;
     use std::time::SystemTime;
 
-    use crate::{Changelog, ChecksumType, EVR, PackageFile, Requirement};
+    use crate::{Changelog, EVR, PackageFile, Requirement};
 
     use super::*;
     use rpm;
@@ -112,110 +135,184 @@ pub mod rpm_parsing {
         }
     }
 
-    // todo: restrict # of changelogs
-    // todo: location_href, location_base
-    // todo: checksum type
-    pub fn load_rpm_package<A: AsRef<Path>>(path: A) -> Result<Package, MetadataError> {
-        let file = File::open(&path)?;
-        let file_metadata = file.metadata()?;
+    impl Package {
+        /// Read an RPM file from disk using default [`PackageOptions`].
+        pub fn from_file<A: AsRef<Path>>(path: A) -> Result<Package, MetadataError> {
+            Self::from_file_with_options(path, PackageOptions::default())
+        }
 
-        let pkg = rpm::PackageMetadata::parse(&mut BufReader::new(&file))?;
+        /// Read an RPM file from disk using the provided [`PackageOptions`].
+        pub fn from_file_with_options<A: AsRef<Path>>(
+            path: A,
+            options: PackageOptions,
+        ) -> Result<Package, MetadataError> {
+            let file = File::open(&path)?;
+            let file_metadata = file.metadata()?;
 
-        let mut pkg_metadata = Package::default();
+            let pkg = rpm::PackageMetadata::parse(&mut BufReader::new(&file))?;
 
-        pkg_metadata.set_name(pkg.get_name()?);
+            let mut pkg_metadata = Package::default();
 
-        let arch = if pkg.is_source_package() {
-            "src"
-        } else {
-            pkg.get_arch()?
-        };
+            pkg_metadata.set_name(pkg.get_name()?);
 
-        // TODO: handle tags that aren't guaranteed to exist
-        // like url, description, time_build, group, etc.
-        pkg_metadata.set_arch(arch);
-        pkg_metadata.set_epoch(pkg.get_epoch().unwrap_or(0));
-        pkg_metadata.set_version(pkg.get_version()?);
-        pkg_metadata.set_release(pkg.get_release()?);
+            let arch = if pkg.is_source_package() {
+                "src"
+            } else {
+                pkg.get_arch()?
+            };
 
-        pkg_metadata.set_summary(pkg.get_summary()?);
-        pkg_metadata.set_description(pkg.get_description()?);
-        pkg_metadata.set_packager(pkg.get_packager()?);
-        pkg_metadata.set_url(pkg.get_url()?);
-        pkg_metadata.set_description(pkg.get_description()?);
-        pkg_metadata.set_time_build(pkg.get_build_time()?);
-        pkg_metadata.set_rpm_license(pkg.get_license()?);
-        pkg_metadata.set_rpm_vendor(pkg.get_vendor()?);
-        pkg_metadata.set_rpm_group(pkg.get_group()?);
-        pkg_metadata.set_rpm_buildhost(pkg.get_build_host()?);
-        pkg_metadata.set_rpm_sourcerpm(pkg.get_source_rpm()?);
+            pkg_metadata.set_arch(arch);
+            pkg_metadata.set_epoch(pkg.get_epoch().unwrap_or_default());
+            pkg_metadata.set_version(pkg.get_version()?);
+            pkg_metadata.set_release(pkg.get_release()?);
 
-        let archive_size = pkg
-            .signature
-            .get_entry_data_as_u64(rpm::IndexSignatureTag::RPMSIGTAG_LONGARCHIVESIZE)
-            .unwrap_or_else(|_| {
-                pkg.signature
-                    .get_entry_data_as_u32(rpm::IndexSignatureTag::RPMSIGTAG_PAYLOADSIZE)
-                    .unwrap_or(0) as u64
-            });
-        pkg_metadata.set_size_archive(archive_size);
-        pkg_metadata.set_size_installed(pkg.get_installed_size()?);
+            // These tags are optional in the RPM spec and default to empty when absent,
+            // matching createrepo_c which always emits the XML element with empty content
+            pkg_metadata.set_summary(pkg.get_summary().unwrap_or_default());
+            pkg_metadata.set_description(pkg.get_description().unwrap_or_default());
+            pkg_metadata.set_packager(pkg.get_packager().unwrap_or_default());
+            pkg_metadata.set_url(pkg.get_url().unwrap_or_default());
+            pkg_metadata.set_time_build(pkg.get_build_time().unwrap_or_default());
+            pkg_metadata.set_rpm_license(pkg.get_license().unwrap_or_default());
+            pkg_metadata.set_rpm_vendor(pkg.get_vendor().unwrap_or_default());
+            pkg_metadata.set_rpm_group(pkg.get_group().unwrap_or_default());
+            pkg_metadata.set_rpm_buildhost(pkg.get_build_host().unwrap_or_default());
+            pkg_metadata.set_rpm_sourcerpm(pkg.get_source_rpm().unwrap_or_default());
 
-        fn convert_deps(
-            requirements: Vec<rpm::Dependency>,
-        ) -> Result<Vec<Requirement>, MetadataError> {
-            let mut out = Vec::new();
-            for r in requirements.into_iter() {
-                if r.name.starts_with("rpmlib(") {
-                    continue;
+            let archive_size = pkg
+                .signature
+                .get_entry_data_as_u64(rpm::IndexSignatureTag::RPMSIGTAG_LONGARCHIVESIZE)
+                .unwrap_or_else(|_| {
+                    pkg.signature
+                        .get_entry_data_as_u32(rpm::IndexSignatureTag::RPMSIGTAG_PAYLOADSIZE)
+                        .unwrap_or(0) as u64
+                });
+            pkg_metadata.set_size_archive(archive_size);
+            pkg_metadata.set_size_installed(pkg.get_installed_size()?);
+
+            fn convert_deps(
+                requirements: Vec<rpm::Dependency>,
+            ) -> Result<Vec<Requirement>, MetadataError> {
+                let mut out = Vec::new();
+                for r in requirements.into_iter() {
+                    out.push(r.try_into()?)
                 }
-                out.push(r.try_into()?)
+                Ok(out)
             }
-            Ok(out)
+
+            fn dep_key(dep: &Requirement) -> String {
+                format!(
+                    "{}{}{}{}{}",
+                    dep.name,
+                    dep.flags.as_deref().unwrap_or(""),
+                    dep.epoch.as_deref().unwrap_or(""),
+                    dep.version.as_deref().unwrap_or(""),
+                    dep.release.as_deref().unwrap_or(""),
+                )
+            }
+
+            // Build a set of provided deps so we can filter self-provided entries from requires
+            let provides = convert_deps(pkg.get_provides()?)?;
+            let provided: std::collections::HashSet<String> =
+                provides.iter().map(|d| dep_key(d)).collect();
+
+            // Build a set of the package's own file paths for filtering file-path requires
+            let file_entries = pkg.get_file_entries()?;
+            let own_files: std::collections::HashSet<String> = file_entries
+                .iter()
+                .map(|f| f.path.to_string_lossy().into_owned())
+                .collect();
+
+            // Filter requires:
+            // - skip rpmlib() deps (internal RPM feature tracking)
+            // - skip file-path requires for primary files the package itself contains
+            // - skip deps that the package itself provides (self-satisfied dependencies)
+            let requires = convert_deps(pkg.get_requires()?)?;
+            let requires: Vec<_> = requires
+                .into_iter()
+                .filter(|r| !r.name.starts_with("rpmlib("))
+                .filter(|r| {
+                    !(r.name.starts_with('/')
+                        && own_files.contains(&r.name)
+                        && utils::is_primary_file(&r.name))
+                })
+                .filter(|r| !provided.contains(&dep_key(r)))
+                .collect();
+
+            pkg_metadata.set_requires(requires);
+            pkg_metadata.set_provides(provides);
+            pkg_metadata.set_conflicts(convert_deps(pkg.get_conflicts()?)?);
+            pkg_metadata.set_obsoletes(convert_deps(pkg.get_obsoletes()?)?);
+            pkg_metadata.set_suggests(convert_deps(pkg.get_suggests()?)?);
+            pkg_metadata.set_enhances(convert_deps(pkg.get_enhances()?)?);
+            pkg_metadata.set_recommends(convert_deps(pkg.get_recommends()?)?);
+            pkg_metadata.set_supplements(convert_deps(pkg.get_supplements()?)?);
+
+            // Sort newest-first and keep only the N most recent entries
+            let mut changelogs: Vec<Changelog> = Vec::new();
+            for f in pkg.get_changelog_entries()?.into_iter() {
+                changelogs.push(f.into())
+            }
+            changelogs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+            changelogs.truncate(options.changelog_limit);
+            pkg_metadata.set_changelogs(changelogs);
+
+            // All files are stored; the primary/filelists split happens at write time
+            let files: Vec<PackageFile> = file_entries.into_iter().map(|f| f.into()).collect();
+            pkg_metadata.set_files(files);
+
+            pkg_metadata.set_checksum(utils::checksum_file(path.as_ref(), options.checksum_type)?);
+
+            let href = options.location_href.unwrap_or_else(|| {
+                path.as_ref()
+                    .file_name()
+                    .map(|f| f.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| path.as_ref().to_string_lossy().into_owned())
+            });
+            pkg_metadata.set_location_href(href);
+            if let Some(base) = options.location_base {
+                pkg_metadata.set_location_base(Some(base));
+            }
+
+            let file_size = file_metadata.len();
+            let unix_timestamp = file_metadata
+                .modified()?
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+
+            pkg_metadata.set_size_package(file_size);
+            pkg_metadata.set_time_file(unix_timestamp);
+
+            let offsets = pkg.get_package_segment_offsets();
+            pkg_metadata.set_rpm_header_range(offsets.header, offsets.payload);
+
+            Ok(pkg_metadata)
         }
-        // todo: only apply rpmlib filter to requires
-        // todo: deduplicate requires with provides, remove provided deps from requires
-        pkg_metadata.set_requires(convert_deps(pkg.get_requires()?)?);
-        pkg_metadata.set_provides(convert_deps(pkg.get_provides()?)?);
-        pkg_metadata.set_conflicts(convert_deps(pkg.get_conflicts()?)?);
-        pkg_metadata.set_obsoletes(convert_deps(pkg.get_obsoletes()?)?);
-        pkg_metadata.set_suggests(convert_deps(pkg.get_suggests()?)?);
-        pkg_metadata.set_enhances(convert_deps(pkg.get_enhances()?)?);
-        pkg_metadata.set_recommends(convert_deps(pkg.get_recommends()?)?);
-        pkg_metadata.set_supplements(convert_deps(pkg.get_supplements()?)?);
+    }
 
-        // todo: restrict number
-        let mut changelogs: Vec<Changelog> = Vec::new();
-        for f in pkg.get_changelog_entries()?.into_iter() {
-            changelogs.push(f.into())
+    impl crate::Repository {
+        /// Read an RPM file from disk and add it to the repository.
+        pub fn add_package_from_file<A: AsRef<Path>>(
+            &mut self,
+            path: A,
+        ) -> Result<(), MetadataError> {
+            let pkg = Package::from_file(&path)?;
+            self.packages_mut().insert(pkg.pkgid().to_owned(), pkg);
+            Ok(())
         }
-        changelogs.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
-        pkg_metadata.set_changelogs(changelogs);
+    }
 
-        // todo: filter files
-        let mut files: Vec<PackageFile> = Vec::new();
-        for f in pkg.get_file_entries()?.into_iter() {
-            files.push(f.into())
+    impl crate::RepositoryWriter {
+        /// Read an RPM file from disk and add it to the repository metadata.
+        pub fn add_package_from_file<A: AsRef<Path>>(
+            &mut self,
+            path: A,
+        ) -> Result<(), MetadataError> {
+            let pkg = Package::from_file(&path)?;
+            self.add_package(&pkg)?;
+            Ok(())
         }
-        pkg_metadata.set_files(files);
-
-        pkg_metadata.set_checksum(utils::checksum_file(path.as_ref(), ChecksumType::Sha256)?);
-        pkg_metadata.set_location_href(path.as_ref().to_string_lossy());
-
-        let file_size = file_metadata.len();
-        let unix_timestamp = file_metadata
-            .modified()?
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-
-        pkg_metadata.set_size_package(file_size);
-        pkg_metadata.set_time_file(unix_timestamp);
-
-        let offsets = pkg.get_package_segment_offsets();
-        pkg_metadata.set_rpm_header_range(offsets.header, offsets.payload);
-
-        Ok(pkg_metadata)
     }
 }
 

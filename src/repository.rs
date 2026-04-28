@@ -8,6 +8,8 @@ use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 
 use crate::UpdateinfoXml;
+use crate::comps::CompsXmlWriter;
+use crate::metadata::CompsXml;
 use crate::updateinfo::{UpdateinfoXmlReader, UpdateinfoXmlWriter};
 use crate::{PackageIterator, utils};
 
@@ -17,6 +19,7 @@ use super::metadata::{
     ChecksumType,
     CompressionType,
     CompsCategory,
+    CompsData,
     CompsEnvironment,
     CompsGroup,
     CompsLangpack,
@@ -186,6 +189,13 @@ impl Repository {
             writer.add_advisory(advisory)?;
         }
 
+        writer.write_comps(
+            self.groups(),
+            self.categories(),
+            self.environments(),
+            self.langpacks(),
+        )?;
+
         writer.finish()?;
 
         Ok(())
@@ -277,6 +287,7 @@ pub struct RepositoryWriter {
     filelists_xml_writer: Option<FilelistsXmlWriter<Box<dyn Write + Send>>>,
     other_xml_writer: Option<OtherXmlWriter<Box<dyn Write + Send>>>,
     updateinfo_xml_writer: Option<UpdateinfoXmlWriter<Box<dyn Write + Send>>>,
+    comps_xml_writer: Option<CompsXmlWriter<Box<dyn Write + Send>>>,
 
     num_pkgs_written: usize,
     num_pkgs: usize,
@@ -326,6 +337,7 @@ impl RepositoryWriter {
             filelists_xml_writer: Some(filelists_xml_writer),
             other_xml_writer: Some(other_xml_writer),
             updateinfo_xml_writer: None,
+            comps_xml_writer: None,
 
             num_pkgs: num_pkgs,
             num_pkgs_written: 0,
@@ -383,6 +395,81 @@ impl RepositoryWriter {
             .unwrap()
             .write_updaterecord(record)?;
 
+        Ok(())
+    }
+
+    fn ensure_comps_writer(&mut self) -> Result<(), MetadataError> {
+        if self.comps_xml_writer.is_none() {
+            let repodata_dir = self.path.join("repodata");
+            let (_, comps_writer) = utils::xml_writer_for_path(
+                &repodata_dir.join("comps.xml"),
+                self.options.compression_type,
+            )?;
+            let mut comps_xml_writer = CompsXml::new_writer(comps_writer);
+            comps_xml_writer.write_header()?;
+            self.comps_xml_writer = Some(comps_xml_writer);
+        }
+        Ok(())
+    }
+
+    /// Write a `CompsGroup` to the repo metadata.
+    pub fn add_group(&mut self, group: &CompsGroup) -> Result<(), MetadataError> {
+        self.ensure_comps_writer()?;
+        self.comps_xml_writer.as_mut().unwrap().write_group(group)
+    }
+
+    /// Write a `CompsCategory` to the repo metadata.
+    pub fn add_category(&mut self, category: &CompsCategory) -> Result<(), MetadataError> {
+        self.ensure_comps_writer()?;
+        self.comps_xml_writer
+            .as_mut()
+            .unwrap()
+            .write_category(category)
+    }
+
+    /// Write a `CompsEnvironment` to the repo metadata.
+    pub fn add_environment(&mut self, environment: &CompsEnvironment) -> Result<(), MetadataError> {
+        self.ensure_comps_writer()?;
+        self.comps_xml_writer
+            .as_mut()
+            .unwrap()
+            .write_environment(environment)
+    }
+
+    /// Write langpacks to the repo metadata.
+    pub fn set_langpacks(&mut self, langpacks: &[CompsLangpack]) -> Result<(), MetadataError> {
+        self.ensure_comps_writer()?;
+        self.comps_xml_writer
+            .as_mut()
+            .unwrap()
+            .write_langpacks(langpacks)
+    }
+
+    /// Convenience method to write all comps metadata at once.
+    pub fn write_comps(
+        &mut self,
+        groups: &[CompsGroup],
+        categories: &[CompsCategory],
+        environments: &[CompsEnvironment],
+        langpacks: &[CompsLangpack],
+    ) -> Result<(), MetadataError> {
+        if groups.is_empty()
+            && categories.is_empty()
+            && environments.is_empty()
+            && langpacks.is_empty()
+        {
+            return Ok(());
+        }
+        for g in groups {
+            self.add_group(g)?;
+        }
+        for c in categories {
+            self.add_category(c)?;
+        }
+        for e in environments {
+            self.add_environment(e)?;
+        }
+        self.set_langpacks(langpacks)?;
         Ok(())
     }
 
@@ -449,9 +536,9 @@ impl RepositoryWriter {
         )?;
         self.repomd_mut().add_record(other_xml);
 
-        if let Some(updateinfo_xml_writer) = &mut self.updateinfo_xml_writer {
+        if let Some(mut updateinfo_xml_writer) = self.updateinfo_xml_writer.take() {
             updateinfo_xml_writer.finish()?;
-            self.updateinfo_xml_writer = None;
+            drop(updateinfo_xml_writer);
             let updateinfo_path = utils::apply_compression_suffix(
                 &PathBuf::from("repodata").join("updateinfo.xml"),
                 self.options.compression_type,
@@ -463,6 +550,22 @@ impl RepositoryWriter {
                 self.options.checksum_type,
             )?;
             self.repomd_mut().add_record(updateinfo_xml);
+        }
+
+        if let Some(mut comps_xml_writer) = self.comps_xml_writer.take() {
+            comps_xml_writer.finish()?;
+            drop(comps_xml_writer.into_inner());
+            let comps_path = utils::apply_compression_suffix(
+                &PathBuf::from("repodata").join("comps.xml"),
+                self.options.compression_type,
+            );
+            let comps_record = RepomdRecord::new(
+                "group",
+                &comps_path.as_ref(),
+                &path,
+                self.options.checksum_type,
+            )?;
+            self.repomd_mut().add_record(comps_record);
         }
 
         let (_, mut repomd_writer) =
@@ -520,9 +623,35 @@ impl RepositoryReader {
         UpdateinfoIterator::from_metadata(&self.path, self.repository.repomd())
     }
 
-    // pub fn iter_comps(&self) -> Result<> {
+    /// Read comps (group) metadata from the repository, if present.
+    ///
+    /// Returns parsed comps metadata, or `None` if the repository has no comps data.
+    pub fn read_comps(&self) -> Result<Option<CompsData>, MetadataError> {
+        let repomd = self.repository.repomd();
+        let group_record = repomd
+            .get_record(crate::metadata::METADATA_GROUP)
+            .or_else(|| repomd.get_record(crate::metadata::METADATA_GROUP_GZ))
+            .or_else(|| repomd.get_record(crate::metadata::METADATA_GROUP_XZ));
+        let group_record = match group_record {
+            Some(record) => record,
+            None => return Ok(None),
+        };
 
-    // }
+        let group_path = self.path.join(&group_record.location_href);
+        let reader = utils::xml_reader_from_file(&group_path)?;
+        let mut comps_reader = crate::CompsXmlReader::new(reader);
+        let mut groups = Vec::new();
+        let mut categories = Vec::new();
+        let mut environments = Vec::new();
+        let langpacks = comps_reader.read_all(&mut groups, &mut categories, &mut environments)?;
+
+        Ok(Some(CompsData {
+            groups,
+            categories,
+            environments,
+            langpacks,
+        }))
+    }
 
     /// Consume the `RepositoryReader` and yield a [`Repository`] struct with the full repository contents.
     pub fn into_repo(mut self) -> Result<Repository, MetadataError> {
@@ -544,6 +673,13 @@ impl RepositoryReader {
             self.repository
                 .advisories_mut()
                 .insert(advisory.id.to_owned(), advisory);
+        }
+
+        if let Some(comps) = self.read_comps()? {
+            *self.repository.groups_mut() = comps.groups;
+            *self.repository.categories_mut() = comps.categories;
+            *self.repository.environments_mut() = comps.environments;
+            *self.repository.langpacks_mut() = comps.langpacks;
         }
 
         Ok(self.repository)

@@ -1,10 +1,32 @@
 [project]
 name = "rpmrepo_metadata"
-version = "0.4.0"
+dynamic = ["version"]
+description = "Python bindings for rpmrepo_metadata: create and parse RPM repository metadata"
+license = { text = "MPL-2.0" }
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["rpm", "packaging"]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Archiving :: Packaging",
+]
+
+[project.urls]
+Homepage = "https://github.com/dralley/rpmrepo_metadata"
+Repository = "https://github.com/dralley/rpmrepo_metadata"
+
 
 [build-system]
-requires = ["maturin~=1.13"]
+requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
 [tool.maturin]
-cargo-extra-args = "--features python_ext"
+# Enable the `python_ext` feature (includes pyo3/extension-module).
+features = ["python_ext"]
+# The Python module name — must match the #[pymodule] fn name in src/python.rs.
+module-name = "rpmrepo_metadata"
+
+[tool.ruff]
+line-length = 120

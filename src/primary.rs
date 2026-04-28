@@ -15,7 +15,7 @@ use super::metadata::{
     Checksum, MetadataError, Package, PrimaryXml, Requirement, RpmMetadata, XML_NS_COMMON,
     XML_NS_RPM,
 };
-use super::{EVR, PackageFile, Repository};
+use super::{EVR, Repository};
 
 const TAG_METADATA: &str = "metadata";
 const TAG_PACKAGE: &str = "package";
@@ -601,18 +601,11 @@ pub fn write_package<W: Write>(
     write_requirement_section(writer, TAG_RPM_RECOMMENDS, package.recommends())?;
     write_requirement_section(writer, TAG_RPM_SUPPLEMENTS, package.supplements())?;
 
-    fn include_file(f: &PackageFile) -> bool {
-        // strange algorithm, but it's what the original uses
-        f.path.starts_with("/etc/")
-            || f.path.contains("bin/")
-            || f.path.starts_with("/usr/lib/sendmail")
-    }
-
     // <file>/usr/bin/bash</file>
     package
         .files()
         .iter()
-        .filter(|&f| include_file(f))
+        .filter(|f| crate::utils::is_primary_file(&f.path))
         .try_for_each(|f| filelist::write_file_element(writer, f))?;
 
     // </format>

@@ -9,19 +9,9 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use pyo3;
+use pyo3::Py;
 use pyo3::basic::CompareOp;
 use pyo3::prelude::*;
-
-// TODO: Add
-// * Repository
-// * RepositoryOptions
-// * UpdateInfoReader
-// * UpdateInfoWriter
-// * RepomdXml
-// * PrimaryXml
-// * FilelistsXml
-// * OtherXml
-// * UpdateinfoXml
 
 #[pymodule]
 mod rpmrepo_metadata {
@@ -74,6 +64,71 @@ mod rpmrepo_metadata {
             self.inner.write_to_directory_with_options(&path, options)?;
             Ok(())
         }
+
+        #[setter]
+        fn set_groups(&mut self, py: Python<'_>, groups: Vec<Py<CompsGroup>>) {
+            *self.inner.groups_mut() = groups.iter().map(|g| g.borrow(py).inner.clone()).collect();
+        }
+
+        #[setter]
+        fn set_categories(&mut self, py: Python<'_>, categories: Vec<Py<CompsCategory>>) {
+            *self.inner.categories_mut() = categories
+                .iter()
+                .map(|c| c.borrow(py).inner.clone())
+                .collect();
+        }
+
+        #[setter]
+        fn set_environments(&mut self, py: Python<'_>, environments: Vec<Py<CompsEnvironment>>) {
+            *self.inner.environments_mut() = environments
+                .iter()
+                .map(|e| e.borrow(py).inner.clone())
+                .collect();
+        }
+
+        #[setter]
+        fn set_langpacks(&mut self, py: Python<'_>, langpacks: Vec<Py<CompsLangpack>>) {
+            *self.inner.langpacks_mut() = langpacks
+                .iter()
+                .map(|l| l.borrow(py).inner.clone())
+                .collect();
+        }
+
+        #[getter]
+        fn groups(&self) -> Vec<CompsGroup> {
+            self.inner
+                .groups()
+                .iter()
+                .map(|g| CompsGroup { inner: g.clone() })
+                .collect()
+        }
+
+        #[getter]
+        fn categories(&self) -> Vec<CompsCategory> {
+            self.inner
+                .categories()
+                .iter()
+                .map(|c| CompsCategory { inner: c.clone() })
+                .collect()
+        }
+
+        #[getter]
+        fn environments(&self) -> Vec<CompsEnvironment> {
+            self.inner
+                .environments()
+                .iter()
+                .map(|e| CompsEnvironment { inner: e.clone() })
+                .collect()
+        }
+
+        #[getter]
+        fn langpacks(&self) -> Vec<CompsLangpack> {
+            self.inner
+                .langpacks()
+                .iter()
+                .map(|l| CompsLangpack { inner: l.clone() })
+                .collect()
+        }
     }
 
     #[pyclass]
@@ -98,6 +153,94 @@ mod rpmrepo_metadata {
 
         fn add_package(&mut self, pkg: &Package) -> PyResult<()> {
             self.inner.lock().unwrap().as_mut().expect("finish() has already been called - cannot perform action after the repository has already finished being written").add_package(&pkg.inner)?;
+            Ok(())
+        }
+
+        fn add_advisory(&mut self, record: &UpdateRecord) -> PyResult<()> {
+            self.inner
+                .lock()
+                .unwrap()
+                .as_mut()
+                .expect("finish() has already been called")
+                .add_advisory(&record.inner)?;
+            Ok(())
+        }
+
+        fn add_group(&mut self, group: &CompsGroup) -> PyResult<()> {
+            self.inner
+                .lock()
+                .unwrap()
+                .as_mut()
+                .expect("finish() has already been called")
+                .add_group(&group.inner)?;
+            Ok(())
+        }
+
+        fn add_category(&mut self, category: &CompsCategory) -> PyResult<()> {
+            self.inner
+                .lock()
+                .unwrap()
+                .as_mut()
+                .expect("finish() has already been called")
+                .add_category(&category.inner)?;
+            Ok(())
+        }
+
+        fn add_environment(&mut self, environment: &CompsEnvironment) -> PyResult<()> {
+            self.inner
+                .lock()
+                .unwrap()
+                .as_mut()
+                .expect("finish() has already been called")
+                .add_environment(&environment.inner)?;
+            Ok(())
+        }
+
+        fn set_langpacks(
+            &mut self,
+            py: Python<'_>,
+            langpacks: Vec<Py<CompsLangpack>>,
+        ) -> PyResult<()> {
+            let l: Vec<_> = langpacks
+                .iter()
+                .map(|x| x.borrow(py).inner.clone())
+                .collect();
+            self.inner
+                .lock()
+                .unwrap()
+                .as_mut()
+                .expect("finish() has already been called")
+                .set_langpacks(&l)?;
+            Ok(())
+        }
+
+        fn write_comps(
+            &mut self,
+            py: Python<'_>,
+            groups: Vec<Py<CompsGroup>>,
+            categories: Vec<Py<CompsCategory>>,
+            environments: Vec<Py<CompsEnvironment>>,
+            langpacks: Vec<Py<CompsLangpack>>,
+        ) -> PyResult<()> {
+            let g: Vec<_> = groups.iter().map(|x| x.borrow(py).inner.clone()).collect();
+            let c: Vec<_> = categories
+                .iter()
+                .map(|x| x.borrow(py).inner.clone())
+                .collect();
+            let e: Vec<_> = environments
+                .iter()
+                .map(|x| x.borrow(py).inner.clone())
+                .collect();
+            let l: Vec<_> = langpacks
+                .iter()
+                .map(|x| x.borrow(py).inner.clone())
+                .collect();
+            self.inner
+                .lock()
+                .unwrap()
+                .as_mut()
+                .expect("finish() has already been called")
+                .write_comps(&g, &c, &e, &l)?;
             Ok(())
         }
 
@@ -136,7 +279,57 @@ mod rpmrepo_metadata {
             };
             Ok(py_updateinfo_reader)
         }
+
+        fn read_comps(&self) -> PyResult<Option<CompsData>> {
+            let result = self.inner.read_comps()?;
+            Ok(result.map(|comps| CompsData { inner: comps }))
+        }
     }
+
+    #[pyclass]
+    struct CompsData {
+        inner: crate::CompsData,
+    }
+
+    #[pymethods]
+    impl CompsData {
+        #[getter]
+        fn groups(&self) -> Vec<CompsGroup> {
+            self.inner
+                .groups
+                .iter()
+                .map(|g| CompsGroup { inner: g.clone() })
+                .collect()
+        }
+
+        #[getter]
+        fn categories(&self) -> Vec<CompsCategory> {
+            self.inner
+                .categories
+                .iter()
+                .map(|c| CompsCategory { inner: c.clone() })
+                .collect()
+        }
+
+        #[getter]
+        fn environments(&self) -> Vec<CompsEnvironment> {
+            self.inner
+                .environments
+                .iter()
+                .map(|e| CompsEnvironment { inner: e.clone() })
+                .collect()
+        }
+
+        #[getter]
+        fn langpacks(&self) -> Vec<CompsLangpack> {
+            self.inner
+                .langpacks
+                .iter()
+                .map(|l| CompsLangpack { inner: l.clone() })
+                .collect()
+        }
+    }
+
     #[pyclass]
     struct Package {
         inner: crate::Package,
@@ -824,8 +1017,481 @@ mod rpmrepo_metadata {
 
     #[pyclass]
     struct UpdateRecord {
-        #[allow(dead_code)]
         inner: crate::UpdateRecord,
+    }
+
+    #[pymethods]
+    impl UpdateRecord {
+        #[new]
+        #[pyo3(signature = (id="".to_string(), title="".to_string(), update_type="".to_string(), from_="".to_string(), status="".to_string(), version="".to_string(), severity="".to_string(), summary="".to_string(), description="".to_string(), solution="".to_string(), rights="".to_string(), release="".to_string(), issued_date=None, updated_date=None, pushcount=None))]
+        fn new(
+            id: String,
+            title: String,
+            update_type: String,
+            from_: String,
+            status: String,
+            version: String,
+            severity: String,
+            summary: String,
+            description: String,
+            solution: String,
+            rights: String,
+            release: String,
+            issued_date: Option<String>,
+            updated_date: Option<String>,
+            pushcount: Option<String>,
+        ) -> Self {
+            Self {
+                inner: crate::UpdateRecord {
+                    id,
+                    title,
+                    update_type,
+                    from: from_,
+                    status,
+                    version,
+                    severity,
+                    summary,
+                    description,
+                    solution,
+                    rights,
+                    release,
+                    issued_date,
+                    updated_date,
+                    pushcount,
+                    references: Vec::new(),
+                    pkglist: Vec::new(),
+                },
+            }
+        }
+
+        #[setter(from_)]
+        fn set_from(&mut self, val: String) {
+            self.inner.from = val;
+        }
+
+        #[setter]
+        fn set_update_type(&mut self, val: String) {
+            self.inner.update_type = val;
+        }
+
+        #[setter]
+        fn set_status(&mut self, val: String) {
+            self.inner.status = val;
+        }
+
+        #[setter(version)]
+        fn set_version(&mut self, val: String) {
+            self.inner.version = val;
+        }
+
+        #[setter]
+        fn set_id(&mut self, val: String) {
+            self.inner.id = val;
+        }
+
+        #[setter]
+        fn set_title(&mut self, val: String) {
+            self.inner.title = val;
+        }
+
+        #[setter]
+        fn set_issued_date(&mut self, val: Option<String>) {
+            self.inner.issued_date = val;
+        }
+
+        #[setter]
+        fn set_updated_date(&mut self, val: Option<String>) {
+            self.inner.updated_date = val;
+        }
+
+        #[setter]
+        fn set_rights(&mut self, val: String) {
+            self.inner.rights = val;
+        }
+
+        #[setter(release)]
+        fn set_release(&mut self, val: String) {
+            self.inner.release = val;
+        }
+
+        #[setter]
+        fn set_pushcount(&mut self, val: Option<String>) {
+            self.inner.pushcount = val;
+        }
+
+        #[setter]
+        fn set_severity(&mut self, val: String) {
+            self.inner.severity = val;
+        }
+
+        #[setter]
+        fn set_summary(&mut self, val: String) {
+            self.inner.summary = val;
+        }
+
+        #[setter(description)]
+        fn set_description(&mut self, val: String) {
+            self.inner.description = val;
+        }
+
+        #[setter]
+        fn set_solution(&mut self, val: String) {
+            self.inner.solution = val;
+        }
+
+        #[setter]
+        fn set_references(&mut self, py: Python<'_>, refs: Vec<Py<UpdateReference>>) {
+            self.inner.references = refs.iter().map(|r| r.borrow(py).inner.clone()).collect();
+        }
+
+        #[setter]
+        fn set_pkglist(&mut self, py: Python<'_>, pkglist: Vec<Py<UpdateCollection>>) {
+            self.inner.pkglist = pkglist.iter().map(|c| c.borrow(py).inner.clone()).collect();
+        }
+
+        #[getter(from_)]
+        fn from_(&self) -> &str {
+            &self.inner.from
+        }
+
+        #[getter]
+        fn update_type(&self) -> &str {
+            &self.inner.update_type
+        }
+
+        #[getter]
+        fn status(&self) -> &str {
+            &self.inner.status
+        }
+
+        #[getter]
+        fn version(&self) -> &str {
+            &self.inner.version
+        }
+
+        #[getter]
+        fn id(&self) -> &str {
+            &self.inner.id
+        }
+
+        #[getter]
+        fn title(&self) -> &str {
+            &self.inner.title
+        }
+
+        #[getter]
+        fn issued_date(&self) -> Option<&str> {
+            self.inner.issued_date.as_deref()
+        }
+
+        #[getter]
+        fn updated_date(&self) -> Option<&str> {
+            self.inner.updated_date.as_deref()
+        }
+
+        #[getter]
+        fn rights(&self) -> &str {
+            &self.inner.rights
+        }
+
+        #[getter]
+        fn release(&self) -> &str {
+            &self.inner.release
+        }
+
+        #[getter]
+        fn pushcount(&self) -> Option<&str> {
+            self.inner.pushcount.as_deref()
+        }
+
+        #[getter]
+        fn severity(&self) -> &str {
+            &self.inner.severity
+        }
+
+        #[getter]
+        fn summary(&self) -> &str {
+            &self.inner.summary
+        }
+
+        #[getter]
+        fn description(&self) -> &str {
+            &self.inner.description
+        }
+
+        #[getter]
+        fn solution(&self) -> &str {
+            &self.inner.solution
+        }
+
+        #[getter]
+        fn references(&self) -> Vec<UpdateReference> {
+            self.inner
+                .references
+                .iter()
+                .map(|r| UpdateReference { inner: r.clone() })
+                .collect()
+        }
+
+        #[getter]
+        fn pkglist(&self) -> Vec<UpdateCollection> {
+            self.inner
+                .pkglist
+                .iter()
+                .map(|c| UpdateCollection { inner: c.clone() })
+                .collect()
+        }
+
+        fn __str__(&self) -> String {
+            format!("<UpdateRecord {}>", self.inner.id)
+        }
+
+        fn __repr__(&self) -> String {
+            format!("<UpdateRecord {}>", self.inner.id)
+        }
+    }
+
+    #[pyclass]
+    struct UpdateReference {
+        inner: crate::UpdateReference,
+    }
+
+    #[pymethods]
+    impl UpdateReference {
+        #[new]
+        #[pyo3(signature = (href="".to_string(), id="".to_string(), title="".to_string(), reftype="".to_string()))]
+        fn new(href: String, id: String, title: String, reftype: String) -> Self {
+            Self {
+                inner: crate::UpdateReference {
+                    href,
+                    id,
+                    title,
+                    reftype,
+                },
+            }
+        }
+
+        #[getter]
+        fn href(&self) -> &str {
+            &self.inner.href
+        }
+
+        #[getter]
+        fn id(&self) -> &str {
+            &self.inner.id
+        }
+
+        #[getter]
+        fn title(&self) -> &str {
+            &self.inner.title
+        }
+
+        #[getter]
+        fn reftype(&self) -> &str {
+            &self.inner.reftype
+        }
+    }
+
+    #[pyclass]
+    struct UpdateCollection {
+        inner: crate::UpdateCollection,
+    }
+
+    #[pymethods]
+    impl UpdateCollection {
+        #[new]
+        #[pyo3(signature = (name="".to_string(), shortname="".to_string()))]
+        fn new(name: String, shortname: String) -> Self {
+            Self {
+                inner: crate::UpdateCollection {
+                    name,
+                    shortname,
+                    packages: Vec::new(),
+                    module: None,
+                },
+            }
+        }
+
+        #[setter]
+        fn set_packages(&mut self, py: Python<'_>, pkgs: Vec<Py<UpdateCollectionPackage>>) {
+            self.inner.packages = pkgs.iter().map(|p| p.borrow(py).inner.clone()).collect();
+        }
+
+        #[setter]
+        fn set_module(&mut self, module: Option<UpdateCollectionModule>) {
+            self.inner.module = module.map(|m| m.inner);
+        }
+
+        #[getter]
+        fn name(&self) -> &str {
+            &self.inner.name
+        }
+
+        #[getter]
+        fn shortname(&self) -> &str {
+            &self.inner.shortname
+        }
+
+        #[getter]
+        fn packages(&self) -> Vec<UpdateCollectionPackage> {
+            self.inner
+                .packages
+                .iter()
+                .map(|p| UpdateCollectionPackage { inner: p.clone() })
+                .collect()
+        }
+
+        #[getter]
+        fn module(&self) -> Option<UpdateCollectionModule> {
+            self.inner
+                .module
+                .as_ref()
+                .map(|m| UpdateCollectionModule { inner: m.clone() })
+        }
+    }
+
+    #[pyclass]
+    struct UpdateCollectionPackage {
+        inner: crate::UpdateCollectionPackage,
+    }
+
+    #[pymethods]
+    impl UpdateCollectionPackage {
+        #[new]
+        #[pyo3(signature = (name="".to_string(), version="".to_string(), release="".to_string(), arch="".to_string(), epoch="".to_string(), filename="".to_string(), src="".to_string(), reboot_suggested=false, restart_suggested=false, relogin_suggested=false))]
+        fn new(
+            name: String,
+            version: String,
+            release: String,
+            arch: String,
+            epoch: String,
+            filename: String,
+            src: String,
+            reboot_suggested: bool,
+            restart_suggested: bool,
+            relogin_suggested: bool,
+        ) -> Self {
+            Self {
+                inner: crate::UpdateCollectionPackage {
+                    name,
+                    version,
+                    release,
+                    arch,
+                    epoch,
+                    filename,
+                    src,
+                    reboot_suggested,
+                    restart_suggested,
+                    relogin_suggested,
+                    checksum: None,
+                },
+            }
+        }
+
+        #[getter]
+        fn epoch(&self) -> &str {
+            &self.inner.epoch
+        }
+
+        #[getter]
+        fn filename(&self) -> &str {
+            &self.inner.filename
+        }
+
+        #[getter]
+        fn name(&self) -> &str {
+            &self.inner.name
+        }
+
+        #[getter]
+        fn reboot_suggested(&self) -> bool {
+            self.inner.reboot_suggested
+        }
+
+        #[getter]
+        fn restart_suggested(&self) -> bool {
+            self.inner.restart_suggested
+        }
+
+        #[getter]
+        fn relogin_suggested(&self) -> bool {
+            self.inner.relogin_suggested
+        }
+
+        #[getter]
+        fn release(&self) -> &str {
+            &self.inner.release
+        }
+
+        #[getter]
+        fn src(&self) -> &str {
+            &self.inner.src
+        }
+
+        #[getter]
+        fn arch(&self) -> &str {
+            &self.inner.arch
+        }
+
+        #[getter]
+        fn checksum(&self) -> Option<(&str, &str)> {
+            self.inner
+                .checksum
+                .as_ref()
+                .and_then(|c| c.to_values().ok())
+        }
+
+        #[getter]
+        fn version(&self) -> &str {
+            &self.inner.version
+        }
+    }
+
+    #[pyclass(from_py_object)]
+    #[derive(Clone)]
+    struct UpdateCollectionModule {
+        inner: crate::UpdateCollectionModule,
+    }
+
+    #[pymethods]
+    impl UpdateCollectionModule {
+        #[new]
+        fn new(name: String, stream: String, version: u64, context: String, arch: String) -> Self {
+            Self {
+                inner: crate::UpdateCollectionModule {
+                    name,
+                    stream,
+                    version,
+                    context,
+                    arch,
+                },
+            }
+        }
+
+        #[getter]
+        fn name(&self) -> &str {
+            &self.inner.name
+        }
+
+        #[getter]
+        fn stream(&self) -> &str {
+            &self.inner.stream
+        }
+
+        #[getter]
+        fn version(&self) -> u64 {
+            self.inner.version
+        }
+
+        #[getter]
+        fn context(&self) -> &str {
+            &self.inner.context
+        }
+
+        #[getter]
+        fn arch(&self) -> &str {
+            &self.inner.arch
+        }
     }
 
     #[pyclass]
@@ -851,13 +1517,400 @@ mod rpmrepo_metadata {
         }
     }
 
-    // #[pyclass]
-    // struct UpdateinfoWriter {
-    //     inner: crate::UpdateinfoXmlWriter,
-    // }
+    #[pyclass]
+    struct CompsGroup {
+        inner: crate::CompsGroup,
+    }
 
-    // #[pymethods]
-    // impl UpdateinfoWriter {}
+    #[pymethods]
+    impl CompsGroup {
+        #[new]
+        #[pyo3(signature = (id="".to_string(), name="".to_string(), description="".to_string(), default=false, uservisible=true, biarchonly=false, langonly=None, display_order=None))]
+        fn new(
+            id: String,
+            name: String,
+            description: String,
+            default: bool,
+            uservisible: bool,
+            biarchonly: bool,
+            langonly: Option<String>,
+            display_order: Option<u32>,
+        ) -> Self {
+            Self {
+                inner: crate::CompsGroup {
+                    id,
+                    name,
+                    description,
+                    default,
+                    uservisible,
+                    biarchonly,
+                    langonly,
+                    display_order,
+                    name_by_lang: Vec::new(),
+                    desc_by_lang: Vec::new(),
+                    packages: Vec::new(),
+                },
+            }
+        }
+
+        #[setter]
+        fn set_packages(&mut self, py: Python<'_>, pkgs: Vec<Py<CompsPackageReq>>) {
+            self.inner.packages = pkgs.iter().map(|p| p.borrow(py).inner.clone()).collect();
+        }
+
+        #[setter]
+        fn set_name_by_lang(&mut self, val: Vec<(String, String)>) {
+            self.inner.name_by_lang = val;
+        }
+
+        #[setter]
+        fn set_desc_by_lang(&mut self, val: Vec<(String, String)>) {
+            self.inner.desc_by_lang = val;
+        }
+
+        #[getter]
+        fn id(&self) -> &str {
+            &self.inner.id
+        }
+
+        #[getter]
+        fn name(&self) -> &str {
+            &self.inner.name
+        }
+
+        #[getter]
+        fn name_by_lang(&self) -> Vec<(String, String)> {
+            self.inner.name_by_lang.clone()
+        }
+
+        #[getter]
+        fn description(&self) -> &str {
+            &self.inner.description
+        }
+
+        #[getter]
+        fn desc_by_lang(&self) -> Vec<(String, String)> {
+            self.inner.desc_by_lang.clone()
+        }
+
+        #[getter]
+        fn default(&self) -> bool {
+            self.inner.default
+        }
+
+        #[getter]
+        fn uservisible(&self) -> bool {
+            self.inner.uservisible
+        }
+
+        #[getter]
+        fn biarchonly(&self) -> bool {
+            self.inner.biarchonly
+        }
+
+        #[getter]
+        fn langonly(&self) -> Option<&str> {
+            self.inner.langonly.as_deref()
+        }
+
+        #[getter]
+        fn display_order(&self) -> Option<u32> {
+            self.inner.display_order
+        }
+
+        #[getter]
+        fn packages(&self) -> Vec<CompsPackageReq> {
+            self.inner
+                .packages
+                .iter()
+                .map(|p| CompsPackageReq { inner: p.clone() })
+                .collect()
+        }
+
+        fn __str__(&self) -> String {
+            format!("<CompsGroup {}>", self.inner.id)
+        }
+
+        fn __repr__(&self) -> String {
+            format!("<CompsGroup {}>", self.inner.id)
+        }
+    }
+
+    #[pyclass]
+    struct CompsPackageReq {
+        inner: crate::CompsPackageReq,
+    }
+
+    #[pymethods]
+    impl CompsPackageReq {
+        #[new]
+        #[pyo3(signature = (name="".to_string(), reqtype="default".to_string(), requires=None, basearchonly=false))]
+        fn new(
+            name: String,
+            reqtype: String,
+            requires: Option<String>,
+            basearchonly: bool,
+        ) -> Self {
+            Self {
+                inner: crate::CompsPackageReq {
+                    name,
+                    reqtype,
+                    requires,
+                    basearchonly,
+                },
+            }
+        }
+
+        #[getter]
+        fn name(&self) -> &str {
+            &self.inner.name
+        }
+
+        #[getter]
+        fn reqtype(&self) -> &str {
+            &self.inner.reqtype
+        }
+
+        #[getter]
+        fn requires(&self) -> Option<&str> {
+            self.inner.requires.as_deref()
+        }
+
+        #[getter]
+        fn basearchonly(&self) -> bool {
+            self.inner.basearchonly
+        }
+    }
+
+    #[pyclass]
+    struct CompsCategory {
+        inner: crate::CompsCategory,
+    }
+
+    #[pymethods]
+    impl CompsCategory {
+        #[new]
+        #[pyo3(signature = (id="".to_string(), name="".to_string(), description="".to_string(), display_order=None))]
+        fn new(id: String, name: String, description: String, display_order: Option<u32>) -> Self {
+            Self {
+                inner: crate::CompsCategory {
+                    id,
+                    name,
+                    description,
+                    display_order,
+                    name_by_lang: Vec::new(),
+                    desc_by_lang: Vec::new(),
+                    group_ids: Vec::new(),
+                },
+            }
+        }
+
+        #[setter]
+        fn set_group_ids(&mut self, val: Vec<String>) {
+            self.inner.group_ids = val;
+        }
+
+        #[setter]
+        fn set_name_by_lang(&mut self, val: Vec<(String, String)>) {
+            self.inner.name_by_lang = val;
+        }
+
+        #[setter]
+        fn set_desc_by_lang(&mut self, val: Vec<(String, String)>) {
+            self.inner.desc_by_lang = val;
+        }
+
+        #[getter]
+        fn id(&self) -> &str {
+            &self.inner.id
+        }
+
+        #[getter]
+        fn name(&self) -> &str {
+            &self.inner.name
+        }
+
+        #[getter]
+        fn name_by_lang(&self) -> Vec<(String, String)> {
+            self.inner.name_by_lang.clone()
+        }
+
+        #[getter]
+        fn description(&self) -> &str {
+            &self.inner.description
+        }
+
+        #[getter]
+        fn desc_by_lang(&self) -> Vec<(String, String)> {
+            self.inner.desc_by_lang.clone()
+        }
+
+        #[getter]
+        fn display_order(&self) -> Option<u32> {
+            self.inner.display_order
+        }
+
+        #[getter]
+        fn group_ids(&self) -> Vec<String> {
+            self.inner.group_ids.clone()
+        }
+
+        fn __str__(&self) -> String {
+            format!("<CompsCategory {}>", self.inner.id)
+        }
+
+        fn __repr__(&self) -> String {
+            format!("<CompsCategory {}>", self.inner.id)
+        }
+    }
+
+    #[pyclass]
+    struct CompsEnvironment {
+        inner: crate::CompsEnvironment,
+    }
+
+    #[pymethods]
+    impl CompsEnvironment {
+        #[new]
+        #[pyo3(signature = (id="".to_string(), name="".to_string(), description="".to_string(), display_order=None))]
+        fn new(id: String, name: String, description: String, display_order: Option<u32>) -> Self {
+            Self {
+                inner: crate::CompsEnvironment {
+                    id,
+                    name,
+                    description,
+                    display_order,
+                    name_by_lang: Vec::new(),
+                    desc_by_lang: Vec::new(),
+                    group_ids: Vec::new(),
+                    option_ids: Vec::new(),
+                },
+            }
+        }
+
+        #[setter]
+        fn set_group_ids(&mut self, val: Vec<String>) {
+            self.inner.group_ids = val;
+        }
+
+        #[setter]
+        fn set_option_ids(&mut self, py: Python<'_>, opts: Vec<Py<CompsEnvironmentOption>>) {
+            self.inner.option_ids = opts.iter().map(|o| o.borrow(py).inner.clone()).collect();
+        }
+
+        #[setter]
+        fn set_name_by_lang(&mut self, val: Vec<(String, String)>) {
+            self.inner.name_by_lang = val;
+        }
+
+        #[setter]
+        fn set_desc_by_lang(&mut self, val: Vec<(String, String)>) {
+            self.inner.desc_by_lang = val;
+        }
+
+        #[getter]
+        fn id(&self) -> &str {
+            &self.inner.id
+        }
+
+        #[getter]
+        fn name(&self) -> &str {
+            &self.inner.name
+        }
+
+        #[getter]
+        fn name_by_lang(&self) -> Vec<(String, String)> {
+            self.inner.name_by_lang.clone()
+        }
+
+        #[getter]
+        fn description(&self) -> &str {
+            &self.inner.description
+        }
+
+        #[getter]
+        fn desc_by_lang(&self) -> Vec<(String, String)> {
+            self.inner.desc_by_lang.clone()
+        }
+
+        #[getter]
+        fn display_order(&self) -> Option<u32> {
+            self.inner.display_order
+        }
+
+        #[getter]
+        fn group_ids(&self) -> Vec<String> {
+            self.inner.group_ids.clone()
+        }
+
+        #[getter]
+        fn option_ids(&self) -> Vec<CompsEnvironmentOption> {
+            self.inner
+                .option_ids
+                .iter()
+                .map(|o| CompsEnvironmentOption { inner: o.clone() })
+                .collect()
+        }
+
+        fn __str__(&self) -> String {
+            format!("<CompsEnvironment {}>", self.inner.id)
+        }
+
+        fn __repr__(&self) -> String {
+            format!("<CompsEnvironment {}>", self.inner.id)
+        }
+    }
+
+    #[pyclass]
+    struct CompsEnvironmentOption {
+        inner: crate::CompsEnvironmentOption,
+    }
+
+    #[pymethods]
+    impl CompsEnvironmentOption {
+        #[new]
+        #[pyo3(signature = (group_id="".to_string(), default=false))]
+        fn new(group_id: String, default: bool) -> Self {
+            Self {
+                inner: crate::CompsEnvironmentOption { group_id, default },
+            }
+        }
+
+        #[getter]
+        fn group_id(&self) -> &str {
+            &self.inner.group_id
+        }
+
+        #[getter]
+        fn default(&self) -> bool {
+            self.inner.default
+        }
+    }
+
+    #[pyclass]
+    struct CompsLangpack {
+        inner: crate::CompsLangpack,
+    }
+
+    #[pymethods]
+    impl CompsLangpack {
+        #[new]
+        fn new(name: String, install: String) -> Self {
+            Self {
+                inner: crate::CompsLangpack { name, install },
+            }
+        }
+
+        #[getter]
+        fn name(&self) -> &str {
+            &self.inner.name
+        }
+
+        #[getter]
+        fn install(&self) -> &str {
+            &self.inner.install
+        }
+    }
 
     #[pyclass]
     struct EVR {

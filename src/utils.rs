@@ -141,5 +141,7 @@ pub fn writer_to_file(
     Ok((filename, writer))
 }
 
-#[cfg(feature = "read_rpm")]
-pub use crate::package::rpm_parsing::load_rpm_package;
+/// Whether a file path is considered "primary" metadata (included in primary.xml).
+pub fn is_primary_file(path: &str) -> bool {
+    path.starts_with("/etc/") || path.contains("bin/") || path == "/usr/lib/sendmail"
+}

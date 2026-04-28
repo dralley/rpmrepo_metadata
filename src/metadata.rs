@@ -31,6 +31,9 @@ pub const METADATA_PRIMARY: &str = "primary";
 pub const METADATA_FILELISTS: &str = "filelists";
 pub const METADATA_OTHER: &str = "other";
 pub const METADATA_UPDATEINFO: &str = "updateinfo";
+pub const METADATA_GROUP: &str = "group";
+pub const METADATA_GROUP_GZ: &str = "group_gz";
+pub const METADATA_GROUP_XZ: &str = "group_xz";
 
 // TODO: probably this can / should be broken up better rather than being a kitchen sink
 #[derive(Error, Debug)]
@@ -1199,4 +1202,13 @@ pub struct CompsEnvironmentOption {
 pub struct CompsLangpack {
     pub name: String,
     pub install: String,
+}
+
+/// Parsed comps.xml data containing all group, category, environment, and langpack entries.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct CompsData {
+    pub groups: Vec<CompsGroup>,
+    pub categories: Vec<CompsCategory>,
+    pub environments: Vec<CompsEnvironment>,
+    pub langpacks: Vec<CompsLangpack>,
 }

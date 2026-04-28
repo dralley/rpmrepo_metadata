@@ -11,7 +11,7 @@ use quick_xml::name::QName;
 use quick_xml::{Reader, Writer};
 
 use crate::metadata::{
-    UpdateCollection, UpdateCollectionModule, UpdateCollectionPackage, UpdateReference,
+    Checksum, UpdateCollection, UpdateCollectionModule, UpdateCollectionPackage, UpdateReference,
 };
 
 use super::metadata::{RpmMetadata, UpdateRecord, UpdateinfoXml};
@@ -302,7 +302,16 @@ pub fn parse_pkglist<R: BufRead>(
         match reader.read_event_into(&mut buf)? {
             Event::End(e) if e.name().as_ref() == TAG_PKGLIST.as_bytes() => break,
             Event::Start(e) if e.name().as_ref() == TAG_COLLECTION.as_bytes() => {
-                current_collection = Some(UpdateCollection::default());
+                let mut collection = UpdateCollection::default();
+                if let Some(attr) = e.try_get_attribute("short")? {
+                    collection.shortname = attr.unescape_value()?.into_owned();
+                }
+                current_collection = Some(collection);
+            }
+            Event::End(e) if e.name().as_ref() == TAG_PACKAGE.as_bytes() => {
+                if let Some(pkg) = current_package.take() {
+                    current_collection.as_mut().unwrap().packages.push(pkg);
+                }
             }
             Event::End(e) if e.name().as_ref() == TAG_COLLECTION.as_bytes() => {
                 collections.push(current_collection.take().unwrap());
@@ -401,7 +410,35 @@ pub fn parse_pkglist<R: BufRead>(
                         .decode()?
                         .into_owned();
                 }
-                e => panic!("{}", dbg!(e)),
+                "sum" => {
+                    let checksum_type = e
+                        .try_get_attribute("type")?
+                        .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
+                        .unescape_value()?
+                        .into_owned();
+                    let value = reader
+                        .read_text_into(QName(b"sum"), &mut text_buf)?
+                        .decode()?
+                        .into_owned();
+                    let checksum = Checksum::try_create(&checksum_type, &value)?;
+                    current_package.as_mut().unwrap().checksum = Some(checksum);
+                }
+                "reboot_suggested" => {
+                    let val = reader.read_text_into(QName(b"reboot_suggested"), &mut text_buf)?;
+                    current_package.as_mut().unwrap().reboot_suggested =
+                        val.as_ref() == b"1" || val.as_ref() == b"True";
+                }
+                "restart_suggested" => {
+                    let val = reader.read_text_into(QName(b"restart_suggested"), &mut text_buf)?;
+                    current_package.as_mut().unwrap().restart_suggested =
+                        val.as_ref() == b"1" || val.as_ref() == b"True";
+                }
+                "relogin_suggested" => {
+                    let val = reader.read_text_into(QName(b"relogin_suggested"), &mut text_buf)?;
+                    current_package.as_mut().unwrap().relogin_suggested =
+                        val.as_ref() == b"1" || val.as_ref() == b"True";
+                }
+                _ => (),
             },
             _ => (), // TODO
         }

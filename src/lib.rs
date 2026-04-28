@@ -22,13 +22,14 @@ mod python_ext;
 pub use common::EVR;
 pub use comps::CompsXmlReader;
 pub use metadata::{
-    Changelog, Checksum, ChecksumType, CompressionType, CompsCategory, CompsEnvironment,
-    CompsEnvironmentOption, CompsGroup, CompsLangpack, CompsPackageReq, CompsXml, FileType,
+    Changelog, Checksum, ChecksumType, CompressionType, CompsCategory, CompsData,
+    CompsEnvironment, CompsEnvironmentOption, CompsGroup, CompsLangpack, CompsPackageReq,
+    CompsXml, FileType,
     FilelistsXml, MetadataError, OtherXml, Package, PackageFile, PrimaryXml, RepomdData,
     RepomdRecord, RepomdXml, Requirement, UpdateCollection, UpdateCollectionModule,
     UpdateCollectionPackage, UpdateRecord, UpdateReference, UpdateinfoXml,
 };
-pub use package::PackageIterator;
+pub use package::{PackageIterator, PackageOptions};
 pub use repository::{
     Repository, RepositoryOptions, RepositoryReader, RepositoryWriter, UpdateinfoIterator,
 };
