@@ -293,6 +293,21 @@ mod rpmrepo_metadata {
 
     #[pymethods]
     impl CompsData {
+        #[staticmethod]
+        fn from_xml(xml: &str) -> PyResult<CompsData> {
+            let reader = crate::utils::create_xml_reader(xml.as_bytes());
+            let data = crate::metadata::CompsXml::read_data(reader)?;
+            Ok(CompsData { inner: data })
+        }
+
+        fn to_xml(&self) -> PyResult<String> {
+            let mut buf = Vec::new();
+            let writer = crate::utils::create_xml_writer(&mut buf);
+            crate::metadata::CompsXml::write_data(&self.inner, writer)?;
+            Ok(String::from_utf8(buf)
+                .map_err(|e| pyo3::exceptions::PyUnicodeDecodeError::new_err(e.to_string()))?)
+        }
+
         #[getter]
         fn groups(&self) -> Vec<CompsGroup> {
             self.inner
@@ -354,6 +369,33 @@ mod rpmrepo_metadata {
 
         fn nevra_short(&self) -> String {
             self.inner.nevra_short()
+        }
+
+        #[cfg(feature = "read_rpm")]
+        #[staticmethod]
+        fn from_file(path: PathBuf) -> PyResult<Self> {
+            let pkg = crate::Package::from_file(&path)?;
+            Ok(Package { inner: pkg })
+        }
+
+        #[cfg(feature = "read_rpm")]
+        #[staticmethod]
+        #[pyo3(signature = (path, checksum_type=None, location_href=None, location_base=None, changelog_limit=None))]
+        fn from_file_with_options(
+            path: PathBuf,
+            checksum_type: Option<ChecksumType>,
+            location_href: Option<String>,
+            location_base: Option<String>,
+            changelog_limit: Option<usize>,
+        ) -> PyResult<Self> {
+            let options = crate::PackageOptions {
+                checksum_type: checksum_type.map(Into::into).unwrap_or_default(),
+                location_href,
+                location_base,
+                changelog_limit: changelog_limit.unwrap_or(10),
+            };
+            let pkg = crate::Package::from_file_with_options(&path, options)?;
+            Ok(Package { inner: pkg })
         }
 
         fn evr(&self) -> EVR {
@@ -1909,6 +1951,30 @@ mod rpmrepo_metadata {
         #[getter]
         fn install(&self) -> &str {
             &self.inner.install
+        }
+    }
+
+    #[pyclass(eq, eq_int, from_py_object)]
+    #[derive(Clone, PartialEq)]
+    enum ChecksumType {
+        Md5,
+        Sha1,
+        Sha224,
+        Sha256,
+        Sha384,
+        Sha512,
+    }
+
+    impl From<ChecksumType> for crate::ChecksumType {
+        fn from(val: ChecksumType) -> Self {
+            match val {
+                ChecksumType::Md5 => crate::ChecksumType::Md5,
+                ChecksumType::Sha1 => crate::ChecksumType::Sha1,
+                ChecksumType::Sha224 => crate::ChecksumType::Sha224,
+                ChecksumType::Sha256 => crate::ChecksumType::Sha256,
+                ChecksumType::Sha384 => crate::ChecksumType::Sha384,
+                ChecksumType::Sha512 => crate::ChecksumType::Sha512,
+            }
         }
     }
 

@@ -11,7 +11,7 @@ use quick_xml::name::QName;
 use quick_xml::{Reader, Writer};
 
 use super::metadata::{
-    CompsCategory, CompsEnvironment, CompsEnvironmentOption, CompsGroup, CompsLangpack,
+    CompsCategory, CompsData, CompsEnvironment, CompsEnvironmentOption, CompsGroup, CompsLangpack,
     CompsPackageReq, CompsXml, RpmMetadata,
 };
 use super::{MetadataError, Repository};
@@ -86,6 +86,38 @@ impl CompsXml {
 
     pub fn new_reader<R: BufRead>(reader: quick_xml::Reader<R>) -> CompsXmlReader<R> {
         CompsXmlReader { reader }
+    }
+
+    pub fn read_data<R: BufRead>(reader: Reader<R>) -> Result<CompsData, MetadataError> {
+        let mut comps_reader = CompsXml::new_reader(reader);
+        let mut groups = Vec::new();
+        let mut categories = Vec::new();
+        let mut environments = Vec::new();
+        let langpacks = comps_reader.read_all(&mut groups, &mut categories, &mut environments)?;
+        Ok(CompsData {
+            groups,
+            categories,
+            environments,
+            langpacks,
+        })
+    }
+
+    pub fn write_data<W: Write>(data: &CompsData, writer: Writer<W>) -> Result<(), MetadataError> {
+        let mut writer = CompsXml::new_writer(writer);
+        writer.write_header()?;
+        for group in &data.groups {
+            writer.write_group(group)?;
+        }
+        for category in &data.categories {
+            writer.write_category(category)?;
+        }
+        for environment in &data.environments {
+            writer.write_environment(environment)?;
+        }
+        if !data.langpacks.is_empty() {
+            writer.write_langpacks(&data.langpacks)?;
+        }
+        writer.finish()
     }
 }
 
