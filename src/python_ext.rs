@@ -45,6 +45,7 @@ mod rpmrepo_metadata {
 
     #[pymethods]
     impl Repository {
+        /// Create a new empty repository.
         #[new]
         fn new() -> Self {
             Repository {
@@ -52,6 +53,7 @@ mod rpmrepo_metadata {
             }
         }
 
+        /// Load a complete repository from a directory containing ``repodata/``.
         #[staticmethod]
         fn load_from_directory(path: PathBuf) -> PyResult<Self> {
             let repo = crate::Repository::load_from_directory(&path)?;
@@ -59,11 +61,72 @@ mod rpmrepo_metadata {
             Ok(py_repo)
         }
 
+        /// Write all repository metadata to the given directory.
         fn write_to_directory(&self, path: PathBuf) -> PyResult<()> {
             let options = crate::RepositoryOptions::default();
 
             self.inner.write_to_directory_with_options(&path, options)?;
             Ok(())
+        }
+
+        #[getter]
+        fn packages(&self) -> Vec<Package> {
+            self.inner
+                .packages()
+                .values()
+                .map(|p| Package { inner: p.clone() })
+                .collect()
+        }
+
+        #[setter]
+        fn set_packages(&mut self, py: Python<'_>, packages: Vec<Py<Package>>) {
+            *self.inner.packages_mut() = packages
+                .iter()
+                .map(|p| {
+                    let pkg = p.borrow(py);
+                    (pkg.inner.pkgid().to_owned(), pkg.inner.clone())
+                })
+                .collect();
+        }
+
+        /// Add a package to the repository. Replaces any existing package with the same pkgid.
+        fn add_package(&mut self, pkg: &Package) {
+            self.inner.add_package(pkg.inner.clone());
+        }
+
+        /// Remove a package by its pkgid (checksum). Returns True if a package was removed.
+        fn remove_package(&mut self, pkgid: &str) -> bool {
+            self.inner.remove_package(pkgid).is_some()
+        }
+
+        #[getter]
+        fn advisories(&self) -> Vec<UpdateRecord> {
+            self.inner
+                .advisories()
+                .values()
+                .map(|a| UpdateRecord { inner: a.clone() })
+                .collect()
+        }
+
+        #[setter]
+        fn set_advisories(&mut self, py: Python<'_>, advisories: Vec<Py<UpdateRecord>>) {
+            *self.inner.advisories_mut() = advisories
+                .iter()
+                .map(|a| {
+                    let adv = a.borrow(py);
+                    (adv.inner.id.clone(), adv.inner.clone())
+                })
+                .collect();
+        }
+
+        /// Add an advisory to the repository. Replaces any existing advisory with the same ID.
+        fn add_advisory(&mut self, advisory: &UpdateRecord) {
+            self.inner.add_advisory(advisory.inner.clone());
+        }
+
+        /// Remove an advisory by its ID. Returns True if an advisory was removed.
+        fn remove_advisory(&mut self, id: &str) -> bool {
+            self.inner.remove_advisory(id).is_some()
         }
 
         #[setter]
@@ -144,6 +207,7 @@ mod rpmrepo_metadata {
 
     #[pymethods]
     impl RepositoryWriter {
+        /// Create a new writer that will write repository metadata to ``path``.
         #[new]
         fn new(path: PathBuf, num_pkgs: usize) -> PyResult<Self> {
             let repo_writer = crate::RepositoryWriter::new(&path, num_pkgs)?;
@@ -153,11 +217,13 @@ mod rpmrepo_metadata {
             Ok(py_repo_writer)
         }
 
+        /// Write a package's metadata to the repository.
         fn add_package(&mut self, pkg: &Package) -> PyResult<()> {
             self.inner.lock().unwrap().as_mut().expect("finish() has already been called - cannot perform action after the repository has already finished being written").add_package(&pkg.inner)?;
             Ok(())
         }
 
+        /// Write an advisory record to the repository.
         fn add_advisory(&mut self, record: &UpdateRecord) -> PyResult<()> {
             self.inner
                 .lock()
@@ -168,6 +234,7 @@ mod rpmrepo_metadata {
             Ok(())
         }
 
+        /// Write a comps group to the repository.
         fn add_group(&mut self, group: &CompsGroup) -> PyResult<()> {
             self.inner
                 .lock()
@@ -178,6 +245,7 @@ mod rpmrepo_metadata {
             Ok(())
         }
 
+        /// Write a comps category to the repository.
         fn add_category(&mut self, category: &CompsCategory) -> PyResult<()> {
             self.inner
                 .lock()
@@ -188,6 +256,7 @@ mod rpmrepo_metadata {
             Ok(())
         }
 
+        /// Write a comps environment to the repository.
         fn add_environment(&mut self, environment: &CompsEnvironment) -> PyResult<()> {
             self.inner
                 .lock()
@@ -198,6 +267,7 @@ mod rpmrepo_metadata {
             Ok(())
         }
 
+        /// Set the langpack mappings for the repository.
         fn set_langpacks(
             &mut self,
             py: Python<'_>,
@@ -216,6 +286,7 @@ mod rpmrepo_metadata {
             Ok(())
         }
 
+        /// Write all comps metadata (groups, categories, environments, langpacks) at once.
         fn write_comps(
             &mut self,
             py: Python<'_>,
@@ -246,6 +317,7 @@ mod rpmrepo_metadata {
             Ok(())
         }
 
+        /// Finalize the repository, writing ``repomd.xml`` and closing all files.
         fn finish(&mut self) -> PyResult<()> {
             self.inner.lock().unwrap().take().unwrap().finish()?;
             Ok(())
@@ -260,6 +332,7 @@ mod rpmrepo_metadata {
 
     #[pymethods]
     impl RepositoryReader {
+        /// Open a repository from a directory containing ``repodata/``.
         #[new]
         fn new(path: PathBuf) -> PyResult<Self> {
             let repo_reader = crate::RepositoryReader::new_from_directory(&path)?;
@@ -267,6 +340,7 @@ mod rpmrepo_metadata {
             Ok(py_repo_reader)
         }
 
+        /// Return an iterator over all packages in the repository.
         fn iter_packages(&self) -> PyResult<PackageIterator> {
             let pkg_reader = self.inner.iter_packages()?;
             let py_pkg_reader = PackageIterator {
@@ -275,6 +349,7 @@ mod rpmrepo_metadata {
             Ok(py_pkg_reader)
         }
 
+        /// Return an iterator over all advisories in the repository.
         fn iter_advisories(&self) -> PyResult<UpdateinfoReader> {
             let updateinfo_reader = self.inner.iter_advisories()?;
             let py_updateinfo_reader = UpdateinfoReader {
@@ -283,6 +358,7 @@ mod rpmrepo_metadata {
             Ok(py_updateinfo_reader)
         }
 
+        /// Read comps (group/category/environment) metadata, if present.
         fn read_comps(&self) -> PyResult<Option<CompsData>> {
             let result = self.inner.read_comps()?;
             Ok(result.map(|comps| CompsData { inner: comps }))
@@ -297,6 +373,7 @@ mod rpmrepo_metadata {
 
     #[pymethods]
     impl CompsData {
+        /// Parse comps metadata from an XML string.
         #[staticmethod]
         fn from_xml(xml: &str) -> PyResult<CompsData> {
             let reader = crate::utils::create_xml_reader(xml.as_bytes());
@@ -304,6 +381,7 @@ mod rpmrepo_metadata {
             Ok(CompsData { inner: data })
         }
 
+        /// Serialize comps metadata to an XML string.
         fn to_xml(&self) -> PyResult<String> {
             let mut buf = Vec::new();
             let writer = crate::utils::create_xml_writer(&mut buf);
@@ -357,6 +435,7 @@ mod rpmrepo_metadata {
 
     #[pymethods]
     impl Package {
+        /// Create a new empty package.
         #[new]
         fn new() -> Self {
             Self {
@@ -364,18 +443,22 @@ mod rpmrepo_metadata {
             }
         }
 
+        /// Return the name-version-release-arch string.
         fn nvra(&self) -> String {
             self.inner.nvra()
         }
 
+        /// Return the name-epoch-version-release-arch string.
         fn nevra(&self) -> String {
             self.inner.nevra()
         }
 
+        /// Return the NEVRA string, omitting epoch when it is 0.
         fn nevra_short(&self) -> String {
             self.inner.nevra_short()
         }
 
+        /// Read package metadata from an RPM file on disk.
         #[cfg(feature = "read_rpm")]
         #[staticmethod]
         fn from_file(path: PathBuf) -> PyResult<Self> {
@@ -383,6 +466,7 @@ mod rpmrepo_metadata {
             Ok(Package { inner: pkg })
         }
 
+        /// Read package metadata from an RPM file with custom options.
         #[cfg(feature = "read_rpm")]
         #[staticmethod]
         #[pyo3(signature = (path, checksum_type=None, location_href=None, location_base=None, changelog_limit=None))]
@@ -403,6 +487,7 @@ mod rpmrepo_metadata {
             Ok(Package { inner: pkg })
         }
 
+        /// Return the epoch-version-release as an EVR object.
         fn evr(&self) -> EVR {
             EVR {
                 inner: self.inner.evr.clone(),
@@ -1018,6 +1103,7 @@ mod rpmrepo_metadata {
 
     #[pymethods]
     impl PackageIterator {
+        /// Create a package iterator from primary, filelists, and other XML file paths.
         #[new]
         fn new(
             primary_path: PathBuf,
@@ -1034,6 +1120,7 @@ mod rpmrepo_metadata {
             Ok(py_pkg_reader)
         }
 
+        /// Parse and return the next package, or ``None`` when exhausted.
         fn parse_package(&mut self) -> PyResult<Option<Package>> {
             let pkg = self.inner.lock().unwrap().parse_package()?;
             let py_pkg = pkg.map(|p| Package { inner: p });
@@ -1555,6 +1642,7 @@ mod rpmrepo_metadata {
 
     #[pymethods]
     impl UpdateinfoReader {
+        /// Parse and return the next advisory record, or ``None`` when exhausted.
         fn parse_updaterecord(&mut self) -> PyResult<Option<UpdateRecord>> {
             if let Some(rec) = self.inner.lock().unwrap().next() {
                 return Ok(Some(UpdateRecord { inner: rec? }));
@@ -2005,6 +2093,7 @@ mod rpmrepo_metadata {
 
     #[pymethods]
     impl EVR {
+        /// Create an EVR from explicit epoch, version, and release strings.
         #[new]
         fn new(epoch: &str, version: &str, release: &str) -> EVR {
             EVR {
@@ -2012,10 +2101,12 @@ mod rpmrepo_metadata {
             }
         }
 
+        /// Return the (epoch, version, release) components as a tuple.
         fn components(&self) -> (&str, &str, &str) {
             (self.epoch(), self.version(), self.release())
         }
 
+        /// Parse an EVR string like ``"1:2.3.4-5.el9"`` into its components.
         #[staticmethod]
         fn parse(evr: &str) -> PyResult<Self> {
             let py_evr = EVR {

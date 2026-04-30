@@ -145,6 +145,34 @@ impl Repository {
         &mut self.langpacks
     }
 
+    /// Add a package to the repository, keyed by its package ID (checksum).
+    ///
+    /// If a package with the same pkgid already exists, it is replaced and the old package is returned.
+    pub fn add_package(&mut self, pkg: Package) -> Option<Package> {
+        self.packages.insert(pkg.pkgid().to_owned(), pkg)
+    }
+
+    /// Remove a package by its package ID (checksum).
+    ///
+    /// Returns the removed package, or `None` if no package with that ID existed.
+    pub fn remove_package(&mut self, pkgid: &str) -> Option<Package> {
+        self.packages.shift_remove(pkgid)
+    }
+
+    /// Add an advisory to the repository, keyed by its advisory ID.
+    ///
+    /// If an advisory with the same ID already exists, it is replaced and the old advisory is returned.
+    pub fn add_advisory(&mut self, advisory: UpdateRecord) -> Option<UpdateRecord> {
+        self.advisories.insert(advisory.id.clone(), advisory)
+    }
+
+    /// Remove an advisory by its ID.
+    ///
+    /// Returns the removed advisory, or `None` if no advisory with that ID existed.
+    pub fn remove_advisory(&mut self, id: &str) -> Option<UpdateRecord> {
+        self.advisories.shift_remove(id)
+    }
+
     /// Sorts the package entries by `location_href`.
     ///
     /// Helps with compression ratios for certain types of compression, and makes it more easily searchable.

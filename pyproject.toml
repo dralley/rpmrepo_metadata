@@ -3,7 +3,7 @@ name = "rpmrepo_metadata"
 dynamic = ["version"]
 description = "Python bindings for rpmrepo_metadata: create and parse RPM repository metadata"
 license = { text = "MPL-2.0" }
-readme = "README.md"
+readme = "README_PYTHON.md"
 requires-python = ">=3.10"
 keywords = ["rpm", "packaging"]
 classifiers = [
