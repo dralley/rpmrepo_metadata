@@ -1,72 +1,139 @@
-name: Rust
-
 on:
   push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
+    tags:
+      # Full version
+      - "[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      # Prerelease version
+      - "[0-9]+.[0-9]+.[0-9]+-*"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
 
-env:
-  CARGO_TERM_COLOR: always
+  pull_request:
+    branches:
+      # Trigger on pull requests into main/master
+      - main
+      - master
+    types: [ opened, synchronize ]
+
+name: Continuous integration
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
-  lint:
+  check:
+    name: Check
     runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Check formatting
-      run: cargo fmt -- --check
-
-  # build_test_fixtures:
-  #   runs-on: ubuntu-latest
-  #   container: fedora:latest
-  #   steps:
-  #   - uses: actions/checkout@v4
-
-  #   # - name: Cache test fixtures
-  #   #   id: cache-fixtures
-  #   #   uses: actions/cache@v2
-  #   #   with:
-  #   #     path: cache-fixtures
-  #   #     key: ${{ runner.os }}-primes
-
-  #   - name: Build test fixtures
-  #     # if: steps.cache-fixtures.outputs.cache-hit != 'true'
-  #     run: |
-  #       sudo dnf install -y createrepo_c
-  #       pushd ./tests/assets/
-  #       sh ./build_fixtures.sh
-  #       popd
-
-  #   - name: Upload test fixtures
-  #     uses: actions/upload-artifact@v4
-  #     with:
-  #       name: my-artifact
-  #       path: tests/assets/
-  #       retention-days: 1
-
-  test:
-    # needs: build_test_fixtures
     strategy:
       matrix:
-        os: [ubuntu-latest]  # todo: windows-latest doesn't work yet because I'm using unix MetadataExt
+        rust:
+          - stable
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+
+      - run: cargo check
+
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - 1.88.0
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+      - run: cargo test
+
+  test-feature-matrix:
+    name: Test Suite (feature-matrix)
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - 1.88.0
+        flags:
+          - "--all-features"
+          - "--no-default-features"
+        os:
+          - "ubuntu-latest"
+          - "macos-latest"
+          - "windows-latest"
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: clippy
 
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        components: rustfmt
+      - run: cargo clippy ${{ matrix.flags }} -- -D warnings
+      - run: cargo check ${{ matrix.flags }}
+      - run: cargo test ${{ matrix.flags }}
 
-    - name: Download all workflow run artifacts e.g. test fixtures
-      uses: actions/download-artifact@v4
-      with:
-        path: ./tests/assets/
+  python-tests:
+    name: Python Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - uses: PyO3/maturin-action@v1
+        with:
+          args: --release --out dist
+      - run: pip install dist/*.whl pytest
+      - run: pytest tests/python/
 
-    - name: Build
-      run: cargo build --verbose
+  fmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - stable
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: rustfmt
 
-    - name: Run tests
-      run: cargo test --verbose
+      - run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - stable
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: clippy
+
+      - run: cargo clippy -- -D warnings
+
+  compat-tests:
+    name: Compatibility Test Suite
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - stable
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+      - run: cargo test --features test-with-podman
