@@ -33,6 +33,7 @@ fn get_digest<D: digest::Digest>(mut reader: Box<dyn Read>) -> Result<String, Me
     Ok(hex::encode(hasher.finalize().as_ref()))
 }
 
+/// Compute a checksum of the file at `path`.
 pub fn checksum_file(path: &Path, checksum_type: ChecksumType) -> Result<Checksum, MetadataError> {
     let reader = Box::new(BufReader::new(File::open(path).unwrap())) as Box<dyn Read>;
 
@@ -50,6 +51,7 @@ pub fn checksum_file(path: &Path, checksum_type: ChecksumType) -> Result<Checksu
 }
 // TODO: not efficient to iterate the file twice
 
+/// Compute a checksum of the decompressed contents of a compressed file, or `None` if uncompressed.
 pub fn checksum_inner_file(
     path: &Path,
     checksum_type: ChecksumType,
@@ -73,6 +75,7 @@ pub fn checksum_inner_file(
     Ok(Some(result))
 }
 
+/// Return the decompressed size of a compressed file, or `None` if uncompressed.
 pub fn size_inner_file(path: &Path) -> Result<Option<u64>, MetadataError> {
     let (reader, format) = niffler::from_path(path)?;
 
@@ -84,6 +87,7 @@ pub fn size_inner_file(path: &Path) -> Result<Option<u64>, MetadataError> {
     Ok(inner_size)
 }
 
+/// Create a configured XML reader with empty-element expansion and text trimming enabled.
 pub fn create_xml_reader<R: io::BufRead>(inner: R) -> quick_xml::Reader<R> {
     let mut reader = quick_xml::Reader::from_reader(inner);
     reader.config_mut().expand_empty_elements = true;
@@ -91,15 +95,18 @@ pub fn create_xml_reader<R: io::BufRead>(inner: R) -> quick_xml::Reader<R> {
     reader
 }
 
+/// Create an XML writer with 2-space indentation.
 pub fn create_xml_writer<W: io::Write + Send>(inner: W) -> quick_xml::Writer<W> {
     quick_xml::Writer::new_with_indent(inner, b' ', 2)
 }
 
+/// Open a file and automatically decompress it based on its magic bytes.
 pub fn reader_from_file(path: &Path) -> Result<Box<dyn io::Read + Send>, MetadataError> {
     let (compress_reader, _compression) = niffler::send::from_path(path)?;
     Ok(compress_reader)
 }
 
+/// Open a (possibly compressed) file and return a configured XML reader over it.
 pub fn xml_reader_from_file(
     path: &Path,
 ) -> Result<quick_xml::Reader<BufReader<Box<dyn io::Read + Send>>>, MetadataError> {
@@ -108,6 +115,7 @@ pub fn xml_reader_from_file(
 }
 
 // TODO: maybe split this up so that it just configures the writer, but takes a Box<dyn Write> which can be pre-configured with compression
+/// Create a compressed XML writer for the given path, returning the final filename with compression suffix.
 pub fn xml_writer_for_path(
     path: &Path,
     compression: CompressionType,
@@ -117,6 +125,7 @@ pub fn xml_writer_for_path(
     Ok((filename, writer))
 }
 
+/// Append the appropriate compression file extension (e.g. `.gz`, `.xz`) to a path.
 pub fn apply_compression_suffix(path: &Path, compression: CompressionType) -> PathBuf {
     let extension = compression.to_file_extension();
     // TODO: easier way to do this?
@@ -125,6 +134,7 @@ pub fn apply_compression_suffix(path: &Path, compression: CompressionType) -> Pa
     PathBuf::from(&filename)
 }
 
+/// Create a compressed writer to the given path, returning the final filename with compression suffix.
 pub fn writer_to_file(
     path: &Path,
     compression: CompressionType,

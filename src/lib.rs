@@ -4,6 +4,16 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+//! A library for reading, writing, and managing RPM repository metadata.
+//!
+//! RPM repository metadata consists of several XML files (primary.xml, filelists.xml, other.xml,
+//! repomd.xml, updateinfo.xml, comps.xml) that together describe the packages available in a
+//! repository. This crate provides both high-level APIs ([`Repository`], [`RepositoryReader`],
+//! [`RepositoryWriter`]) and lower-level streaming readers/writers for each metadata type.
+//!
+//! With the `read_rpm` feature enabled, RPM packages can be read directly from disk via
+//! [`Package::from_file`].
+
 mod common;
 mod comps;
 mod filelist;

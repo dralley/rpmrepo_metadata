@@ -70,64 +70,77 @@ pub struct Repository {
 // * zchunk metadata?
 // * signing
 impl Repository {
+    /// Create a new empty repository.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Returns the repomd metadata.
     pub fn repomd<'repo>(&'repo self) -> &'repo RepomdData {
         &self.repomd_data
     }
 
+    /// Returns a mutable reference to the repomd metadata.
     pub fn repomd_mut<'repo>(&'repo mut self) -> &'repo mut RepomdData {
         &mut self.repomd_data
     }
 
+    /// Returns the packages, keyed by package ID (checksum).
     pub fn packages(&self) -> &IndexMap<String, Package> {
         &self.packages
     }
 
-    // TODO: better API for package access (entry-like)
+    /// Returns a mutable reference to the packages map.
     pub fn packages_mut(&mut self) -> &mut IndexMap<String, Package> {
         &mut self.packages
     }
 
+    /// Returns the advisory records, keyed by advisory ID.
     pub fn advisories(&self) -> &IndexMap<String, UpdateRecord> {
         &self.advisories
     }
 
-    // TODO: better API for package access (entry-like)
+    /// Returns a mutable reference to the advisory records map.
     pub fn advisories_mut(&mut self) -> &mut IndexMap<String, UpdateRecord> {
         &mut self.advisories
     }
 
+    /// Returns the comps package groups.
     pub fn groups(&self) -> &[CompsGroup] {
         &self.groups
     }
 
+    /// Returns a mutable reference to the comps package groups.
     pub fn groups_mut(&mut self) -> &mut Vec<CompsGroup> {
         &mut self.groups
     }
 
+    /// Returns the comps categories.
     pub fn categories(&self) -> &[CompsCategory] {
         &self.categories
     }
 
+    /// Returns a mutable reference to the comps categories.
     pub fn categories_mut(&mut self) -> &mut Vec<CompsCategory> {
         &mut self.categories
     }
 
+    /// Returns the comps environments.
     pub fn environments(&self) -> &[CompsEnvironment] {
         &self.environments
     }
 
+    /// Returns a mutable reference to the comps environments.
     pub fn environments_mut(&mut self) -> &mut Vec<CompsEnvironment> {
         &mut self.environments
     }
 
+    /// Returns the comps langpack mappings.
     pub fn langpacks(&self) -> &[CompsLangpack] {
         &self.langpacks
     }
 
+    /// Returns a mutable reference to the comps langpack mappings.
     pub fn langpacks_mut(&mut self) -> &mut Vec<CompsLangpack> {
         &mut self.langpacks
     }
@@ -252,6 +265,7 @@ impl Default for RepositoryOptions {
 }
 
 impl RepositoryOptions {
+    /// Set the checksum algorithm.
     pub fn checksum_type(self, chktype: ChecksumType) -> Self {
         Self {
             checksum_type: chktype,
@@ -259,6 +273,7 @@ impl RepositoryOptions {
         }
     }
 
+    /// Set the compression algorithm for metadata files.
     pub fn compression_type(self, comptype: CompressionType) -> Self {
         Self {
             compression_type: comptype,
@@ -266,6 +281,7 @@ impl RepositoryOptions {
         }
     }
 
+    /// Use simple filenames (e.g. `primary.xml.gz`) instead of checksum-prefixed ones.
     pub fn simple_metadata_filenames(self, val: bool) -> Self {
         Self {
             simple_metadata_filenames: val,
@@ -686,6 +702,7 @@ impl RepositoryReader {
     }
 }
 
+/// Iterator over advisory records from updateinfo.xml.
 pub struct UpdateinfoIterator {
     updateinfo: Option<UpdateinfoXmlReader<BufReader<Box<dyn std::io::Read + Send>>>>,
 }

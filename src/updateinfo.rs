@@ -73,11 +73,13 @@ impl RpmMetadata for UpdateinfoXml {
     }
 }
 
+/// Streaming writer for updateinfo.xml advisory metadata.
 pub struct UpdateinfoXmlWriter<W: Write> {
     writer: Writer<W>,
 }
 
 impl<W: Write> UpdateinfoXmlWriter<W> {
+    /// Write the XML declaration and opening `<updates>` element.
     pub fn write_header(&mut self) -> Result<(), MetadataError> {
         // <?xml version="1.0" encoding="UTF-8"?>
         self.writer
@@ -91,10 +93,12 @@ impl<W: Write> UpdateinfoXmlWriter<W> {
         Ok(())
     }
 
+    /// Write a single `<update>` element.
     pub fn write_updaterecord(&mut self, record: &UpdateRecord) -> Result<(), MetadataError> {
         write_updaterecord(record, &mut self.writer)
     }
 
+    /// Write the closing `</updates>` element and flush.
     pub fn finish(&mut self) -> Result<(), MetadataError> {
         // </updates>
         self.writer
@@ -109,16 +113,19 @@ impl<W: Write> UpdateinfoXmlWriter<W> {
         Ok(())
     }
 
+    /// Consume the writer and return the underlying writer.
     pub fn into_inner(self) -> W {
         self.writer.into_inner()
     }
 }
 
+/// Streaming reader for updateinfo.xml advisory metadata.
 pub struct UpdateinfoXmlReader<R: BufRead> {
     reader: Reader<R>,
 }
 
 impl<R: BufRead> UpdateinfoXmlReader<R> {
+    /// Read the next advisory record, or `None` if no more updates.
     pub fn read_update(&mut self) -> Result<Option<UpdateRecord>, MetadataError> {
         parse_updaterecord(&mut self.reader)
     }
@@ -133,10 +140,12 @@ impl<R: BufRead> Iterator for UpdateinfoXmlReader<R> {
 }
 
 impl UpdateinfoXml {
+    /// Create a new updateinfo.xml writer.
     pub fn new_writer<W: Write>(writer: quick_xml::Writer<W>) -> UpdateinfoXmlWriter<W> {
         UpdateinfoXmlWriter { writer }
     }
 
+    /// Create a new updateinfo.xml reader.
     pub fn new_reader<R: BufRead>(reader: quick_xml::Reader<R>) -> UpdateinfoXmlReader<R> {
         UpdateinfoXmlReader { reader }
     }

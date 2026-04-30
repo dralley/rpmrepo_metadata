@@ -37,6 +37,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// In-memory representation of a complete RPM repository.
     #[pyclass]
     struct Repository {
         inner: crate::Repository,
@@ -131,6 +132,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// Streaming writer for constructing RPM repository metadata on disk.
     #[pyclass]
     struct RepositoryWriter {
         // finish() is a bit tricky because Python and Rust do not follow the same rules -
@@ -250,6 +252,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// Reader for RPM repository metadata from a directory on disk.
     #[pyclass]
     struct RepositoryReader {
         inner: crate::RepositoryReader,
@@ -286,6 +289,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// Parsed comps.xml data containing groups, categories, environments, and langpacks.
     #[pyclass]
     struct CompsData {
         inner: crate::CompsData,
@@ -345,6 +349,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// An RPM package's metadata.
     #[pyclass]
     struct Package {
         inner: crate::Package,
@@ -1005,6 +1010,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// Iterator over packages in repository metadata.
     #[pyclass]
     struct PackageIterator {
         inner: Mutex<crate::PackageIterator>,
@@ -1057,6 +1063,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// An advisory (errata) entry from updateinfo.xml.
     #[pyclass]
     struct UpdateRecord {
         inner: crate::UpdateRecord,
@@ -1293,6 +1300,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// A reference (bugzilla, CVE, etc.) associated with an advisory.
     #[pyclass]
     struct UpdateReference {
         inner: crate::UpdateReference,
@@ -1334,6 +1342,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// A collection of packages affected by an advisory update.
     #[pyclass]
     struct UpdateCollection {
         inner: crate::UpdateCollection,
@@ -1392,6 +1401,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// A package within an advisory update collection.
     #[pyclass]
     struct UpdateCollectionPackage {
         inner: crate::UpdateCollectionPackage,
@@ -1489,6 +1499,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// Module stream information for a modular advisory update.
     #[pyclass(from_py_object)]
     #[derive(Clone)]
     struct UpdateCollectionModule {
@@ -1536,6 +1547,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// Iterator over advisory records from updateinfo.xml.
     #[pyclass]
     struct UpdateinfoReader {
         inner: Mutex<crate::UpdateinfoIterator>,
@@ -1559,6 +1571,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// A package group from comps.xml.
     #[pyclass]
     struct CompsGroup {
         inner: crate::CompsGroup,
@@ -1678,6 +1691,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// A package requirement within a comps group.
     #[pyclass]
     struct CompsPackageReq {
         inner: crate::CompsPackageReq,
@@ -1724,6 +1738,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// A category from comps.xml, organizing groups into higher-level groupings.
     #[pyclass]
     struct CompsCategory {
         inner: crate::CompsCategory,
@@ -1806,6 +1821,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// An environment from comps.xml, defining a complete installation profile.
     #[pyclass]
     struct CompsEnvironment {
         inner: crate::CompsEnvironment,
@@ -1903,6 +1919,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// An optional group within a comps environment, with a default selection state.
     #[pyclass]
     struct CompsEnvironmentOption {
         inner: crate::CompsEnvironmentOption,
@@ -1929,6 +1946,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// A langpack mapping from comps.xml.
     #[pyclass]
     struct CompsLangpack {
         inner: crate::CompsLangpack,
@@ -1954,6 +1972,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// Checksum algorithm used for package and metadata file verification.
     #[pyclass(eq, eq_int, from_py_object)]
     #[derive(Clone, PartialEq)]
     enum ChecksumType {
@@ -1978,6 +1997,7 @@ mod rpmrepo_metadata {
         }
     }
 
+    /// An RPM Epoch-Version-Release version specifier.
     #[pyclass]
     struct EVR {
         inner: crate::EVR,

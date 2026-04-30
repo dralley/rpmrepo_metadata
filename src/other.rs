@@ -66,20 +66,24 @@ impl RpmMetadata for OtherXml {
 }
 
 impl OtherXml {
+    /// Create a new other.xml writer.
     pub fn new_writer<W: Write>(writer: quick_xml::Writer<W>) -> OtherXmlWriter<W> {
         OtherXmlWriter { writer }
     }
 
+    /// Create a new other.xml reader.
     pub fn new_reader<R: BufRead>(reader: quick_xml::Reader<R>) -> OtherXmlReader<R> {
         OtherXmlReader { reader }
     }
 }
 
+/// Streaming writer for other.xml metadata.
 pub struct OtherXmlWriter<W: Write> {
     writer: Writer<W>,
 }
 
 impl<W: Write> OtherXmlWriter<W> {
+    /// Write the XML declaration and opening `<otherdata>` element.
     pub fn write_header(&mut self, num_pkgs: usize) -> Result<(), MetadataError> {
         // <?xml version="1.0" encoding="UTF-8"?>
         self.writer
@@ -94,6 +98,7 @@ impl<W: Write> OtherXmlWriter<W> {
         Ok(())
     }
 
+    /// Write a single `<package>` element with its changelog entries.
     pub fn write_package(&mut self, package: &Package) -> Result<(), MetadataError> {
         // <package pkgid="6a915b6e1ad740994aa9688d70a67ff2b6b72e0ced668794aeb27b2d0f2e237b" name="fontconfig" arch="x86_64">
         let mut package_tag = BytesStart::new(TAG_PACKAGE);
@@ -130,6 +135,7 @@ impl<W: Write> OtherXmlWriter<W> {
         Ok(())
     }
 
+    /// Write the closing `</otherdata>` element and flush.
     pub fn finish(&mut self) -> Result<(), MetadataError> {
         // </otherdata>
         self.writer
@@ -144,20 +150,24 @@ impl<W: Write> OtherXmlWriter<W> {
         Ok(())
     }
 
+    /// Consume the writer and return the underlying writer.
     pub fn into_inner(self) -> W {
         self.writer.into_inner()
     }
 }
 
+/// Streaming reader for other.xml metadata.
 pub struct OtherXmlReader<R: BufRead> {
     reader: Reader<R>,
 }
 
 impl<R: BufRead> OtherXmlReader<R> {
+    /// Read and parse the XML header, returning the declared package count.
     pub fn read_header(&mut self) -> Result<usize, MetadataError> {
         parse_header(&mut self.reader)
     }
 
+    /// Read changelog entries for the next package into `package`.
     pub fn read_package(&mut self, package: &mut Option<Package>) -> Result<(), MetadataError> {
         parse_package(package, &mut self.reader)
     }

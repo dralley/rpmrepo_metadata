@@ -20,11 +20,17 @@ use thiserror::Error;
 
 use crate::{EVR, Repository, utils};
 
+/// Marker type for repomd.xml read/write operations.
 pub struct RepomdXml;
+/// Marker type for primary.xml read/write operations.
 pub struct PrimaryXml;
+/// Marker type for filelists.xml read/write operations.
 pub struct FilelistsXml;
+/// Marker type for other.xml read/write operations.
 pub struct OtherXml;
+/// Marker type for updateinfo.xml read/write operations.
 pub struct UpdateinfoXml;
+/// Marker type for comps.xml read/write operations.
 pub struct CompsXml;
 
 pub const METADATA_PRIMARY: &str = "primary";
@@ -35,7 +41,7 @@ pub const METADATA_GROUP: &str = "group";
 pub const METADATA_GROUP_GZ: &str = "group_gz";
 pub const METADATA_GROUP_XZ: &str = "group_xz";
 
-// TODO: probably this can / should be broken up better rather than being a kitchen sink
+/// Errors that can occur when reading, writing, or validating RPM repository metadata.
 #[derive(Error, Debug)]
 pub enum MetadataError {
     #[cfg(feature = "read_rpm")]
@@ -100,14 +106,20 @@ pub const XML_NS_REPO: &str = "http://linux.duke.edu/metadata/repo";
 /// Namespace for rpm (used in primary.xml and repomd.xml)
 pub const XML_NS_RPM: &str = "http://linux.duke.edu/metadata/rpm";
 
+/// Trait implemented by each metadata type (primary, filelists, other, repomd, updateinfo, comps).
+///
+/// Provides a uniform interface for loading metadata into a [`Repository`] and writing it back out.
 pub trait RpmMetadata {
+    /// The default filename for this metadata type (e.g. `"primary.xml"`).
     fn filename() -> &'static str;
 
+    /// Parse XML from `buffer` and load the results into `repository`.
     fn load_metadata<R: BufRead>(
         repository: &mut Repository,
         buffer: Reader<R>,
     ) -> Result<(), MetadataError>;
 
+    /// Write metadata from `repository` to the XML `buffer`.
     fn write_metadata<W: Write>(
         repository: &Repository,
         buffer: Writer<W>,
@@ -116,6 +128,7 @@ pub trait RpmMetadata {
 
 // TODO: Trait impl tests https://github.com/rust-lang/rfcs/issues/616
 
+/// Compression algorithm used for repository metadata files.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CompressionType {
     None,
@@ -126,6 +139,7 @@ pub enum CompressionType {
 }
 
 impl CompressionType {
+    /// Returns the file extension associated with this compression type (e.g. `".gz"`, `".zst"`).
     pub fn to_file_extension(&self) -> &str {
         match self {
             CompressionType::None => "",
@@ -170,6 +184,9 @@ impl TryInto<CompressionType> for &str {
 //     }
 // }
 
+/// An RPM package's metadata as represented in repository XML.
+///
+/// Contains all fields found across primary.xml, filelists.xml, and other.xml.
 #[derive(Clone, Default, Debug, PartialEq, Hash)]
 pub struct Package {
     // pub(crate) parse_state: ParseState,
@@ -210,6 +227,7 @@ pub struct Package {
 }
 
 impl Package {
+    /// Create a new `Package` with the given required fields; all other fields use defaults.
     pub fn new(
         name: &str,
         version: &EVR,
@@ -293,6 +311,7 @@ impl Package {
         &self.evr
     }
 
+    /// Returns the name-version-release.arch string (e.g. `"foo-1.0-1.x86_64"`).
     pub fn nvra(&self) -> String {
         format!(
             "{}-{}-{}.{}",
@@ -300,6 +319,7 @@ impl Package {
         )
     }
 
+    /// Returns the NEVRA string, omitting the epoch when it is `"0"`.
     pub fn nevra_short(&self) -> String {
         if self.evr.epoch == "0" {
             self.nvra()
@@ -308,6 +328,7 @@ impl Package {
         }
     }
 
+    /// Returns the full name-epoch:version-release.arch string (e.g. `"foo-1:2.0-3.x86_64"`).
     pub fn nevra(&self) -> String {
         format!(
             "{}-{}:{}-{}.{}",
@@ -324,6 +345,7 @@ impl Package {
         &self.checksum
     }
 
+    /// Returns the package ID (hex-encoded file checksum).
     pub fn pkgid(&self) -> &str {
         // TODO: better way to do this
         &self.checksum.to_values().unwrap().1
@@ -591,6 +613,7 @@ impl Package {
     }
 }
 
+/// Hash algorithm used for checksums in repository metadata.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ChecksumType {
     Md5,
@@ -608,6 +631,7 @@ impl Default for ChecksumType {
     }
 }
 
+/// A checksum value tagged with its algorithm type.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Checksum {
     Md5(String),
@@ -644,6 +668,7 @@ impl Hash for Checksum {
 }
 
 impl Checksum {
+    /// Create a `Checksum` from a type name (e.g. `"sha256"`) and hex digest, validating the length.
     pub fn try_create<N: AsRef<[u8]> + Sized>(
         checksum_type: N,
         checksum: N,
@@ -736,6 +761,7 @@ impl Checksum {
         }
     }
 
+    /// Returns the `(type_name, hex_digest)` pair (e.g. `("sha256", "abcd...")`).
     pub fn to_values<'a>(&'a self) -> Result<(&'a str, &'a str), MetadataError> {
         let values = match self {
             Checksum::Md5(c) => ("md5", c.as_str()),
@@ -751,20 +777,27 @@ impl Checksum {
     }
 }
 
+/// A changelog entry from an RPM package.
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct Changelog {
+    /// The author line (e.g. `"John Doe <john@example.com> - 1.0-1"`).
     pub author: String,
+    /// Unix timestamp of the changelog entry.
     pub timestamp: u64,
+    /// The changelog text.
     pub description: String,
 }
 
+/// Byte range of the RPM header within the package file.
 #[derive(Copy, Clone, Debug, Default, Hash, PartialEq)]
 pub struct HeaderRange {
+    /// Offset of the start of the header.
     pub start: u64,
+    /// Offset of the end of the header (start of the payload).
     pub end: u64,
 }
 
-// Requirement (Provides, Conflicts, Obsoletes, Requires).
+/// An RPM dependency entry (used for Provides, Requires, Conflicts, Obsoletes, etc.).
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct Requirement {
     pub name: String,
@@ -775,6 +808,7 @@ pub struct Requirement {
     pub preinstall: bool,
 }
 
+/// Comparison operator for version-constrained dependencies.
 #[derive(Copy, Clone, Debug, Hash, PartialEq)]
 pub enum RequirementType {
     LT,
@@ -813,6 +847,7 @@ impl TryFrom<&str> for RequirementType {
     }
 }
 
+/// Type of a file entry within an RPM package.
 #[derive(Copy, Clone, Debug, PartialEq, Hash)]
 pub enum FileType {
     File,
@@ -847,12 +882,16 @@ impl Default for FileType {
     }
 }
 
+/// A file entry within an RPM package, with its type and path.
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct PackageFile {
+    /// Whether this is a regular file, directory, or ghost file.
     pub filetype: FileType,
+    /// Absolute path of the file within the installed filesystem.
     pub path: String,
 }
 
+/// The type of a metadata file within the repository (primary, filelists, other, etc.).
 #[derive(Clone, Debug, PartialEq)]
 pub enum MetadataType {
     Primary,
@@ -888,9 +927,12 @@ impl From<&str> for MetadataType {
     }
 }
 
+/// A distribution tag from repomd.xml, optionally carrying a CPE ID.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct DistroTag {
+    /// Common Platform Enumeration identifier (e.g. `"cpe:/o:fedoraproject:fedora:33"`).
     pub cpeid: Option<String>,
+    /// Human-readable distribution name (e.g. `"Fedora 33"`).
     pub name: String,
 }
 
@@ -900,6 +942,7 @@ impl DistroTag {
     }
 }
 
+/// Contents of a `repomd.xml` file: revision, metadata file records, and repository tags.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct RepomdData {
     revision: Option<String>,
@@ -912,16 +955,19 @@ pub struct RepomdData {
 }
 
 impl RepomdData {
+    /// Add a metadata file record (e.g. primary, filelists) to the repomd.
     pub fn add_record(&mut self, record: RepomdRecord) {
         self.metadata_files.push(record);
     }
 
+    /// Look up a metadata record by type name (e.g. `"primary"`, `"filelists"`).
     pub fn get_record(&self, rectype: &str) -> Option<&RepomdRecord> {
         self.metadata_files
             .iter()
             .find(|r| &r.metadata_name == rectype)
     }
 
+    /// Returns all metadata file records.
     pub fn records(&self) -> &Vec<RepomdRecord> {
         &self.metadata_files
     }
@@ -938,39 +984,48 @@ impl RepomdData {
     //     self.metadata_files.retain(|r| &r.mdtype != rectype);
     // }
 
+    /// Add a repository tag to the repomd metadata.
     pub fn add_repo_tag(&mut self, repo: String) {
         self.repo_tags.push(repo)
     }
 
+    /// Returns the repository tags.
     pub fn repo_tags(&self) -> &Vec<String> {
         &self.repo_tags
     }
 
+    /// Add a content tag to the repomd metadata.
     pub fn add_content_tag(&mut self, content: String) {
         self.content_tags.push(content)
     }
 
+    /// Returns the content tags.
     pub fn content_tags(&self) -> &Vec<String> {
         &self.content_tags
     }
 
+    /// Add a distribution tag with an optional CPE identifier.
     pub fn add_distro_tag(&mut self, name: String, cpeid: Option<String>) {
         let distro = DistroTag { name, cpeid };
         self.distro_tags.push(distro)
     }
 
+    /// Returns the distribution tags.
     pub fn distro_tags(&self) -> &Vec<DistroTag> {
         &self.distro_tags
     }
 
+    /// Set the repository revision string.
     pub fn set_revision(&mut self, revision: &str) {
         self.revision = Some(revision.to_owned());
     }
 
+    /// Returns the repository revision string, if set.
     pub fn revision(&self) -> Option<&str> {
         self.revision.as_deref()
     }
 
+    /// Sort metadata records into a canonical order (primary, filelists, other, then others).
     pub fn sort_records(&mut self) {
         fn value(item: &RepomdRecord) -> u32 {
             let mdtype = MetadataType::from(item.metadata_name.as_str());
@@ -990,23 +1045,26 @@ impl RepomdData {
         self.metadata_files.sort_by(|a, b| value(a).cmp(&value(b)));
     }
 
-    // TODO error handling
+    /// Returns the primary metadata record. Panics if not present.
     pub fn get_primary_data(&self) -> &RepomdRecord {
         self.get_record(METADATA_PRIMARY)
             .expect("Cannot find primary metadata")
     }
 
+    /// Returns the filelists metadata record. Panics if not present.
     pub fn get_filelist_data(&self) -> &RepomdRecord {
         self.get_record(METADATA_FILELISTS)
             .expect("Cannot find filelists metadata")
     }
 
+    /// Returns the other metadata record. Panics if not present.
     pub fn get_other_data(&self) -> &RepomdRecord {
         self.get_record(METADATA_OTHER)
             .expect("Cannot find other metadata")
     }
 }
 
+/// A single metadata file entry within repomd.xml (e.g. primary, filelists, other).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct RepomdRecord {
     base_path: Option<PathBuf>,
@@ -1039,6 +1097,7 @@ pub struct RepomdRecord {
 }
 
 impl RepomdRecord {
+    /// Create a new record by reading the file at `href` relative to `base`.
     pub fn new(
         name: &str,
         href: &Path,
@@ -1060,6 +1119,7 @@ impl RepomdRecord {
         Ok(record)
     }
 
+    /// Populate size, timestamp, and checksum fields by reading the file from disk.
     pub fn fill(&mut self, checksum_type: ChecksumType) -> Result<(), MetadataError> {
         let file_path = self
             .base_path
@@ -1077,6 +1137,7 @@ impl RepomdRecord {
     }
 }
 
+/// An advisory (errata) entry from updateinfo.xml.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct UpdateRecord {
     pub from: String,
@@ -1100,6 +1161,7 @@ pub struct UpdateRecord {
     pub pkglist: Vec<UpdateCollection>,
 }
 
+/// A collection of packages affected by an advisory update.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct UpdateCollection {
     pub name: String,
@@ -1108,6 +1170,7 @@ pub struct UpdateCollection {
     pub module: Option<UpdateCollectionModule>,
 }
 
+/// A reference (bugzilla, CVE, etc.) associated with an advisory.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct UpdateReference {
     pub href: String,
@@ -1116,6 +1179,7 @@ pub struct UpdateReference {
     pub reftype: String,
 }
 
+/// A package within an advisory update collection.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct UpdateCollectionPackage {
     pub epoch: String,
@@ -1131,6 +1195,7 @@ pub struct UpdateCollectionPackage {
     pub version: String,
 }
 
+/// Module stream information for a modular advisory update.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct UpdateCollectionModule {
     pub name: String,

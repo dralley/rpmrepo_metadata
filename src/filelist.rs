@@ -64,20 +64,24 @@ impl RpmMetadata for FilelistsXml {
 }
 
 impl FilelistsXml {
+    /// Create a new filelists.xml writer.
     pub fn new_writer<W: Write>(writer: quick_xml::Writer<W>) -> FilelistsXmlWriter<W> {
         FilelistsXmlWriter { writer }
     }
 
+    /// Create a new filelists.xml reader.
     pub fn new_reader<R: BufRead>(reader: quick_xml::Reader<R>) -> FilelistsXmlReader<R> {
         FilelistsXmlReader { reader }
     }
 }
 
+/// Streaming writer for filelists.xml metadata.
 pub struct FilelistsXmlWriter<W: Write> {
     writer: Writer<W>,
 }
 
 impl<W: Write> FilelistsXmlWriter<W> {
+    /// Write the XML declaration and opening `<filelists>` element.
     pub fn write_header(&mut self, num_pkgs: usize) -> Result<(), MetadataError> {
         // <?xml version="1.0" encoding="UTF-8"?>
         self.writer
@@ -93,6 +97,7 @@ impl<W: Write> FilelistsXmlWriter<W> {
         Ok(())
     }
 
+    /// Write a single `<package>` element with its file entries.
     pub fn write_package(&mut self, package: &Package) -> Result<(), MetadataError> {
         // <package pkgid="a2d3bce512f79b0bc840ca7912a86bbc0016cf06d5c363ffbb6fd5e1ef03de1b" name="fontconfig" arch="x86_64">
         let mut package_tag = BytesStart::new(TAG_PACKAGE);
@@ -124,6 +129,7 @@ impl<W: Write> FilelistsXmlWriter<W> {
         Ok(())
     }
 
+    /// Write the closing `</filelists>` element and flush.
     pub fn finish(&mut self) -> Result<(), MetadataError> {
         // </filelists>
         self.writer
@@ -138,6 +144,7 @@ impl<W: Write> FilelistsXmlWriter<W> {
         Ok(())
     }
 
+    /// Consume the writer and return the underlying writer.
     pub fn into_inner(self) -> W {
         self.writer.into_inner()
     }
@@ -158,15 +165,18 @@ pub(crate) fn write_file_element<W: Write>(
     Ok(())
 }
 
+/// Streaming reader for filelists.xml metadata.
 pub struct FilelistsXmlReader<R: BufRead> {
     reader: Reader<R>,
 }
 
 impl<R: BufRead> FilelistsXmlReader<R> {
+    /// Read and parse the XML header, returning the declared package count.
     pub fn read_header(&mut self) -> Result<usize, MetadataError> {
         parse_header(&mut self.reader)
     }
 
+    /// Read file entries for the next package into `package`.
     pub fn read_package(&mut self, package: &mut Option<Package>) -> Result<(), MetadataError> {
         parse_package(package, &mut self.reader)
     }

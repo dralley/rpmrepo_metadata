@@ -90,24 +90,29 @@ impl RpmMetadata for PrimaryXml {
 }
 
 impl PrimaryXml {
+    /// Create a new primary.xml writer.
     pub fn new_writer<W: Write>(writer: quick_xml::Writer<W>) -> PrimaryXmlWriter<W> {
         PrimaryXmlWriter { writer }
     }
 
+    /// Create a new primary.xml reader.
     pub fn new_reader<R: BufRead>(reader: quick_xml::Reader<R>) -> PrimaryXmlReader<R> {
         PrimaryXmlReader { reader }
     }
 }
 
+/// Streaming reader for primary.xml metadata.
 pub struct PrimaryXmlReader<R: BufRead> {
     reader: Reader<R>,
 }
 
 impl<R: BufRead> PrimaryXmlReader<R> {
+    /// Read and parse the XML header, returning the declared package count.
     pub fn read_header(&mut self) -> Result<usize, MetadataError> {
         parse_header(&mut self.reader)
     }
 
+    /// Read the next package element into `package`, or set it to `None` if no more packages.
     pub fn read_package(&mut self, package: &mut Option<Package>) -> Result<(), MetadataError> {
         parse_package(&mut self.reader, package)
     }
@@ -429,11 +434,13 @@ pub fn parse_package<R: BufRead>(
     Ok(())
 }
 
+/// Streaming writer for primary.xml metadata.
 pub struct PrimaryXmlWriter<W: Write> {
     writer: Writer<W>,
 }
 
 impl<W: Write> PrimaryXmlWriter<W> {
+    /// Write the XML declaration and opening `<metadata>` element.
     pub fn write_header(&mut self, num_pkgs: usize) -> Result<(), MetadataError> {
         // <?xml version="1.0" encoding="UTF-8"?>
         self.writer
@@ -450,11 +457,13 @@ impl<W: Write> PrimaryXmlWriter<W> {
         Ok(())
     }
 
+    /// Write a single `<package>` element.
     pub fn write_package(&mut self, package: &Package) -> Result<(), MetadataError> {
         write_package(&mut self.writer, package)?;
         Ok(())
     }
 
+    /// Write the closing `</metadata>` element and flush.
     pub fn finish(&mut self) -> Result<(), MetadataError> {
         // </metadata>
         self.writer
@@ -469,6 +478,7 @@ impl<W: Write> PrimaryXmlWriter<W> {
         Ok(())
     }
 
+    /// Consume the writer and return the underlying writer.
     pub fn into_inner(self) -> W {
         self.writer.into_inner()
     }

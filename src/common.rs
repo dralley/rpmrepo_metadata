@@ -29,6 +29,7 @@ pub struct EVR {
 }
 
 impl EVR {
+    /// Create a new EVR from epoch, version, and release strings.
     pub fn new<T: Into<String>>(epoch: T, version: T, release: T) -> EVR {
         EVR {
             epoch: epoch.into(),
@@ -37,22 +38,27 @@ impl EVR {
         }
     }
 
+    /// Returns the epoch component.
     pub fn epoch(&self) -> &str {
         &self.epoch
     }
 
+    /// Returns the version component.
     pub fn version(&self) -> &str {
         &self.version
     }
 
+    /// Returns the release component.
     pub fn release(&self) -> &str {
         &self.release
     }
 
+    /// Returns the (epoch, version, release) as a tuple of string slices.
     pub fn values(&self) -> (&str, &str, &str) {
         (&self.epoch, &self.version, &self.release)
     }
 
+    /// Split an EVR string into (epoch, version, release) slices without allocating.
     pub fn parse_values(evr: &str) -> (&str, &str, &str) {
         let (epoch, vr) = evr.split_once(':').unwrap_or(evr.split_at(0));
         let (version, release) = vr.split_once('-').unwrap_or((vr, ""));
@@ -60,6 +66,7 @@ impl EVR {
         (epoch, version, release)
     }
 
+    /// Parse an EVR string (e.g. `"1:2.3.4-5.el9"`) into an [`EVR`].
     pub fn parse(evr: &str) -> Self {
         EVR::parse_values(evr).into()
     }

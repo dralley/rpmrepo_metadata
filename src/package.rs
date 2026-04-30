@@ -316,6 +316,7 @@ pub mod rpm_parsing {
     }
 }
 
+/// Iterator over packages in a repository, merging data from primary, filelists, and other XML.
 pub struct PackageIterator {
     primary_xml: PrimaryXmlReader<BufReader<Box<dyn std::io::Read + Send>>>,
     filelists_xml: FilelistsXmlReader<BufReader<Box<dyn std::io::Read + Send>>>,
@@ -327,6 +328,7 @@ pub struct PackageIterator {
 }
 
 impl PackageIterator {
+    /// Create an iterator from repodata on disk, using paths from the given [`RepomdData`].
     pub fn from_repodata(base: &Path, repomd: &RepomdData) -> Result<Self, MetadataError> {
         let primary_path = base.join(&repomd.get_record(METADATA_PRIMARY).unwrap().location_href);
         let filelists_path =
@@ -335,6 +337,7 @@ impl PackageIterator {
         Self::from_files(&primary_path, &filelists_path, &other_path)
     }
 
+    /// Create an iterator from explicit primary, filelists, and other XML file paths.
     pub fn from_files(
         primary_path: &Path,
         filelists_path: &Path,
@@ -347,6 +350,7 @@ impl PackageIterator {
         Self::from_readers(primary_xml, filelists_xml, other_xml)
     }
 
+    /// Create an iterator from pre-constructed XML readers.
     pub fn from_readers(
         primary_xml: PrimaryXmlReader<BufReader<Box<dyn std::io::Read + Send>>>,
         filelists_xml: FilelistsXmlReader<BufReader<Box<dyn std::io::Read + Send>>>,
@@ -384,6 +388,7 @@ impl PackageIterator {
         Ok(())
     }
 
+    /// Parse the next package from the XML streams, or `None` if exhausted.
     pub fn parse_package(&mut self) -> Result<Option<Package>, MetadataError> {
         self.primary_xml
             .read_package(&mut self.in_progress_package)?;
@@ -411,10 +416,12 @@ impl PackageIterator {
         Ok(package)
     }
 
+    /// Returns the number of packages not yet yielded.
     pub fn remaining_packages(&self) -> usize {
         self.num_remaining
     }
 
+    /// Returns the total number of packages declared in the metadata headers.
     pub fn total_packages(&self) -> usize {
         self.num_packages
     }

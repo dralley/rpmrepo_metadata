@@ -65,6 +65,7 @@ impl RpmMetadata for RepomdXml {
 }
 
 impl RepomdXml {
+    /// Serialize repomd data to the given XML writer.
     pub fn write_data<W: Write>(
         repomd_data: &RepomdData,
         writer: &mut Writer<W>,
@@ -72,6 +73,7 @@ impl RepomdXml {
         write_repomd_xml(repomd_data, writer)
     }
 
+    /// Parse repomd.xml from the given XML reader.
     pub fn read_data<R: BufRead>(reader: Reader<R>) -> Result<RepomdData, MetadataError> {
         let mut repomd = RepomdData::default();
         read_repomd_xml(&mut repomd, reader)?;

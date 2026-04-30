@@ -80,14 +80,17 @@ impl RpmMetadata for CompsXml {
 }
 
 impl CompsXml {
+    /// Create a new comps.xml writer.
     pub fn new_writer<W: Write>(writer: quick_xml::Writer<W>) -> CompsXmlWriter<W> {
         CompsXmlWriter { writer }
     }
 
+    /// Create a new comps.xml reader.
     pub fn new_reader<R: BufRead>(reader: quick_xml::Reader<R>) -> CompsXmlReader<R> {
         CompsXmlReader { reader }
     }
 
+    /// Parse an entire comps.xml file into a [`CompsData`] structure.
     pub fn read_data<R: BufRead>(reader: Reader<R>) -> Result<CompsData, MetadataError> {
         let mut comps_reader = CompsXml::new_reader(reader);
         let mut groups = Vec::new();
@@ -102,6 +105,7 @@ impl CompsXml {
         })
     }
 
+    /// Serialize a [`CompsData`] structure to a comps.xml file.
     pub fn write_data<W: Write>(data: &CompsData, writer: Writer<W>) -> Result<(), MetadataError> {
         let mut writer = CompsXml::new_writer(writer);
         writer.write_header()?;
@@ -393,6 +397,7 @@ impl<W: Write> CompsXmlWriter<W> {
         Ok(())
     }
 
+    /// Consume the writer and return the underlying writer.
     pub fn into_inner(self) -> W {
         self.writer.into_inner()
     }
@@ -404,6 +409,7 @@ pub struct CompsXmlReader<R: BufRead> {
 }
 
 impl<R: BufRead> CompsXmlReader<R> {
+    /// Create a new comps.xml reader from an XML reader.
     pub fn new(reader: Reader<R>) -> Self {
         Self { reader }
     }
