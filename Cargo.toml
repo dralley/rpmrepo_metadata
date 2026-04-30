@@ -22,7 +22,7 @@ quick-xml = { version = "0.39", default-features = false }
 thiserror = "2"
 niffler = { version = "3", features = ["bz2", "lzma", "gz", "zstd"], default-features = false }
 flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"] }
-bzip2 = { version = "0.5", default-features = false, features = ["libbz2-rs-sys"] }
+bzip2 = { version = "0.6" }
 rpm = { version = "0.23.1", default-features = false, optional = true }
 # tempdir = "0.3.7"
 digest = "0.10.6"
