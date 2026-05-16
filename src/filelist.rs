@@ -233,6 +233,8 @@ pub fn parse_package<R: BufRead>(
 
                     if let Some(pkg) = package {
                         assert!(pkg.pkgid() == pkgid.as_ref()); // TODO err instead of assert
+                        // make sure we do not duplicate files that may have been parsed from primary.xml
+                        pkg.rpm_files.clear();
                     } else {
                         let mut pkg = Package::default();
                         pkg.set_name(name)

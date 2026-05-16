@@ -411,9 +411,10 @@ pub fn parse_package<R: BufRead>(
                                         .unwrap()
                                         .set_supplements(parse_requirement_list(reader, &e)?);
                                 }
-                                TAG_FILE => (),
-                                // TODO: share implementation w/ filelists, but don't parse twice.
-                                // use IndexSet to enforce uniqueness while keeping order
+                                TAG_FILE => {
+                                    let file = filelist::parse_file(reader, &e)?;
+                                    package.as_mut().unwrap().rpm_files.push(file);
+                                }
                                 _ => (),
                             },
                             _ => (),
