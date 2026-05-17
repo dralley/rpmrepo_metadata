@@ -148,7 +148,10 @@ pub fn parse_package<R: BufRead>(
             Event::End(e) if e.name().as_ref() == TAG_PACKAGE.as_bytes() => break,
             Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
                 TAG_PACKAGE => {
-                    let ptype = e.try_get_attribute(b"type")?.unwrap().unescape_value()?;
+                    let ptype = e
+                        .try_get_attribute(b"type")?
+                        .unwrap()
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
 
                     assert_eq!(ptype.as_ref(), "rpm"); // TODO: better error handling
 
@@ -171,17 +174,17 @@ pub fn parse_package<R: BufRead>(
                     let epoch = e
                         .try_get_attribute("epoch")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("epoch"))?
-                        .unescape_value()?;
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
 
                     let version = e
                         .try_get_attribute("ver")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("ver"))?
-                        .unescape_value()?;
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
 
                     let release = e
                         .try_get_attribute("rel")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("rel"))?
-                        .unescape_value()?;
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
 
                     // TODO: temporary conversions
                     let evr = EVR::new(epoch, version, release);
@@ -191,7 +194,7 @@ pub fn parse_package<R: BufRead>(
                     let checksum_type = e
                         .try_get_attribute("type")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
-                        .unescape_value()?;
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
                     let checksum_value = reader
                         .read_text_into(QName(TAG_CHECKSUM.as_bytes()), &mut text_buf)?
                         .decode()?
@@ -235,13 +238,13 @@ pub fn parse_package<R: BufRead>(
                     let time_file = e
                         .try_get_attribute("file")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("file"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .parse()?;
 
                     let time_build = e
                         .try_get_attribute("build")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("build"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .parse()?;
 
                     package
@@ -254,19 +257,19 @@ pub fn parse_package<R: BufRead>(
                     let package_size = e
                         .try_get_attribute("package")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("package"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .parse()?;
 
                     let installed_size = e
                         .try_get_attribute("installed")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("installed"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .parse()?;
 
                     let archive_size = e
                         .try_get_attribute("archive")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("archive"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .parse()?;
 
                     package
@@ -280,10 +283,11 @@ pub fn parse_package<R: BufRead>(
                     let location_href = e
                         .try_get_attribute("href")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("href"))?
-                        .unescape_value()?;
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
 
                     if let Some(base_attr) = e.try_get_attribute("base")? {
-                        let location_base = base_attr.unescape_value()?;
+                        let location_base =
+                            base_attr.normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
                         package
                             .as_mut()
                             .unwrap()
@@ -352,13 +356,13 @@ pub fn parse_package<R: BufRead>(
                                         .ok_or_else(|| {
                                             MetadataError::MissingAttributeError("start")
                                         })?
-                                        .unescape_value()?
+                                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                                         .parse()?;
 
                                     let end = e
                                         .try_get_attribute("end")?
                                         .ok_or_else(|| MetadataError::MissingAttributeError("end"))?
-                                        .unescape_value()?
+                                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                                         .parse()?;
 
                                     package.as_mut().unwrap().set_rpm_header_range(start, end);
@@ -691,17 +695,34 @@ pub fn parse_requirement_list<R: BufRead>(
                     let attr = attr?;
                     match attr.key.as_ref() {
                         b"name" => {
-                            requirement.name = attr.unescape_value()?.into_owned();
+                            requirement.name = attr
+                                .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                                .into_owned();
                         }
                         b"flags" => {
-                            let val = attr.unescape_value()?;
+                            let val = attr.normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
                             requirement.flags = Some(RequirementType::try_from(val.as_ref())?);
                         }
-                        b"epoch" => requirement.epoch = Some(attr.unescape_value()?.into_owned()),
-                        b"ver" => requirement.version = Some(attr.unescape_value()?.into_owned()),
-                        b"rel" => requirement.release = Some(attr.unescape_value()?.into_owned()),
+                        b"epoch" => {
+                            requirement.epoch = Some(
+                                attr.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                                    .into_owned(),
+                            )
+                        }
+                        b"ver" => {
+                            requirement.version = Some(
+                                attr.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                                    .into_owned(),
+                            )
+                        }
+                        b"rel" => {
+                            requirement.release = Some(
+                                attr.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                                    .into_owned(),
+                            )
+                        }
                         b"pre" => {
-                            let val = attr.unescape_value()?;
+                            let val = attr.normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
                             requirement.preinstall =
                                 val != "0" && !val.eq_ignore_ascii_case("false");
                         }

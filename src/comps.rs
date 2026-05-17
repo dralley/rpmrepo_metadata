@@ -488,9 +488,11 @@ fn parse_group<R: BufRead>(reader: &mut Reader<R>) -> Result<CompsGroup, Metadat
                         .decode()?
                         .into_owned();
                     if let Some(lang) = e.try_get_attribute("xml:lang")? {
-                        group
-                            .name_by_lang
-                            .push((lang.unescape_value()?.into_owned(), text));
+                        group.name_by_lang.push((
+                            lang.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                                .into_owned(),
+                            text,
+                        ));
                     } else {
                         group.name = text;
                     }
@@ -501,9 +503,11 @@ fn parse_group<R: BufRead>(reader: &mut Reader<R>) -> Result<CompsGroup, Metadat
                         .decode()?
                         .into_owned();
                     if let Some(lang) = e.try_get_attribute("xml:lang")? {
-                        group
-                            .desc_by_lang
-                            .push((lang.unescape_value()?.into_owned(), text));
+                        group.desc_by_lang.push((
+                            lang.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                                .into_owned(),
+                            text,
+                        ));
                     } else {
                         group.description = text;
                     }
@@ -549,9 +553,11 @@ fn parse_group<R: BufRead>(reader: &mut Reader<R>) -> Result<CompsGroup, Metadat
                 TAG_PACKAGELIST => (),
                 TAG_DESCRIPTION => {
                     if let Some(lang) = e.try_get_attribute("xml:lang")? {
-                        group
-                            .desc_by_lang
-                            .push((lang.unescape_value()?.into_owned(), String::new()));
+                        group.desc_by_lang.push((
+                            lang.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                                .into_owned(),
+                            String::new(),
+                        ));
                     }
                 }
                 _ => (),
@@ -581,15 +587,21 @@ fn parse_packagelist<R: BufRead>(
                 pkg.reqtype = e
                     .try_get_attribute("type")?
                     .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
-                    .unescape_value()?
+                    .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                     .into_owned();
 
                 if let Some(requires) = e.try_get_attribute("requires")? {
-                    pkg.requires = Some(requires.unescape_value()?.into_owned());
+                    pkg.requires = Some(
+                        requires
+                            .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                            .into_owned(),
+                    );
                 }
 
                 if let Some(basearchonly) = e.try_get_attribute("basearchonly")? {
-                    pkg.basearchonly = parse_bool(&basearchonly.unescape_value()?);
+                    pkg.basearchonly = parse_bool(
+                        &basearchonly.normalized_value(quick_xml::XmlVersion::Implicit1_0)?,
+                    );
                 }
 
                 pkg.name = reader
@@ -629,9 +641,11 @@ fn parse_category<R: BufRead>(reader: &mut Reader<R>) -> Result<CompsCategory, M
                         .decode()?
                         .into_owned();
                     if let Some(lang) = e.try_get_attribute("xml:lang")? {
-                        category
-                            .name_by_lang
-                            .push((lang.unescape_value()?.into_owned(), text));
+                        category.name_by_lang.push((
+                            lang.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                                .into_owned(),
+                            text,
+                        ));
                     } else {
                         category.name = text;
                     }
@@ -642,9 +656,11 @@ fn parse_category<R: BufRead>(reader: &mut Reader<R>) -> Result<CompsCategory, M
                         .decode()?
                         .into_owned();
                     if let Some(lang) = e.try_get_attribute("xml:lang")? {
-                        category
-                            .desc_by_lang
-                            .push((lang.unescape_value()?.into_owned(), text));
+                        category.desc_by_lang.push((
+                            lang.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                                .into_owned(),
+                            text,
+                        ));
                     } else {
                         category.description = text;
                     }
@@ -662,9 +678,11 @@ fn parse_category<R: BufRead>(reader: &mut Reader<R>) -> Result<CompsCategory, M
             },
             Event::Empty(e) if e.name().as_ref() == TAG_DESCRIPTION.as_bytes() => {
                 if let Some(lang) = e.try_get_attribute("xml:lang")? {
-                    category
-                        .desc_by_lang
-                        .push((lang.unescape_value()?.into_owned(), String::new()));
+                    category.desc_by_lang.push((
+                        lang.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                            .into_owned(),
+                        String::new(),
+                    ));
                 }
             }
             _ => (),
@@ -699,9 +717,11 @@ fn parse_environment<R: BufRead>(
                         .decode()?
                         .into_owned();
                     if let Some(lang) = e.try_get_attribute("xml:lang")? {
-                        environment
-                            .name_by_lang
-                            .push((lang.unescape_value()?.into_owned(), text));
+                        environment.name_by_lang.push((
+                            lang.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                                .into_owned(),
+                            text,
+                        ));
                     } else {
                         environment.name = text;
                     }
@@ -712,9 +732,11 @@ fn parse_environment<R: BufRead>(
                         .decode()?
                         .into_owned();
                     if let Some(lang) = e.try_get_attribute("xml:lang")? {
-                        environment
-                            .desc_by_lang
-                            .push((lang.unescape_value()?.into_owned(), text));
+                        environment.desc_by_lang.push((
+                            lang.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                                .into_owned(),
+                            text,
+                        ));
                     } else {
                         environment.description = text;
                     }
@@ -735,9 +757,11 @@ fn parse_environment<R: BufRead>(
             },
             Event::Empty(e) if e.name().as_ref() == TAG_DESCRIPTION.as_bytes() => {
                 if let Some(lang) = e.try_get_attribute("xml:lang")? {
-                    environment
-                        .desc_by_lang
-                        .push((lang.unescape_value()?.into_owned(), String::new()));
+                    environment.desc_by_lang.push((
+                        lang.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                            .into_owned(),
+                        String::new(),
+                    ));
                 }
             }
             _ => (),
@@ -791,7 +815,12 @@ fn parse_optionlist<R: BufRead>(
             Event::Start(e) if e.name().as_ref() == TAG_GROUPID.as_bytes() => {
                 let default = e
                     .try_get_attribute("default")?
-                    .map(|a| parse_bool(&a.unescape_value().unwrap_or_default()))
+                    .map(|a| {
+                        parse_bool(
+                            &a.normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                                .unwrap_or_default(),
+                        )
+                    })
                     .unwrap_or(false);
 
                 let group_id = reader
@@ -823,11 +852,19 @@ fn parse_langpacks<R: BufRead>(
             Event::Start(e) if e.name().as_ref() == TAG_MATCH.as_bytes() => {
                 let name = e
                     .try_get_attribute("name")?
-                    .map(|a| a.unescape_value().unwrap_or_default().into_owned())
+                    .map(|a| {
+                        a.normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                            .unwrap_or_default()
+                            .into_owned()
+                    })
                     .unwrap_or_default();
                 let install = e
                     .try_get_attribute("install")?
-                    .map(|a| a.unescape_value().unwrap_or_default().into_owned())
+                    .map(|a| {
+                        a.normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                            .unwrap_or_default()
+                            .into_owned()
+                    })
                     .unwrap_or_default();
                 langpacks.push(CompsLangpack { name, install });
             }

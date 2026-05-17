@@ -165,7 +165,9 @@ fn read_repomd_xml<R: BufRead>(
                             {
                                 TAG_DISTRO => {
                                     let cpeid = (&e).try_get_attribute("cpeid")?.and_then(|a| {
-                                        a.unescape_value().ok().map(|v| v.into_owned())
+                                        a.normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                                            .ok()
+                                            .map(|v| v.into_owned())
                                     });
                                     let name = reader
                                         .read_text_into(
@@ -289,7 +291,7 @@ pub fn parse_repomdrecord<R: BufRead>(
                     let location = e
                         .try_get_attribute("href")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("href"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .into_owned();
                     record_builder.location_href = Some(location.into());
                 }

@@ -168,22 +168,22 @@ fn parse_updaterecord<R: BufRead>(
                     record.status = e
                         .try_get_attribute("status")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("status"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .into_owned();
                     record.from = e
                         .try_get_attribute("from")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("from"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .into_owned();
                     record.update_type = e
                         .try_get_attribute("type")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .into_owned();
                     record.version = e
                         .try_get_attribute("version")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("version"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .into_owned();
                 }
                 TAG_ID => {
@@ -259,22 +259,22 @@ fn parse_updaterecord<R: BufRead>(
                                 reference.href = e
                                     .try_get_attribute("href")?
                                     .ok_or_else(|| MetadataError::MissingAttributeError("href"))?
-                                    .unescape_value()?
+                                    .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                                     .into_owned();
                                 reference.id = e
                                     .try_get_attribute("id")?
                                     .ok_or_else(|| MetadataError::MissingAttributeError("id"))?
-                                    .unescape_value()?
+                                    .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                                     .into_owned();
                                 reference.reftype = e
                                     .try_get_attribute("type")?
                                     .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
-                                    .unescape_value()?
+                                    .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                                     .into_owned();
                                 reference.title = e
                                     .try_get_attribute("title")?
                                     .ok_or_else(|| MetadataError::MissingAttributeError("title"))?
-                                    .unescape_value()?
+                                    .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                                     .into_owned();
                                 record.references.push(reference);
                             }
@@ -313,7 +313,9 @@ pub fn parse_pkglist<R: BufRead>(
             Event::Start(e) if e.name().as_ref() == TAG_COLLECTION.as_bytes() => {
                 let mut collection = UpdateCollection::default();
                 if let Some(attr) = e.try_get_attribute("short")? {
-                    collection.shortname = attr.unescape_value()?.into_owned();
+                    collection.shortname = attr
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                        .into_owned();
                 }
                 current_collection = Some(collection);
             }
@@ -336,27 +338,27 @@ pub fn parse_pkglist<R: BufRead>(
                     let name = e
                         .try_get_attribute("name")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("name"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .into_owned();
                     let stream = e
                         .try_get_attribute("stream")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("stream"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .into_owned();
                     let version = e
                         .try_get_attribute("version")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("version"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .into_owned();
                     let context = e
                         .try_get_attribute("context")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("context"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .into_owned();
                     let arch = e
                         .try_get_attribute("arch")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .into_owned();
 
                     let version = version.parse()?;
@@ -376,32 +378,32 @@ pub fn parse_pkglist<R: BufRead>(
                     let name = e
                         .try_get_attribute("name")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("name"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .into_owned();
                     let version = e
                         .try_get_attribute("version")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("version"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .into_owned();
                     let epoch = e
                         .try_get_attribute("epoch")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("epoch"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .into_owned();
                     let src = e
                         .try_get_attribute("src")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("src"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .into_owned();
                     let release = e
                         .try_get_attribute("release")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("release"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .into_owned();
                     let arch = e
                         .try_get_attribute("arch")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .into_owned();
 
                     package.name = name;
@@ -423,7 +425,7 @@ pub fn parse_pkglist<R: BufRead>(
                     let checksum_type = e
                         .try_get_attribute("type")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
-                        .unescape_value()?
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
                         .into_owned();
                     let value = reader
                         .read_text_into(QName(b"sum"), &mut text_buf)?

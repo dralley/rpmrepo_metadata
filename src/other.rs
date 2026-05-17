@@ -212,15 +212,15 @@ pub fn parse_package<R: BufRead>(
                     let pkgid = e
                         .try_get_attribute("pkgid")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("pkgid"))?
-                        .unescape_value()?;
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
                     let name = e
                         .try_get_attribute("name")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("name"))?
-                        .unescape_value()?;
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
                     let arch = e
                         .try_get_attribute("arch")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
-                        .unescape_value()?;
+                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
 
                     if let Some(pkg) = package {
                         assert!(pkg.pkgid() == pkgid.as_ref()); // TODO err instead of assert
@@ -263,15 +263,15 @@ pub fn parse_evr<R: BufRead>(
     let epoch = open_tag
         .try_get_attribute("epoch")?
         .unwrap()
-        .unescape_value()?;
+        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
     let version = open_tag
         .try_get_attribute("ver")?
         .unwrap()
-        .unescape_value()?;
+        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
     let release = open_tag
         .try_get_attribute("rel")?
         .unwrap()
-        .unescape_value()?;
+        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
 
     Ok(EVR::new(epoch, version, release))
 }
@@ -286,12 +286,12 @@ pub fn parse_changelog<R: BufRead>(
     changelog.author = open_tag
         .try_get_attribute("author")?
         .unwrap()
-        .unescape_value()?
+        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
         .into_owned();
     changelog.timestamp = open_tag
         .try_get_attribute("date")?
         .unwrap()
-        .unescape_value()?
+        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
         .parse()?;
 
     let mut buf = Vec::with_capacity(128);
