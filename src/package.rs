@@ -42,7 +42,7 @@ pub mod rpm_parsing {
     use std::fs::File;
     use std::time::SystemTime;
 
-    use crate::{Changelog, EVR, PackageFile, Requirement};
+    use crate::{Changelog, EVR, PackageFile, Requirement, RequirementType};
 
     use super::*;
     use rpm;
@@ -52,15 +52,15 @@ pub mod rpm_parsing {
 
         fn try_from(d: rpm::Dependency) -> Result<Self, Self::Error> {
             let flags = if d.flags.contains(rpm::DependencyFlags::GE) {
-                Some("GE".to_owned())
+                Some(RequirementType::GE)
             } else if d.flags.contains(rpm::DependencyFlags::LE) {
-                Some("LE".to_owned())
+                Some(RequirementType::LE)
             } else if d.flags.contains(rpm::DependencyFlags::EQUAL) {
-                Some("EQ".to_owned())
+                Some(RequirementType::EQ)
             } else if d.flags.contains(rpm::DependencyFlags::LESS) {
-                Some("LT".to_owned())
+                Some(RequirementType::LT)
             } else if d.flags.contains(rpm::DependencyFlags::GREATER) {
-                Some("GT".to_owned())
+                Some(RequirementType::GT)
             } else {
                 None
             };
@@ -204,7 +204,7 @@ pub mod rpm_parsing {
                 format!(
                     "{}{}{}{}{}",
                     dep.name,
-                    dep.flags.as_deref().unwrap_or(""),
+                    dep.flags.map_or("", |f| f.as_str()),
                     dep.epoch.as_deref().unwrap_or(""),
                     dep.version.as_deref().unwrap_or(""),
                     dep.release.as_deref().unwrap_or(""),

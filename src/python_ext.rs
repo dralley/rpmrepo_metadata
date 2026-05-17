@@ -968,7 +968,10 @@ mod rpmrepo_metadata {
         fn from(tuple: &RequirementTuple) -> Self {
             crate::metadata::Requirement {
                 name: tuple.0.clone(),
-                flags: tuple.1.clone(),
+                flags: tuple
+                    .1
+                    .as_deref()
+                    .and_then(|s| crate::metadata::RequirementType::try_from(s).ok()),
                 epoch: tuple.2.clone(),
                 version: tuple.3.clone(),
                 release: tuple.4.clone(),
@@ -981,7 +984,7 @@ mod rpmrepo_metadata {
         fn from(req: &crate::metadata::Requirement) -> Self {
             (
                 req.name.clone(),
-                req.flags.clone(),
+                req.flags.map(|f| f.to_string()),
                 req.epoch.clone(),
                 req.version.clone(),
                 req.release.clone(),

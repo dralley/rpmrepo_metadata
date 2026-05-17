@@ -8,7 +8,7 @@
 
 use std::sync::LazyLock;
 
-use rpmrepo_metadata::{Checksum, EVR, FileType, Package, Requirement};
+use rpmrepo_metadata::{Checksum, EVR, FileType, Package, Requirement, RequirementType};
 
 // const FIXTURE_FILELIST_PATH: &str = "./tests/assets/complex_repo/repodata/filelists.xml.gz";
 
@@ -49,7 +49,7 @@ pub static COMPLEX_PACKAGE: LazyLock<Package> = LazyLock::new(|| {
         },
         Requirement {
             name: "complex-package".to_owned(),
-            flags: Some("EQ".to_owned()),
+            flags: Some(RequirementType::EQ),
             epoch: Some("1".to_owned()),
             version: Some("2.3.4".to_owned()),
             release: Some("5.el8".to_owned()),
@@ -57,7 +57,7 @@ pub static COMPLEX_PACKAGE: LazyLock<Package> = LazyLock::new(|| {
         },
         Requirement {
             name: "complex-package(x86-64)".to_owned(),
-            flags: Some("EQ".to_owned()),
+            flags: Some(RequirementType::EQ),
             epoch: Some("1".to_owned()),
             version: Some("2.3.4".to_owned()),
             release: Some("5.el8".to_owned()),
@@ -65,7 +65,7 @@ pub static COMPLEX_PACKAGE: LazyLock<Package> = LazyLock::new(|| {
         },
         Requirement {
             name: "laughter".to_owned(),
-            flags: Some("EQ".to_owned()),
+            flags: Some(RequirementType::EQ),
             epoch: Some("0".to_owned()),
             version: Some("33".to_owned()),
             ..Requirement::default()
@@ -87,7 +87,7 @@ pub static COMPLEX_PACKAGE: LazyLock<Package> = LazyLock::new(|| {
         },
         Requirement {
             name: "arson".to_owned(),
-            flags: Some("GE".to_owned()),
+            flags: Some(RequirementType::GE),
             epoch: Some("0".to_owned()),
             version: Some("1.0.0".to_owned()),
             release: Some("1".to_owned()),
@@ -95,14 +95,14 @@ pub static COMPLEX_PACKAGE: LazyLock<Package> = LazyLock::new(|| {
         },
         Requirement {
             name: "fur".to_owned(),
-            flags: Some("LE".to_owned()),
+            flags: Some(RequirementType::LE),
             epoch: Some("0".to_owned()),
             version: Some("2".to_owned()),
             ..Requirement::default()
         },
         Requirement {
             name: "staircar".to_owned(),
-            flags: Some("LE".to_owned()),
+            flags: Some(RequirementType::LE),
             epoch: Some("0".to_owned()),
             version: Some("99.1".to_owned()),
             release: Some("3".to_owned()),
@@ -112,7 +112,7 @@ pub static COMPLEX_PACKAGE: LazyLock<Package> = LazyLock::new(|| {
 
     package.set_conflicts(vec![Requirement {
         name: "foxnetwork".to_owned(),
-        flags: Some("GT".to_owned()),
+        flags: Some(RequirementType::GT),
         epoch: Some("0".to_owned()),
         version: Some("5555".to_owned()),
         ..Requirement::default()
@@ -120,7 +120,7 @@ pub static COMPLEX_PACKAGE: LazyLock<Package> = LazyLock::new(|| {
     package.set_obsoletes(vec![
         Requirement {
             name: "bluemangroup".to_owned(),
-            flags: Some("LT".to_owned()),
+            flags: Some(RequirementType::LT),
             epoch: Some("0".to_owned()),
             version: Some("32.1".to_owned()),
             release: Some("0".to_owned()),
@@ -128,7 +128,7 @@ pub static COMPLEX_PACKAGE: LazyLock<Package> = LazyLock::new(|| {
         },
         Requirement {
             name: "cornballer".to_owned(),
-            flags: Some("LT".to_owned()),
+            flags: Some(RequirementType::LT),
             epoch: Some("0".to_owned()),
             version: Some("444".to_owned()),
             ..Requirement::default()
@@ -163,7 +163,7 @@ pub static COMPLEX_PACKAGE: LazyLock<Package> = LazyLock::new(|| {
         },
         Requirement {
             name: "yacht".to_owned(),
-            flags: Some("GT".to_owned()),
+            flags: Some(RequirementType::GT),
             epoch: Some("9".to_owned()),
             version: Some("11.0".to_owned()),
             release: Some("0".to_owned()),
@@ -177,7 +177,7 @@ pub static COMPLEX_PACKAGE: LazyLock<Package> = LazyLock::new(|| {
         },
         Requirement {
             name: "comedy".to_owned(),
-            flags: Some("EQ".to_owned()),
+            flags: Some(RequirementType::EQ),
             epoch: Some("0".to_owned()),
             version: Some("11.1".to_owned()),
             release: Some("4".to_owned()),
@@ -240,7 +240,7 @@ within text content, and not all XML libraries do so. However, it is generally r
 
     package.set_provides(vec![Requirement {
         name: "rpm-with-invalid-chars".to_owned(),
-        flags: Some("EQ".to_owned()),
+        flags: Some(RequirementType::EQ),
         epoch: Some("0".to_owned()),
         version: Some("1".to_owned()),
         release: Some("1.fc33".to_owned()),
@@ -276,7 +276,7 @@ pub static RPM_EMPTY: LazyLock<Package> = LazyLock::new(|| {
     package.set_provides(vec![
         Requirement {
             name: "rpm-empty".to_owned(),
-            flags: Some("EQ".to_owned()),
+            flags: Some(RequirementType::EQ),
             epoch: Some("0".to_owned()),
             version: Some("0".to_owned()),
             release: Some("0".to_owned()),
@@ -284,7 +284,7 @@ pub static RPM_EMPTY: LazyLock<Package> = LazyLock::new(|| {
         },
         Requirement {
             name: "rpm-empty(x86-64)".to_owned(),
-            flags: Some("EQ".to_owned()),
+            flags: Some(RequirementType::EQ),
             epoch: Some("0".to_owned()),
             version: Some("0".to_owned()),
             release: Some("0".to_owned()),
@@ -336,7 +336,7 @@ See: http://www.unicode.org/charts/"##,
 
     package.set_provides(vec![Requirement {
         name: "rpm-with-non-ascii".to_owned(),
-        flags: Some("EQ".to_owned()),
+        flags: Some(RequirementType::EQ),
         epoch: Some("0".to_owned()),
         version: Some("1".to_owned()),
         release: Some("1.fc33".to_owned()),

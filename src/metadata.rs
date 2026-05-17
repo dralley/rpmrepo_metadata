@@ -801,7 +801,7 @@ pub struct HeaderRange {
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct Requirement {
     pub name: String,
-    pub flags: Option<String>,
+    pub flags: Option<RequirementType>,
     pub epoch: Option<String>,
     pub version: Option<String>,
     pub release: Option<String>,
@@ -809,7 +809,7 @@ pub struct Requirement {
 }
 
 /// Comparison operator for version-constrained dependencies.
-#[derive(Copy, Clone, Debug, Hash, PartialEq)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 pub enum RequirementType {
     LT,
     GT,
@@ -818,14 +818,32 @@ pub enum RequirementType {
     GE,
 }
 
-impl From<RequirementType> for &str {
-    fn from(rtype: RequirementType) -> &'static str {
-        match rtype {
+impl std::fmt::Display for RequirementType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl RequirementType {
+    /// Return the canonical two-letter string representation (e.g. `"GE"`).
+    pub fn as_str(self) -> &'static str {
+        match self {
             RequirementType::LT => "LT",
             RequirementType::GT => "GT",
             RequirementType::EQ => "EQ",
             RequirementType::LE => "LE",
             RequirementType::GE => "GE",
+        }
+    }
+
+    /// Return the mathematical operator symbol (e.g. `">="`).
+    pub fn as_operator(self) -> &'static str {
+        match self {
+            RequirementType::LT => "<",
+            RequirementType::GT => ">",
+            RequirementType::EQ => "=",
+            RequirementType::LE => "<=",
+            RequirementType::GE => ">=",
         }
     }
 }

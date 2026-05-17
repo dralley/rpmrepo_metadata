@@ -12,8 +12,8 @@ use quick_xml::{Reader, Writer};
 
 use super::filelist;
 use super::metadata::{
-    Checksum, MetadataError, Package, PrimaryXml, Requirement, RpmMetadata, XML_NS_COMMON,
-    XML_NS_RPM,
+    Checksum, MetadataError, Package, PrimaryXml, Requirement, RequirementType, RpmMetadata,
+    XML_NS_COMMON, XML_NS_RPM,
 };
 use super::{EVR, Repository};
 
@@ -648,7 +648,7 @@ fn write_requirement_section<W: Write>(
         let mut entry_tag = BytesStart::new("rpm:entry");
         entry_tag.push_attribute(("name", entry.name.as_str()));
 
-        if let Some(flags) = &entry.flags {
+        if let Some(flags) = entry.flags {
             entry_tag.push_attribute(("flags", flags.as_str()));
         }
 
@@ -693,7 +693,10 @@ pub fn parse_requirement_list<R: BufRead>(
                         b"name" => {
                             requirement.name = attr.unescape_value()?.into_owned();
                         }
-                        b"flags" => requirement.flags = Some(attr.unescape_value()?.into_owned()),
+                        b"flags" => {
+                            let val = attr.unescape_value()?;
+                            requirement.flags = Some(RequirementType::try_from(val.as_ref())?);
+                        }
                         b"epoch" => requirement.epoch = Some(attr.unescape_value()?.into_owned()),
                         b"ver" => requirement.version = Some(attr.unescape_value()?.into_owned()),
                         b"rel" => requirement.release = Some(attr.unescape_value()?.into_owned()),
