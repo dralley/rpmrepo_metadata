@@ -52,6 +52,8 @@ impl RepoFixture {
 fn bench_repo_parse(c: &mut Criterion, fixture: &RepoFixture) {
     let mut group = c.benchmark_group(format!("{}/parse", fixture.name));
     group.sample_size(10);
+    group.warm_up_time(std::time::Duration::from_secs(1));
+    group.measurement_time(std::time::Duration::from_secs(5));
 
     group.bench_function("primary_xml", |b| {
         b.iter(|| {
@@ -115,6 +117,8 @@ fn bench_repo_parse(c: &mut Criterion, fixture: &RepoFixture) {
 fn bench_repo_write(c: &mut Criterion, fixture: &RepoFixture) {
     let mut group = c.benchmark_group(format!("{}/write", fixture.name));
     group.sample_size(10);
+    group.warm_up_time(std::time::Duration::from_secs(1));
+    group.measurement_time(std::time::Duration::from_secs(5));
 
     let repo = Repository::load_from_directory(Path::new(fixture.path)).unwrap();
 

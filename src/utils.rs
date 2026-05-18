@@ -4,6 +4,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+use ahash::AHashMap;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
 use std::path::{Path, PathBuf};
@@ -189,3 +190,82 @@ impl XmlAttrUnescape for quick_xml::events::attributes::Attribute<'_> {
 pub fn is_primary_file(path: &str) -> bool {
     path.starts_with("/etc/") || path.contains("bin/") || path == "/usr/lib/sendmail"
 }
+
+/// A string interning pool that deduplicates strings and returns compact integer IDs.
+///
+/// Strings are stored once and referenced by `u32` index.
+#[derive(Clone, Debug)]
+pub struct StringPool {
+    strings: Vec<String>,
+    index: AHashMap<String, u32>,
+}
+
+impl Default for StringPool {
+    fn default() -> Self {
+        Self {
+            strings: Vec::new(),
+            index: AHashMap::new(),
+        }
+    }
+}
+
+impl StringPool {
+    /// Create an empty pool.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create an empty pool with pre-allocated capacity for `cap` strings.
+    pub fn with_capacity(cap: usize) -> Self {
+        Self {
+            strings: Vec::with_capacity(cap),
+            index: AHashMap::with_capacity(cap),
+        }
+    }
+
+    /// Insert `s` into the pool if not already present and return its stable ID.
+    pub fn intern(&mut self, s: &str) -> u32 {
+        if let Some(&id) = self.index.get(s) {
+            return id;
+        }
+        let id = self.strings.len() as u32;
+        let owned = s.to_owned();
+        self.index.insert(owned.clone(), id);
+        self.strings.push(owned);
+        id
+    }
+
+    /// Look up a previously interned string by its ID.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `id` was not returned by a prior call to [`intern`](Self::intern).
+    pub fn resolve(&self, id: u32) -> &str {
+        &self.strings[id as usize]
+    }
+
+    /// Return the number of unique strings in the pool.
+    pub fn len(&self) -> usize {
+        self.strings.len()
+    }
+
+    /// Return `true` if the pool contains no strings.
+    pub fn is_empty(&self) -> bool {
+        self.strings.is_empty()
+    }
+}
+
+/// Interned directory path ID, referencing a [`StringPool`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct DirId(u32);
+
+impl DirId {
+    pub(crate) fn new(id: u32) -> Self {
+        Self(id)
+    }
+
+    pub(crate) fn as_u32(self) -> u32 {
+        self.0
+    }
+}
+

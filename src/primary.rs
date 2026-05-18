@@ -413,7 +413,10 @@ pub fn parse_package<R: BufRead>(
                                 }
                                 TAG_FILE => {
                                     let file = filelist::parse_file(reader, &e)?;
-                                    package.as_mut().unwrap().rpm_files.push(file);
+                                    package
+                                        .as_mut()
+                                        .unwrap()
+                                        .add_file(file.filetype, &file.path);
                                 }
                                 _ => (),
                             },
@@ -613,11 +616,15 @@ pub fn write_package<W: Write>(
     write_requirement_section(writer, TAG_RPM_SUPPLEMENTS, package.supplements())?;
 
     // <file>/usr/bin/bash</file>
-    package
-        .files()
-        .iter()
-        .filter(|f| crate::utils::is_primary_file(&f.path))
-        .try_for_each(|f| filelist::write_file_element(writer, f))?;
+    let mut err: Result<(), MetadataError> = Ok(());
+    package.files().for_each_file(|filetype, path| {
+        if err.is_ok() && crate::utils::is_primary_file(path) {
+            if let Err(e) = filelist::write_file_entry(writer, filetype, path) {
+                err = Err(e);
+            }
+        }
+    });
+    err?;
 
     // </format>
     writer.write_event(Event::End(format_tag.to_end()))?;

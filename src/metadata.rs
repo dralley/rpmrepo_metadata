@@ -5,10 +5,12 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 use std::convert::TryInto;
+use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::io::{BufRead, Write};
 use std::os::unix::prelude::MetadataExt;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 // use bitflags;
 use niffler;
@@ -223,7 +225,7 @@ pub struct Package {
     pub rpm_supplements: Vec<Requirement>, // rpm:supplements
 
     pub rpm_changelogs: Vec<Changelog>,
-    pub rpm_files: Vec<PackageFile>,
+    pub rpm_files: FileList,
 }
 
 impl Package {
@@ -578,20 +580,21 @@ impl Package {
     }
 
     pub fn add_file(&mut self, filetype: FileType, path: &str) -> &mut Self {
-        self.rpm_files.push(PackageFile {
-            filetype,
-            path: path.to_owned(),
-        });
+        self.rpm_files.add_file(filetype, path);
         self
     }
 
-    pub fn set_files(&mut self, files: Vec<PackageFile>) -> &mut Self {
-        self.rpm_files = files;
+    pub fn clear_files(&mut self) -> &mut Self {
+        self.rpm_files.clear();
         self
     }
 
-    pub fn files(&self) -> &[PackageFile] {
+    pub fn files(&self) -> &FileList {
         &self.rpm_files
+    }
+
+    pub fn for_each_file(&self, f: impl FnMut(FileType, &str)) {
+        self.rpm_files.for_each_file(f);
     }
 
     pub fn add_changelog(&mut self, author: &str, description: &str, date: u64) -> &mut Self {
@@ -875,6 +878,7 @@ pub enum FileType {
 
 // TODO: this is unnecessary / not the best way
 impl FileType {
+    /// Parse a file type from its XML byte representation (`b"file"`, `b"dir"`, `b"ghost"`).
     pub fn try_create<N: AsRef<[u8]> + Sized>(val: N) -> Result<Self, MetadataError> {
         let ftype = match val.as_ref() {
             b"dir" => FileType::Dir,
@@ -885,6 +889,7 @@ impl FileType {
         Ok(ftype)
     }
 
+    /// Return the XML byte representation of this file type.
     pub fn to_values(&self) -> &[u8] {
         match self {
             FileType::File => b"file",
@@ -907,6 +912,208 @@ pub struct PackageFile {
     pub filetype: FileType,
     /// Absolute path of the file within the installed filesystem.
     pub path: String,
+}
+
+use crate::utils::{DirId, StringPool};
+
+#[derive(Clone, Debug)]
+struct FileEntry {
+    filetype: FileType,
+    dir_id: DirId,
+    basename: String,
+}
+
+/// A collection of file entries with interned directory and basename components.
+///
+/// File paths are split at the last `/` and each component is stored once in a
+/// shared string pool. This gives substantial memory savings when many files
+/// share the same directory prefix (common in RPM packages).
+#[derive(Clone, Debug)]
+pub struct FileList {
+    dir_pool: Arc<StringPool>,
+    entries: Vec<FileEntry>,
+    last_dir: Option<(u32, String)>,
+}
+
+impl PartialEq for FileList {
+    fn eq(&self, other: &Self) -> bool {
+        if self.entries.len() != other.entries.len() {
+            return false;
+        }
+        self.iter().zip(other.iter()).all(|(a, b)| {
+            a.filetype() == b.filetype() && a.dir() == b.dir() && a.basename() == b.basename()
+        })
+    }
+}
+
+impl Hash for FileList {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.entries.len().hash(state);
+        for f in self.iter() {
+            f.filetype().hash(state);
+            f.dir().hash(state);
+            f.basename().hash(state);
+        }
+    }
+}
+
+impl Default for FileList {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl FileList {
+    /// Create an empty `FileList` with its own directory string pool.
+    pub fn new() -> Self {
+        Self {
+            dir_pool: Arc::new(StringPool::with_capacity(16)),
+            entries: Vec::new(),
+            last_dir: None,
+        }
+    }
+
+    /// Create a FileList sharing the given directory string pool.
+    ///
+    /// Used during bulk parsing so that all packages in a [`Repository`] share
+    /// one pool, maximising deduplication.
+    pub fn with_pool(dir_pool: Arc<StringPool>) -> Self {
+        Self {
+            dir_pool,
+            entries: Vec::new(),
+            last_dir: None,
+        }
+    }
+
+    /// Add a file entry, splitting the path into interned directory and basename components.
+    pub fn add_file(&mut self, filetype: FileType, path: &str) {
+        let (dir, basename) = split_path(path);
+
+        let dir_id = match &self.last_dir {
+            Some((id, cached)) if cached == dir => DirId::new(*id),
+            _ => {
+                let id = Arc::make_mut(&mut self.dir_pool).intern(dir);
+                self.last_dir = Some((id, dir.to_owned()));
+                DirId::new(id)
+            }
+        };
+
+        self.entries.push(FileEntry {
+            filetype,
+            dir_id,
+            basename: basename.to_owned(),
+        });
+    }
+
+    /// Remove all file entries.
+    pub fn clear(&mut self) {
+        self.entries.clear();
+        self.last_dir = None;
+    }
+
+    /// Return the number of file entries.
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Return `true` if there are no file entries.
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// Iterate over files, yielding [`FileRef`] with separate dir/basename components.
+    pub fn iter(&self) -> FileIter<'_> {
+        FileIter {
+            dir_pool: &self.dir_pool,
+            inner: self.entries.iter(),
+        }
+    }
+
+    /// Iterate over files, calling `f` with the full reconstructed path.
+    ///
+    /// Uses a single reusable buffer internally — no allocation per file.
+    pub fn for_each_file(&self, mut f: impl FnMut(FileType, &str)) {
+        let mut buf = String::new();
+        for entry in &self.entries {
+            buf.clear();
+            buf.push_str(self.dir_pool.resolve(entry.dir_id.as_u32()));
+            buf.push_str(&entry.basename);
+            f(entry.filetype, &buf);
+        }
+    }
+}
+
+/// A reference to a single file entry, borrowing dir and basename from the pool.
+pub struct FileRef<'a> {
+    filetype: FileType,
+    dir: &'a str,
+    basename: &'a str,
+}
+
+impl<'a> FileRef<'a> {
+    /// Return the file type (file, directory, or ghost).
+    pub fn filetype(&self) -> FileType {
+        self.filetype
+    }
+
+    /// Return the directory portion of the path (e.g. `"/usr/bin/"`).
+    pub fn dir(&self) -> &str {
+        self.dir
+    }
+
+    /// Return the filename portion of the path (e.g. `"python3"`).
+    pub fn basename(&self) -> &str {
+        self.basename
+    }
+
+    /// Reconstruct the full path by joining dir and basename.
+    pub fn to_path_string(&self) -> String {
+        let mut s = String::with_capacity(self.dir.len() + self.basename.len());
+        s.push_str(self.dir);
+        s.push_str(self.basename);
+        s
+    }
+}
+
+impl fmt::Display for FileRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{}", self.dir, self.basename)
+    }
+}
+
+/// Iterator over file entries in a [`FileList`], yielding [`FileRef`] values.
+pub struct FileIter<'a> {
+    dir_pool: &'a StringPool,
+    inner: std::slice::Iter<'a, FileEntry>,
+}
+
+impl<'a> Iterator for FileIter<'a> {
+    type Item = FileRef<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let entry = self.inner.next()?;
+        Some(FileRef {
+            filetype: entry.filetype,
+            dir: self.dir_pool.resolve(entry.dir_id.as_u32()),
+            basename: &entry.basename,
+        })
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl ExactSizeIterator for FileIter<'_> {}
+
+/// Split a path into (dir, basename) at the last `/`.
+///
+/// The dir component includes the trailing `/`.
+fn split_path(path: &str) -> (&str, &str) {
+    match path.rfind('/') {
+        Some(idx) => path.split_at(idx + 1),
+        None => ("", path),
+    }
 }
 
 /// The type of a metadata file within the repository (primary, filelists, other, etc.).

@@ -884,40 +884,50 @@ mod rpmrepo_metadata {
 
         #[setter(files)]
         pub fn set_files(&mut self, file_tuples: Vec<FileTuple>) -> PyResult<()> {
-            let mut files = Vec::with_capacity(file_tuples.len());
+            self.inner.clear_files();
             for file in file_tuples.iter() {
-                files.push(crate::metadata::PackageFile::try_from(file)?);
+                let pf = crate::metadata::PackageFile::try_from(file)?;
+                self.inner.add_file(pf.filetype, &pf.path);
             }
-            self.inner.set_files(files);
             Ok(())
         }
 
         #[getter(files)]
         pub fn files(&self) -> Vec<FileTuple> {
-            self.inner
-                .files()
-                .iter()
-                .map(|r| FileTuple::from(r))
-                .collect()
+            let mut result = Vec::new();
+            self.inner.for_each_file(|ft, path| {
+                let filetype = match ft {
+                    crate::metadata::FileType::File => None,
+                    crate::metadata::FileType::Dir => Some("dir".to_owned()),
+                    crate::metadata::FileType::Ghost => Some("ghost".to_owned()),
+                };
+                result.push((filetype, path.to_owned()));
+            });
+            result
         }
 
         #[setter(files_split)]
         pub fn set_files_split(&mut self, file_tuples: Vec<CrFileTuple>) -> PyResult<()> {
-            let mut files = Vec::with_capacity(file_tuples.len());
+            self.inner.clear_files();
             for file in file_tuples.iter() {
-                files.push(crate::metadata::PackageFile::try_from(file)?);
+                let pf = crate::metadata::PackageFile::try_from(file)?;
+                self.inner.add_file(pf.filetype, &pf.path);
             }
-            self.inner.set_files(files);
             Ok(())
         }
 
         #[getter(files_split)]
         pub fn files_split(&self) -> Vec<CrFileTuple> {
-            self.inner
-                .files()
-                .iter()
-                .map(|r| CrFileTuple::from(r))
-                .collect()
+            let mut result = Vec::new();
+            for f in self.inner.files().iter() {
+                let filetype = match f.filetype() {
+                    crate::metadata::FileType::File => None,
+                    crate::metadata::FileType::Dir => Some("dir".to_owned()),
+                    crate::metadata::FileType::Ghost => Some("ghost".to_owned()),
+                };
+                result.push((filetype, f.dir().to_owned(), f.basename().to_owned()));
+            }
+            result
         }
 
         #[setter(changelogs)]

@@ -119,10 +119,16 @@ impl<W: Write> FilelistsXmlWriter<W> {
             .write_empty()?;
 
         // <file type="dir">/etc/fonts/conf.avail</file>
-        package
-            .files()
-            .iter()
-            .try_for_each(|f| write_file_element(&mut self.writer, f))?;
+        let writer = &mut self.writer;
+        let mut err: Result<(), MetadataError> = Ok(());
+        package.files().for_each_file(|filetype, path| {
+            if err.is_ok() {
+                if let Err(e) = write_file_entry(writer, filetype, path) {
+                    err = Err(e);
+                }
+            }
+        });
+        err?;
 
         // </package>
         self.writer.write_event(Event::End(package_tag.to_end()))?;
@@ -152,16 +158,17 @@ impl<W: Write> FilelistsXmlWriter<W> {
 }
 
 // <file type="dir">/etc/fonts/conf.avail</file>
-pub(crate) fn write_file_element<W: Write>(
+pub(crate) fn write_file_entry<W: Write>(
     writer: &mut Writer<W>,
-    file: &PackageFile,
+    filetype: FileType,
+    path: &str,
 ) -> Result<(), MetadataError> {
     let mut file_tag = BytesStart::new(TAG_FILE);
-    if file.filetype != FileType::File {
-        file_tag.push_attribute(("type".as_bytes(), file.filetype.to_values()));
+    if filetype != FileType::File {
+        file_tag.push_attribute(("type".as_bytes(), filetype.to_values()));
     }
     writer.write_event(Event::Start(file_tag.borrow()))?;
-    writer.write_event(Event::Text(BytesText::new(&file.path)))?;
+    writer.write_event(Event::Text(BytesText::new(path)))?;
     writer.write_event(Event::End(file_tag.to_end()))?;
     Ok(())
 }

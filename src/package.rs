@@ -259,8 +259,10 @@ pub mod rpm_parsing {
             pkg_metadata.set_changelogs(changelogs);
 
             // All files are stored; the primary/filelists split happens at write time
-            let files: Vec<PackageFile> = file_entries.into_iter().map(|f| f.into()).collect();
-            pkg_metadata.set_files(files);
+            for f in file_entries {
+                let pf: PackageFile = f.into();
+                pkg_metadata.add_file(pf.filetype, &pf.path);
+            }
 
             pkg_metadata.set_checksum(utils::checksum_file(path.as_ref(), options.checksum_type)?);
 
