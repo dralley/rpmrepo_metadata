@@ -914,13 +914,15 @@ pub struct PackageFile {
     pub path: String,
 }
 
+use compact_str::CompactString;
+
 use crate::utils::{DirId, StringPool};
 
 #[derive(Clone, Debug)]
 struct FileEntry {
     filetype: FileType,
     dir_id: DirId,
-    basename: String,
+    basename: CompactString,
 }
 
 /// A collection of file entries with interned directory and basename components.
@@ -1001,7 +1003,7 @@ impl FileList {
         self.entries.push(FileEntry {
             filetype,
             dir_id,
-            basename: basename.to_owned(),
+            basename: CompactString::new(basename),
         });
     }
 
