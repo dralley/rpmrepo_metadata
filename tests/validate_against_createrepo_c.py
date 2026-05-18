@@ -28,18 +28,29 @@ import pytest
 import createrepo_c as cr
 import rpmrepo_metadata as rpmmd
 
+
 def compare_updaterecord(rpmrepo_updaterec, cr_updaterec):
     # API DIFFERENCES vs. createrepo_c
     #
     # * sum_type is a string value, not an integer
     assert rpmrepo_updaterec.fromstr == cr_updaterec.fromstr, "fromstr"
     assert rpmrepo_updaterec.status == cr_updaterec.status, "status"
-    assert rpmrepo_updaterec.type == cr_updaterec.type, "type"
+    assert rpmrepo_updaterec.update_type == cr_updaterec.type, "type"
     assert rpmrepo_updaterec.version == cr_updaterec.version, "version"
     assert rpmrepo_updaterec.id == cr_updaterec.id, "id"
     assert rpmrepo_updaterec.title == cr_updaterec.title, "title"
-    assert rpmrepo_updaterec.issued_date == cr_updaterec.issued_date, "issued_date"
-    assert rpmrepo_updaterec.updated_date == cr_updaterec.updated_date, "updated_date"
+    # API DIFFERENCE: rpmrepo_metadata returns the raw date string from the XML attribute,
+    # while createrepo_c parses it into a datetime (dropping any timezone suffix like " UTC")
+    cr_issued = str(cr_updaterec.issued_date) if cr_updaterec.issued_date is not None else None
+    cr_updated = str(cr_updaterec.updated_date) if cr_updaterec.updated_date is not None else None
+    rpmrepo_issued = rpmrepo_updaterec.issued_date
+    rpmrepo_updated = rpmrepo_updaterec.updated_date
+    if rpmrepo_issued is not None:
+        rpmrepo_issued = rpmrepo_issued.removesuffix(" UTC")
+    if rpmrepo_updated is not None:
+        rpmrepo_updated = rpmrepo_updated.removesuffix(" UTC")
+    assert rpmrepo_issued == cr_issued, "issued_date"
+    assert rpmrepo_updated == cr_updated, "updated_date"
     assert rpmrepo_updaterec.rights == cr_updaterec.rights, "rights"
     assert rpmrepo_updaterec.release == cr_updaterec.release, "release"
     assert rpmrepo_updaterec.pushcount == cr_updaterec.pushcount, "pushcount"
@@ -48,18 +59,26 @@ def compare_updaterecord(rpmrepo_updaterec, cr_updaterec):
     assert rpmrepo_updaterec.description == cr_updaterec.description, "description"
     assert rpmrepo_updaterec.solution == cr_updaterec.solution, "solution"
 
-    for (rpmrepo_updateref, cr_updateref) in zip(rpmrepo_updaterec.references, cr_updaterec.references):
+    for rpmrepo_updateref, cr_updateref in zip(rpmrepo_updaterec.references, cr_updaterec.references):
         assert rpmrepo_updateref.href == cr_updateref.href, "href"
         assert rpmrepo_updateref.id == cr_updateref.id, "id"
-        assert rpmrepo_updateref.type == cr_updateref.type, "type"
+        assert rpmrepo_updateref.reftype == cr_updateref.type, "type"
         assert rpmrepo_updateref.title == cr_updateref.title, "title"
 
-    for (rpmrepo_updatecoll, cr_updatecoll) in zip(rpmrepo_updaterec.collections, cr_updaterec.collections):
+    for rpmrepo_updatecoll, cr_updatecoll in zip(rpmrepo_updaterec.pkglist, cr_updaterec.collections):
         assert rpmrepo_updatecoll.shortname == cr_updatecoll.shortname, "shortname"
         assert rpmrepo_updatecoll.name == cr_updatecoll.name, "name"
-        assert rpmrepo_updatecoll.module == cr_updatecoll.module, "module"
+        if rpmrepo_updatecoll.module is not None:
+            assert cr_updatecoll.module is not None, "module"
+            assert rpmrepo_updatecoll.module.name == cr_updatecoll.module.name, "module.name"
+            assert rpmrepo_updatecoll.module.stream == cr_updatecoll.module.stream, "module.stream"
+            assert rpmrepo_updatecoll.module.version == cr_updatecoll.module.version, "module.version"
+            assert rpmrepo_updatecoll.module.context == cr_updatecoll.module.context, "module.context"
+            assert rpmrepo_updatecoll.module.arch == cr_updatecoll.module.arch, "module.arch"
+        else:
+            assert cr_updatecoll.module is None, "module"
 
-        for (rpmrepo_updatepkg, cr_updatepkg) in zip(rpmrepo_updatecoll.packages, cr_updatecoll.packages):
+        for rpmrepo_updatepkg, cr_updatepkg in zip(rpmrepo_updatecoll.packages, cr_updatecoll.packages):
             assert rpmrepo_updatepkg.name == cr_updatepkg.name, "name"
             assert rpmrepo_updatepkg.version == cr_updatepkg.version, "version"
             assert rpmrepo_updatepkg.release == cr_updatepkg.release, "release"
@@ -67,8 +86,12 @@ def compare_updaterecord(rpmrepo_updaterec, cr_updaterec):
             assert rpmrepo_updatepkg.arch == cr_updatepkg.arch, "arch"
             assert rpmrepo_updatepkg.src == cr_updatepkg.src, "src"
             assert rpmrepo_updatepkg.filename == cr_updatepkg.filename, "filename"
-            assert rpmrepo_updatepkg.sum == cr_updatepkg.sum, "sum"
-            assert rpmrepo_updatepkg.sum_type == cr.checksum_name_str(cr_updatepkg.sum_type)
+            if rpmrepo_updatepkg.checksum is not None:
+                sum_type, sum_value = rpmrepo_updatepkg.checksum
+                assert sum_value == cr_updatepkg.sum, "sum"
+                assert sum_type == cr.checksum_name_str(cr_updatepkg.sum_type), "sum_type"
+            else:
+                assert cr_updatepkg.sum is None, "sum"
             assert rpmrepo_updatepkg.reboot_suggested == cr_updatepkg.reboot_suggested, "reboot_suggested"
 
 
@@ -90,7 +113,7 @@ def compare_pkgs(rpmrepo_pkg, cr_pkg):
     # * rpm_packager -> packager, since the tag name isn't in the rpm: namespace
 
     assert rpmrepo_pkg.name == cr_pkg.name, "name"
-    assert rpmrepo_pkg.epoch == int(cr_pkg.epoch), "epoch"
+    assert rpmrepo_pkg.epoch == int(cr_pkg.epoch or 0), "epoch"
     assert rpmrepo_pkg.version == cr_pkg.version, "version"
     assert rpmrepo_pkg.release == cr_pkg.release, "release"
     assert rpmrepo_pkg.arch == cr_pkg.arch, "arch"
@@ -104,8 +127,8 @@ def compare_pkgs(rpmrepo_pkg, cr_pkg):
         # rpmrepo will return "sha1" instead of "sha" even when the metadata said "sha"
         if cr_pkg.checksum_type != "sha":
             raise
-    assert rpmrepo_pkg.summary == (cr_pkg.summary or "").strip(), "summary"
-    assert rpmrepo_pkg.description == (cr_pkg.description or "").strip(), "description"
+    assert rpmrepo_pkg.summary == (cr_pkg.summary or ""), "summary"
+    assert rpmrepo_pkg.description == (cr_pkg.description or ""), "description"
     assert rpmrepo_pkg.packager == (cr_pkg.rpm_packager or ""), "packager"
     assert rpmrepo_pkg.url == (cr_pkg.url or ""), "url"
     assert rpmrepo_pkg.location_href == (cr_pkg.location_href or ""), "location_href"
@@ -115,14 +138,15 @@ def compare_pkgs(rpmrepo_pkg, cr_pkg):
     assert rpmrepo_pkg.size_package == cr_pkg.size_package, "size_package"
     assert rpmrepo_pkg.size_installed == cr_pkg.size_installed, "size_installed"
     assert rpmrepo_pkg.size_archive == cr_pkg.size_archive, "size_archive"
-    assert rpmrepo_pkg.rpm_license == (cr_pkg.rpm_license or "").strip(), "rpm_license"
-    assert rpmrepo_pkg.rpm_vendor == (cr_pkg.rpm_vendor or "").strip(), "rpm_vendor"
-    assert rpmrepo_pkg.rpm_group == (cr_pkg.rpm_group or "").strip(), "rpm_group"
-    assert rpmrepo_pkg.rpm_buildhost == (cr_pkg.rpm_buildhost or "").strip(), "rpm_buildhost"
-    assert rpmrepo_pkg.rpm_sourcerpm == (cr_pkg.rpm_sourcerpm or "").strip(), "rpm_sourcerpm"
-    assert rpmrepo_pkg.rpm_header_range == (cr_pkg.rpm_header_start, cr_pkg.rpm_header_end), "rpm_header_range"
-    # assert rpmrepo_pkg.rpm_header_start == createrepo_pkg.rpm_header_start
-    # assert rpmrepo_pkg.rpm_header_end == createrepo_pkg.rpm_header_end
+    assert rpmrepo_pkg.rpm_license == (cr_pkg.rpm_license or ""), "rpm_license"
+    assert rpmrepo_pkg.rpm_vendor == (cr_pkg.rpm_vendor or ""), "rpm_vendor"
+    assert rpmrepo_pkg.rpm_group == (cr_pkg.rpm_group or ""), "rpm_group"
+    assert rpmrepo_pkg.rpm_buildhost == (cr_pkg.rpm_buildhost or ""), "rpm_buildhost"
+    assert rpmrepo_pkg.rpm_sourcerpm == (cr_pkg.rpm_sourcerpm or ""), "rpm_sourcerpm"
+    assert rpmrepo_pkg.rpm_header_range == (
+        cr_pkg.rpm_header_start,
+        cr_pkg.rpm_header_end,
+    ), "rpm_header_range"
 
     assert rpmrepo_pkg.files_split == cr_pkg.files, "files"
     assert rpmrepo_pkg.changelogs == cr_pkg.changelogs, "changelogs"
@@ -144,7 +168,7 @@ def validate_rpmrepo(repo_path):
     rpmrepo_pkg_parser = rpmrepo_reader.iter_packages()
     cr_pkg_parser = cr_reader.iter_packages()
 
-    for (rpmrepo_pkg, createrepo_pkg) in zip(rpmrepo_pkg_parser, cr_pkg_parser):
+    for rpmrepo_pkg, createrepo_pkg in zip(rpmrepo_pkg_parser, cr_pkg_parser):
         compare_pkgs(rpmrepo_pkg, createrepo_pkg)
 
     assert rpmrepo_pkg_parser.remaining_packages == 0
@@ -152,13 +176,20 @@ def validate_rpmrepo(repo_path):
     rpmrepo_updates = rpmrepo_reader.iter_advisories()
     cr_updates = cr_reader.advisories()
 
-    for (rpmrepo_updaterecord, createrepo_updaterecord) in zip(rpmrepo_updates, cr_updates):
+    for rpmrepo_updaterecord, createrepo_updaterecord in zip(rpmrepo_updates, cr_updates):
         compare_updaterecord(rpmrepo_updaterecord, createrepo_updaterecord)
 
+
 def find_repos(directory):
-    def ignorable(path):
-        return path.startswith(".") or path.endswith(".md")
-    return sorted([path for path in os.listdir(directory) if not ignorable(path)])
+    def ignorable(name):
+        return name.startswith(".") or name.endswith(".md")
+
+    repos = []
+    for dirpath, dirnames, _filenames in os.walk(directory):
+        dirnames[:] = [d for d in dirnames if not ignorable(d) and d != "repodata"]
+        if "repodata" in os.listdir(dirpath):
+            repos.append(os.path.relpath(dirpath, directory))
+    return sorted(repos)
 
 
 @pytest.mark.parametrize("path", find_repos("tests/assets/external_repos"))

@@ -4,6 +4,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+use crate::utils::{XmlAttrUnescape, XmlTextUnescape};
 use std::convert::{TryFrom, TryInto};
 use std::io::{BufRead, Write};
 use std::os::unix::prelude::OsStrExt;
@@ -145,7 +146,7 @@ fn read_repomd_xml<R: BufRead>(
                     found_metadata_tag = true;
                 }
                 TAG_REVISION => {
-                    let revision = reader.read_text_into(e.name(), &mut text_buf)?.decode()?;
+                    let revision = reader.read_text_into(e.name(), &mut text_buf)?.xml_text()?;
                     repomd_data.set_revision(revision.as_ref());
                 }
                 TAG_DATA => {
@@ -160,40 +161,38 @@ fn read_repomd_xml<R: BufRead>(
                     //   </tags>
                     loop {
                         match reader.read_event_into(&mut event_buf)? {
-                            Event::Start(e) => match std::str::from_utf8(e.name().as_ref())
-                                .unwrap_or("")
-                            {
-                                TAG_DISTRO => {
-                                    let cpeid = (&e).try_get_attribute("cpeid")?.and_then(|a| {
-                                        a.normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                            Event::Start(e) => {
+                                match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
+                                    TAG_DISTRO => {
+                                        let cpeid = (&e)
+                                            .try_get_attribute("cpeid")?
+                                            .map(|a| a.xml_attr())
+                                            .transpose()
                                             .ok()
-                                            .map(|v| v.into_owned())
-                                    });
-                                    let name = reader
-                                        .read_text_into(
-                                            QName(TAG_DISTRO.as_bytes()),
-                                            &mut text_buf,
-                                        )?
-                                        .decode()?
-                                        .into_owned();
-                                    repomd_data.add_distro_tag(name, cpeid);
+                                            .flatten();
+                                        let name = reader
+                                            .read_text_into(
+                                                QName(TAG_DISTRO.as_bytes()),
+                                                &mut text_buf,
+                                            )?
+                                            .xml_text()?;
+                                        repomd_data.add_distro_tag(name, cpeid);
+                                    }
+                                    TAG_REPO => {
+                                        let repo = reader
+                                            .read_text_into(e.name(), &mut text_buf)?
+                                            .xml_text()?;
+                                        repomd_data.add_repo_tag(repo);
+                                    }
+                                    TAG_CONTENT => {
+                                        let content = reader
+                                            .read_text_into(e.name(), &mut text_buf)?
+                                            .xml_text()?;
+                                        repomd_data.add_content_tag(content);
+                                    }
+                                    _ => (),
                                 }
-                                TAG_REPO => {
-                                    let repo = reader
-                                        .read_text_into(e.name(), &mut text_buf)?
-                                        .decode()?
-                                        .into_owned();
-                                    repomd_data.add_repo_tag(repo);
-                                }
-                                TAG_CONTENT => {
-                                    let content = reader
-                                        .read_text_into(e.name(), &mut text_buf)?
-                                        .decode()?
-                                        .into_owned();
-                                    repomd_data.add_content_tag(content);
-                                }
-                                _ => (),
-                            },
+                            }
 
                             Event::End(e) if e.name().as_ref() == TAG_TAGS.as_bytes() => break,
                             _ => (),
@@ -251,8 +250,7 @@ pub fn parse_repomdrecord<R: BufRead>(
                         .ok_or_else(|| MetadataError::MissingAttributeError("type"))?;
                     let checksum_value = reader
                         .read_text_into(e.name(), &mut record_buf)?
-                        .decode()?
-                        .into_owned();
+                        .xml_text()?;
                     let checksum = Checksum::try_create(
                         checksum_type.value.as_ref(),
                         checksum_value.as_bytes(),
@@ -265,8 +263,7 @@ pub fn parse_repomdrecord<R: BufRead>(
                         .ok_or_else(|| MetadataError::MissingAttributeError("type"))?;
                     let checksum_value = reader
                         .read_text_into(e.name(), &mut record_buf)?
-                        .decode()?
-                        .into_owned();
+                        .xml_text()?;
                     let checksum = Checksum::try_create(
                         checksum_type.value.as_ref(),
                         checksum_value.as_bytes(),
@@ -279,8 +276,7 @@ pub fn parse_repomdrecord<R: BufRead>(
                         .ok_or_else(|| MetadataError::MissingAttributeError("type"))?;
                     let checksum_value = reader
                         .read_text_into(e.name(), &mut record_buf)?
-                        .decode()?
-                        .into_owned();
+                        .xml_text()?;
                     let checksum = Checksum::try_create(
                         checksum_type.value.as_ref(),
                         checksum_value.as_bytes(),
@@ -291,42 +287,44 @@ pub fn parse_repomdrecord<R: BufRead>(
                     let location = e
                         .try_get_attribute("href")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("href"))?
-                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
-                        .into_owned();
+                        .xml_attr()?;
                     record_builder.location_href = Some(location.into());
                 }
                 TAG_TIMESTAMP => {
-                    let timestamp = reader
+                    let text = reader
                         .read_text_into(e.name(), &mut record_buf)?
-                        .decode()?
-                        .parse()?;
+                        .xml_text()?;
+                    let timestamp = match text.parse::<i64>() {
+                        Ok(ts) => ts,
+                        Err(_) => text.parse::<f64>().map(|f| f as i64).unwrap_or(0),
+                    };
                     record_builder.timestamp = Some(timestamp);
                 }
                 TAG_SIZE => {
                     let size = reader
                         .read_text_into(e.name(), &mut record_buf)?
-                        .decode()?
+                        .xml_text()?
                         .parse()?;
                     record_builder.size = Some(size);
                 }
                 TAG_HEADER_SIZE => {
                     let header_size = reader
                         .read_text_into(e.name(), &mut record_buf)?
-                        .decode()?
+                        .xml_text()?
                         .parse()?;
                     record_builder.header_size = Some(header_size);
                 }
                 TAG_OPEN_SIZE => {
                     let open_size = reader
                         .read_text_into(e.name(), &mut record_buf)?
-                        .decode()?
+                        .xml_text()?
                         .parse()?;
                     record_builder.open_size = Some(open_size);
                 }
                 TAG_DATABASE_VERSION => {
                     let database_version = reader
                         .read_text_into(e.name(), &mut record_buf)?
-                        .decode()?
+                        .xml_text()?
                         .parse()?;
                     record_builder.database_version = Some(database_version);
                 }

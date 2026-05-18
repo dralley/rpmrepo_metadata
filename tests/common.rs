@@ -204,7 +204,7 @@ pub static COMPLEX_PACKAGE: LazyLock<Package> = LazyLock::new(|| {
     );
     package.add_changelog(
         "George Bluth <george@federalprison.gov> - 3.3.3-3",
-        "- There’s always money in the banana stand",
+        "- There\u{2019}s always money in the banana stand",
         1623672000,
     );
     package

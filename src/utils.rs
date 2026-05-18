@@ -151,6 +151,40 @@ pub fn writer_to_file(
     Ok((filename, writer))
 }
 
+pub(crate) const XML_VERSION: quick_xml::XmlVersion = quick_xml::XmlVersion::Implicit1_0;
+
+pub(crate) trait XmlTextUnescape {
+    fn xml_text(&self) -> Result<String, crate::MetadataError>;
+}
+
+impl XmlTextUnescape for quick_xml::events::BytesText<'_> {
+    fn xml_text(&self) -> Result<String, crate::MetadataError> {
+        let decoded = self.xml_content(XML_VERSION)?;
+        let unescaped = quick_xml::escape::unescape(&decoded)?;
+        Ok(unescaped.into_owned())
+    }
+}
+
+pub(crate) trait XmlAttrUnescape {
+    fn xml_attr(&self) -> Result<String, crate::MetadataError>;
+}
+
+impl XmlAttrUnescape for quick_xml::events::attributes::Attribute<'_> {
+    /// Normalize an attribute value then resolve double-encoded ampersands.
+    ///
+    /// Workaround for an issue first encountered in createrepo_c:
+    /// https://github.com/rpm-software-management/createrepo_c/issues/286
+    ///
+    /// `normalized_value` handles standard XML entity resolution (`&amp;` -> `&`,
+    /// `&#38;` -> `&`). Some RPM repositories contain double-encoded ampersands
+    /// (`&amp;#38;`) which after the first pass leave `&#38;` as a remnant.
+    /// This mirrors createrepo_c's `unescape_ampersand_from_values`.
+    fn xml_attr(&self) -> Result<String, crate::MetadataError> {
+        let normalized = self.normalized_value(XML_VERSION)?.into_owned();
+        Ok(normalized.replace("&#38;", "&"))
+    }
+}
+
 /// Whether a file path is considered "primary" metadata (included in primary.xml).
 pub fn is_primary_file(path: &str) -> bool {
     path.starts_with("/etc/") || path.contains("bin/") || path == "/usr/lib/sendmail"

@@ -4,6 +4,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+use crate::utils::{XML_VERSION, XmlTextUnescape};
 use std::io::{BufRead, Write};
 
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
@@ -479,20 +480,16 @@ fn parse_group<R: BufRead>(reader: &mut Reader<R>) -> Result<CompsGroup, Metadat
                 TAG_ID => {
                     group.id = reader
                         .read_text_into(QName(TAG_ID.as_bytes()), &mut text_buf)?
-                        .decode()?
-                        .into_owned();
+                        .xml_text()?;
                 }
                 TAG_NAME => {
                     let text = reader
                         .read_text_into(QName(TAG_NAME.as_bytes()), &mut text_buf)?
-                        .decode()?
-                        .into_owned();
+                        .xml_text()?;
                     if let Some(lang) = e.try_get_attribute("xml:lang")? {
-                        group.name_by_lang.push((
-                            lang.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
-                                .into_owned(),
-                            text,
-                        ));
+                        group
+                            .name_by_lang
+                            .push((lang.normalized_value(XML_VERSION)?.into_owned(), text));
                     } else {
                         group.name = text;
                     }
@@ -500,14 +497,11 @@ fn parse_group<R: BufRead>(reader: &mut Reader<R>) -> Result<CompsGroup, Metadat
                 TAG_DESCRIPTION => {
                     let text = reader
                         .read_text_into(QName(TAG_DESCRIPTION.as_bytes()), &mut text_buf)?
-                        .decode()?
-                        .into_owned();
+                        .xml_text()?;
                     if let Some(lang) = e.try_get_attribute("xml:lang")? {
-                        group.desc_by_lang.push((
-                            lang.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
-                                .into_owned(),
-                            text,
-                        ));
+                        group
+                            .desc_by_lang
+                            .push((lang.normalized_value(XML_VERSION)?.into_owned(), text));
                     } else {
                         group.description = text;
                     }
@@ -515,33 +509,32 @@ fn parse_group<R: BufRead>(reader: &mut Reader<R>) -> Result<CompsGroup, Metadat
                 TAG_DEFAULT => {
                     let text = reader
                         .read_text_into(QName(TAG_DEFAULT.as_bytes()), &mut text_buf)?
-                        .decode()?;
+                        .xml_text()?;
                     group.default = parse_bool(&text);
                 }
                 TAG_USERVISIBLE => {
                     let text = reader
                         .read_text_into(QName(TAG_USERVISIBLE.as_bytes()), &mut text_buf)?
-                        .decode()?;
+                        .xml_text()?;
                     group.uservisible = parse_bool(&text);
                 }
                 TAG_BIARCHONLY => {
                     let text = reader
                         .read_text_into(QName(TAG_BIARCHONLY.as_bytes()), &mut text_buf)?
-                        .decode()?;
+                        .xml_text()?;
                     group.biarchonly = parse_bool(&text);
                 }
                 TAG_LANGONLY => {
                     group.langonly = Some(
                         reader
                             .read_text_into(QName(TAG_LANGONLY.as_bytes()), &mut text_buf)?
-                            .decode()?
-                            .into_owned(),
+                            .xml_text()?,
                     );
                 }
                 TAG_DISPLAY_ORDER => {
                     let text = reader
                         .read_text_into(QName(TAG_DISPLAY_ORDER.as_bytes()), &mut text_buf)?
-                        .decode()?;
+                        .xml_text()?;
                     group.display_order = Some(text.parse()?);
                 }
                 TAG_PACKAGELIST => {
@@ -554,8 +547,7 @@ fn parse_group<R: BufRead>(reader: &mut Reader<R>) -> Result<CompsGroup, Metadat
                 TAG_DESCRIPTION => {
                     if let Some(lang) = e.try_get_attribute("xml:lang")? {
                         group.desc_by_lang.push((
-                            lang.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
-                                .into_owned(),
+                            lang.normalized_value(XML_VERSION)?.into_owned(),
                             String::new(),
                         ));
                     }
@@ -587,27 +579,20 @@ fn parse_packagelist<R: BufRead>(
                 pkg.reqtype = e
                     .try_get_attribute("type")?
                     .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
-                    .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                    .normalized_value(XML_VERSION)?
                     .into_owned();
 
                 if let Some(requires) = e.try_get_attribute("requires")? {
-                    pkg.requires = Some(
-                        requires
-                            .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
-                            .into_owned(),
-                    );
+                    pkg.requires = Some(requires.normalized_value(XML_VERSION)?.into_owned());
                 }
 
                 if let Some(basearchonly) = e.try_get_attribute("basearchonly")? {
-                    pkg.basearchonly = parse_bool(
-                        &basearchonly.normalized_value(quick_xml::XmlVersion::Implicit1_0)?,
-                    );
+                    pkg.basearchonly = parse_bool(&basearchonly.normalized_value(XML_VERSION)?);
                 }
 
                 pkg.name = reader
                     .read_text_into(QName(TAG_PACKAGEREQ.as_bytes()), &mut text_buf)?
-                    .decode()?
-                    .into_owned();
+                    .xml_text()?;
 
                 packages.push(pkg);
             }
@@ -632,20 +617,16 @@ fn parse_category<R: BufRead>(reader: &mut Reader<R>) -> Result<CompsCategory, M
                 TAG_ID => {
                     category.id = reader
                         .read_text_into(QName(TAG_ID.as_bytes()), &mut text_buf)?
-                        .decode()?
-                        .into_owned();
+                        .xml_text()?;
                 }
                 TAG_NAME => {
                     let text = reader
                         .read_text_into(QName(TAG_NAME.as_bytes()), &mut text_buf)?
-                        .decode()?
-                        .into_owned();
+                        .xml_text()?;
                     if let Some(lang) = e.try_get_attribute("xml:lang")? {
-                        category.name_by_lang.push((
-                            lang.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
-                                .into_owned(),
-                            text,
-                        ));
+                        category
+                            .name_by_lang
+                            .push((lang.normalized_value(XML_VERSION)?.into_owned(), text));
                     } else {
                         category.name = text;
                     }
@@ -653,14 +634,11 @@ fn parse_category<R: BufRead>(reader: &mut Reader<R>) -> Result<CompsCategory, M
                 TAG_DESCRIPTION => {
                     let text = reader
                         .read_text_into(QName(TAG_DESCRIPTION.as_bytes()), &mut text_buf)?
-                        .decode()?
-                        .into_owned();
+                        .xml_text()?;
                     if let Some(lang) = e.try_get_attribute("xml:lang")? {
-                        category.desc_by_lang.push((
-                            lang.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
-                                .into_owned(),
-                            text,
-                        ));
+                        category
+                            .desc_by_lang
+                            .push((lang.normalized_value(XML_VERSION)?.into_owned(), text));
                     } else {
                         category.description = text;
                     }
@@ -668,7 +646,7 @@ fn parse_category<R: BufRead>(reader: &mut Reader<R>) -> Result<CompsCategory, M
                 TAG_DISPLAY_ORDER => {
                     let text = reader
                         .read_text_into(QName(TAG_DISPLAY_ORDER.as_bytes()), &mut text_buf)?
-                        .decode()?;
+                        .xml_text()?;
                     category.display_order = Some(text.parse()?);
                 }
                 TAG_GROUPLIST => {
@@ -679,8 +657,7 @@ fn parse_category<R: BufRead>(reader: &mut Reader<R>) -> Result<CompsCategory, M
             Event::Empty(e) if e.name().as_ref() == TAG_DESCRIPTION.as_bytes() => {
                 if let Some(lang) = e.try_get_attribute("xml:lang")? {
                     category.desc_by_lang.push((
-                        lang.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
-                            .into_owned(),
+                        lang.normalized_value(XML_VERSION)?.into_owned(),
                         String::new(),
                     ));
                 }
@@ -708,20 +685,16 @@ fn parse_environment<R: BufRead>(
                 TAG_ID => {
                     environment.id = reader
                         .read_text_into(QName(TAG_ID.as_bytes()), &mut text_buf)?
-                        .decode()?
-                        .into_owned();
+                        .xml_text()?;
                 }
                 TAG_NAME => {
                     let text = reader
                         .read_text_into(QName(TAG_NAME.as_bytes()), &mut text_buf)?
-                        .decode()?
-                        .into_owned();
+                        .xml_text()?;
                     if let Some(lang) = e.try_get_attribute("xml:lang")? {
-                        environment.name_by_lang.push((
-                            lang.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
-                                .into_owned(),
-                            text,
-                        ));
+                        environment
+                            .name_by_lang
+                            .push((lang.normalized_value(XML_VERSION)?.into_owned(), text));
                     } else {
                         environment.name = text;
                     }
@@ -729,14 +702,11 @@ fn parse_environment<R: BufRead>(
                 TAG_DESCRIPTION => {
                     let text = reader
                         .read_text_into(QName(TAG_DESCRIPTION.as_bytes()), &mut text_buf)?
-                        .decode()?
-                        .into_owned();
+                        .xml_text()?;
                     if let Some(lang) = e.try_get_attribute("xml:lang")? {
-                        environment.desc_by_lang.push((
-                            lang.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
-                                .into_owned(),
-                            text,
-                        ));
+                        environment
+                            .desc_by_lang
+                            .push((lang.normalized_value(XML_VERSION)?.into_owned(), text));
                     } else {
                         environment.description = text;
                     }
@@ -744,7 +714,7 @@ fn parse_environment<R: BufRead>(
                 TAG_DISPLAY_ORDER => {
                     let text = reader
                         .read_text_into(QName(TAG_DISPLAY_ORDER.as_bytes()), &mut text_buf)?
-                        .decode()?;
+                        .xml_text()?;
                     environment.display_order = Some(text.parse()?);
                 }
                 TAG_GROUPLIST => {
@@ -758,8 +728,7 @@ fn parse_environment<R: BufRead>(
             Event::Empty(e) if e.name().as_ref() == TAG_DESCRIPTION.as_bytes() => {
                 if let Some(lang) = e.try_get_attribute("xml:lang")? {
                     environment.desc_by_lang.push((
-                        lang.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
-                            .into_owned(),
+                        lang.normalized_value(XML_VERSION)?.into_owned(),
                         String::new(),
                     ));
                 }
@@ -789,8 +758,7 @@ fn parse_grouplist<R: BufRead>(reader: &mut Reader<R>) -> Result<Vec<String>, Me
             Event::Start(e) if e.name().as_ref() == TAG_GROUPID.as_bytes() => {
                 let gid = reader
                     .read_text_into(QName(TAG_GROUPID.as_bytes()), &mut text_buf)?
-                    .decode()?
-                    .into_owned();
+                    .xml_text()?;
                 group_ids.push(gid);
             }
             _ => (),
@@ -815,18 +783,12 @@ fn parse_optionlist<R: BufRead>(
             Event::Start(e) if e.name().as_ref() == TAG_GROUPID.as_bytes() => {
                 let default = e
                     .try_get_attribute("default")?
-                    .map(|a| {
-                        parse_bool(
-                            &a.normalized_value(quick_xml::XmlVersion::Implicit1_0)
-                                .unwrap_or_default(),
-                        )
-                    })
+                    .map(|a| parse_bool(&a.normalized_value(XML_VERSION).unwrap_or_default()))
                     .unwrap_or(false);
 
                 let group_id = reader
                     .read_text_into(QName(TAG_GROUPID.as_bytes()), &mut text_buf)?
-                    .decode()?
-                    .into_owned();
+                    .xml_text()?;
 
                 options.push(CompsEnvironmentOption { group_id, default });
             }
@@ -853,7 +815,7 @@ fn parse_langpacks<R: BufRead>(
                 let name = e
                     .try_get_attribute("name")?
                     .map(|a| {
-                        a.normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                        a.normalized_value(XML_VERSION)
                             .unwrap_or_default()
                             .into_owned()
                     })
@@ -861,7 +823,7 @@ fn parse_langpacks<R: BufRead>(
                 let install = e
                     .try_get_attribute("install")?
                     .map(|a| {
-                        a.normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                        a.normalized_value(XML_VERSION)
                             .unwrap_or_default()
                             .into_owned()
                     })

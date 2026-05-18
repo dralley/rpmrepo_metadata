@@ -4,6 +4,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+use std::io::{BufReader, Cursor, Read};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -11,157 +12,111 @@ use criterion::{self, Criterion, criterion_group, criterion_main};
 use rpmrepo_metadata::{
     FilelistsXml, OtherXml, PackageIterator, PrimaryXml, RepomdXml, Repository, utils,
 };
-use std::io::{BufReader, Cursor, Read};
 
-// fn repository_write_benchmark(c: &mut Criterion) {
-//     let mut group = c.benchmark_group("repository_write");
-//     group.sample_size(12);
+struct RepoFixture {
+    name: &'static str,
+    path: &'static str,
+    primary: Arc<[u8]>,
+    filelists: Arc<[u8]>,
+    other: Arc<[u8]>,
+}
 
-//     let fedora35 = Repository::load_from_directory(Path::new(
-//         "./tests/assets/external_repos/fedora35-updates/",
-//     ))
-//     .unwrap();
+impl RepoFixture {
+    fn load(name: &'static str, path: &'static str) -> Self {
+        let base = Path::new(path);
+        let mut repo = Repository::new();
+        repo.load_metadata_file::<RepomdXml>(&base.join("repodata/repomd.xml"))
+            .unwrap();
 
-//     let options = RepositoryOptions::default();
+        let load_bytes = |record_type: &str| -> Arc<[u8]> {
+            let record = repo.repomd().get_record(record_type).unwrap();
+            let file_path = base.join(&record.location_href);
+            let mut buf = Vec::new();
+            utils::reader_from_file(&file_path)
+                .unwrap()
+                .read_to_end(&mut buf)
+                .unwrap();
+            buf.into_boxed_slice().into()
+        };
 
-//     group.bench_function("fedora35-updates", |b| {
-//         b.iter(|| {
-//             let path = TempDir::new("prof_repo_write").unwrap();
-//             fedora35
-//                 .write_to_directory(path.path(), options)
-//                 .unwrap()
-//         })
-//     });
-// }
+        RepoFixture {
+            name,
+            path,
+            primary: load_bytes("primary"),
+            filelists: load_bytes("filelists"),
+            other: load_bytes("other"),
+        }
+    }
+}
 
-const REPO_PATH: &str = "./tests/assets/external_repos/fedora35-updates/";
+fn bench_repo_parse(c: &mut Criterion, fixture: &RepoFixture) {
+    let mut group = c.benchmark_group(format!("{}/parse", fixture.name));
+    group.sample_size(10);
 
-/// Test parsing metadata
-///
-/// Benchmark does not perform any IO
-fn metadata_parse_benchmark(c: &mut Criterion) {
-    let mut group = c.benchmark_group("metadata_parse");
-    group.sample_size(20);
-
-    let path = Path::new(REPO_PATH);
-    let mut repo = Repository::new();
-    repo.load_metadata_file::<RepomdXml>(&path.join("repodata/repomd.xml"))
-        .unwrap();
-
-    // Load metadata files to memory, then parse from memory, to avoid IO interactions.
-
-    let primary_path = path.join(&repo.repomd().get_record("primary").unwrap().location_href);
-    let mut primary = Vec::new();
-    utils::reader_from_file(&primary_path)
-        .unwrap()
-        .read_to_end(&mut primary)
-        .unwrap();
-    let primary: Arc<[u8]> = primary.into_boxed_slice().into();
     group.bench_function("primary_xml", |b| {
         b.iter(|| {
             let mut repo = Repository::new();
-            repo.load_metadata_bytes::<PrimaryXml>(&primary).unwrap();
-        })
-    });
-
-    let filelists_path = path.join(&repo.repomd().get_record("filelists").unwrap().location_href);
-    let mut filelists = Vec::new();
-    utils::reader_from_file(&filelists_path)
-        .unwrap()
-        .read_to_end(&mut filelists)
-        .unwrap();
-    let filelists: Arc<[u8]> = filelists.into_boxed_slice().into();
-    group.bench_function("filelists_xml", |b| {
-        b.iter(|| {
-            let mut repo = Repository::new();
-            repo.load_metadata_bytes::<FilelistsXml>(&filelists)
+            repo.load_metadata_bytes::<PrimaryXml>(&fixture.primary)
                 .unwrap();
         })
     });
 
-    let other_path = path.join(&repo.repomd().get_record("other").unwrap().location_href);
-    let mut other = Vec::new();
-    utils::reader_from_file(&other_path)
-        .unwrap()
-        .read_to_end(&mut other)
-        .unwrap();
-    let other: Arc<[u8]> = other.into_boxed_slice().into();
+    group.bench_function("filelists_xml", |b| {
+        b.iter(|| {
+            let mut repo = Repository::new();
+            repo.load_metadata_bytes::<FilelistsXml>(&fixture.filelists)
+                .unwrap();
+        })
+    });
+
     group.bench_function("other_xml", |b| {
         b.iter(|| {
             let mut repo = Repository::new();
-            repo.load_metadata_bytes::<OtherXml>(&other).unwrap();
+            repo.load_metadata_bytes::<OtherXml>(&fixture.other)
+                .unwrap();
         })
     });
 
     group.bench_function("all_together", |b| {
         b.iter(|| {
             let mut repo = Repository::new();
-            repo.load_metadata_bytes::<PrimaryXml>(&primary).unwrap();
-            repo.load_metadata_bytes::<FilelistsXml>(&filelists)
+            repo.load_metadata_bytes::<PrimaryXml>(&fixture.primary)
                 .unwrap();
-            repo.load_metadata_bytes::<OtherXml>(&other).unwrap();
+            repo.load_metadata_bytes::<FilelistsXml>(&fixture.filelists)
+                .unwrap();
+            repo.load_metadata_bytes::<OtherXml>(&fixture.other)
+                .unwrap();
         })
     });
 
     group.bench_function("iterative_all_together", |b| {
         b.iter(|| {
             let primary_xml = PrimaryXml::new_reader(utils::create_xml_reader(BufReader::new(
-                Box::new(Cursor::new(primary.clone())) as Box<dyn Read + Send>,
+                Box::new(Cursor::new(fixture.primary.clone())) as Box<dyn Read + Send>,
             )));
             let filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(BufReader::new(
-                Box::new(Cursor::new(filelists.clone())) as Box<dyn Read + Send>,
+                Box::new(Cursor::new(fixture.filelists.clone())) as Box<dyn Read + Send>,
             )));
             let other_xml = OtherXml::new_reader(utils::create_xml_reader(BufReader::new(
-                Box::new(Cursor::new(other.clone())) as Box<dyn Read + Send>,
+                Box::new(Cursor::new(fixture.other.clone())) as Box<dyn Read + Send>,
             )));
 
             let mut parser =
                 PackageIterator::from_readers(primary_xml, filelists_xml, other_xml).unwrap();
             while let Some(pkg) = parser.parse_package().unwrap() {
-                criterion::black_box(pkg);
+                std::hint::black_box(pkg);
             }
         })
     });
 
-    group.bench_function("iterative_all_together_manual", |b| {
-        b.iter(|| {
-            let mut primary_xml = PrimaryXml::new_reader(utils::create_xml_reader(&*primary));
-            let mut filelists_xml = FilelistsXml::new_reader(utils::create_xml_reader(&*filelists));
-            let mut other_xml = OtherXml::new_reader(utils::create_xml_reader(&*other));
-
-            primary_xml.read_header().unwrap();
-            filelists_xml.read_header().unwrap();
-            other_xml.read_header().unwrap();
-
-            let mut in_progress_package = None;
-
-            loop {
-                primary_xml.read_package(&mut in_progress_package).unwrap();
-                filelists_xml
-                    .read_package(&mut in_progress_package)
-                    .unwrap();
-                other_xml.read_package(&mut in_progress_package).unwrap();
-
-                let package = in_progress_package.take();
-                match package {
-                    Some(package) => {
-                        criterion::black_box(package);
-                    }
-                    None => break,
-                }
-            }
-        })
-    });
+    group.finish();
 }
 
-/// Test writing metadata out to a memory-backed Vec<u8>
-///
-/// Benchmark code performs no IO
-fn metadata_write_benchmark(c: &mut Criterion) {
-    let mut group = c.benchmark_group("metadata_write");
-    group.sample_size(20);
+fn bench_repo_write(c: &mut Criterion, fixture: &RepoFixture) {
+    let mut group = c.benchmark_group(format!("{}/write", fixture.name));
+    group.sample_size(10);
 
-    let repo = Repository::load_from_directory(Path::new(REPO_PATH)).unwrap();
+    let repo = Repository::load_from_directory(Path::new(fixture.path)).unwrap();
 
     group.bench_function("primary_xml", |b| {
         b.iter(|| repo.write_metadata_bytes::<PrimaryXml>())
@@ -183,32 +138,53 @@ fn metadata_write_benchmark(c: &mut Criterion) {
         })
     });
 
-    group.bench_function("iterative_all_together", |b| {
-        let num_pkgs = repo.packages().values().count();
-
-        b.iter(|| {
-            let mut primary_xml_writer =
-                PrimaryXml::new_writer(utils::create_xml_writer(Vec::new()));
-            let mut filelists_xml_writer =
-                FilelistsXml::new_writer(utils::create_xml_writer(Vec::new()));
-            let mut other_xml_writer = OtherXml::new_writer(utils::create_xml_writer(Vec::new()));
-
-            primary_xml_writer.write_header(num_pkgs).unwrap();
-            filelists_xml_writer.write_header(num_pkgs).unwrap();
-            other_xml_writer.write_header(num_pkgs).unwrap();
-
-            for package in repo.packages().values() {
-                primary_xml_writer.write_package(package).unwrap();
-                filelists_xml_writer.write_package(package).unwrap();
-                other_xml_writer.write_package(package).unwrap();
-            }
-
-            primary_xml_writer.finish().unwrap();
-            filelists_xml_writer.finish().unwrap();
-            other_xml_writer.finish().unwrap();
-        })
-    });
+    group.finish();
 }
 
-criterion_group!(benches, metadata_parse_benchmark, metadata_write_benchmark);
+// Fixture selection rationale:
+//
+// cs10-baseos (4k pkgs): EL stream repo — multiple versions per name, moderate file count.
+//   Good baseline for same-name string dedup and typical enterprise workloads.
+//
+// fedora42 (77k pkgs): Fedora release — one version per name, largest package count.
+//   Minimal same-name dedup opportunity, exercises raw throughput at scale.
+//
+// el9-baseos (14k pkgs): RHEL repo — many accumulated versions per name (avg ~9).
+//   High same-name dedup ratio, mid-size. Tests long-lived repos with version history.
+//
+// grafana (4k pkgs, 94MB compressed filelists): Extreme vendor repo — ~19 unique names
+//   with ~215 versions each. Massive file lists with near-identical paths across versions.
+//   Stress test for file path memory (dir dedup ~250x, basename dedup ~170x).
+
+fn cs10_baseos(c: &mut Criterion) {
+    let fixture = RepoFixture::load(
+        "cs10_baseos",
+        "./tests/assets/external_repos/centos-stream/cs10-baseos/",
+    );
+    bench_repo_parse(c, &fixture);
+    bench_repo_write(c, &fixture);
+}
+
+fn fedora42(c: &mut Criterion) {
+    let fixture = RepoFixture::load("fedora42", "./tests/assets/external_repos/fedora/fedora42/");
+    bench_repo_parse(c, &fixture);
+    bench_repo_write(c, &fixture);
+}
+
+fn el9_baseos(c: &mut Criterion) {
+    let fixture = RepoFixture::load(
+        "el9_baseos",
+        "./tests/assets/external_repos/rhel/el9-baseos/",
+    );
+    bench_repo_parse(c, &fixture);
+    bench_repo_write(c, &fixture);
+}
+
+fn grafana(c: &mut Criterion) {
+    let fixture = RepoFixture::load("grafana", "./tests/assets/external_repos/vendor/grafana/");
+    bench_repo_parse(c, &fixture);
+    bench_repo_write(c, &fixture);
+}
+
+criterion_group!(benches, cs10_baseos, fedora42, el9_baseos, grafana);
 criterion_main!(benches);

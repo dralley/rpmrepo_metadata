@@ -1166,13 +1166,13 @@ pub struct UpdateRecord {
     pub title: String,
     pub issued_date: Option<String>,
     pub updated_date: Option<String>,
-    pub rights: String,
-    pub release: String,
+    pub rights: Option<String>,
+    pub release: Option<String>,
     pub pushcount: Option<String>, // deprecated?
-    pub severity: String,
-    pub summary: String,
-    pub description: String,
-    pub solution: String,
+    pub severity: Option<String>,
+    pub summary: Option<String>,
+    pub description: Option<String>,
+    pub solution: Option<String>,
     // It's not clear that any metadata actually uses this
     // pub reboot_suggested: bool,
     pub references: Vec<UpdateReference>,
@@ -1192,7 +1192,7 @@ pub struct UpdateCollection {
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct UpdateReference {
     pub href: String,
-    pub id: String,
+    pub id: Option<String>,
     pub title: String,
     pub reftype: String,
 }
@@ -1207,7 +1207,7 @@ pub struct UpdateCollectionPackage {
     pub restart_suggested: bool,
     pub relogin_suggested: bool,
     pub release: String,
-    pub src: String,
+    pub src: Option<String>,
     pub arch: String,
     pub checksum: Option<Checksum>,
     pub version: String,

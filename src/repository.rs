@@ -742,9 +742,7 @@ impl UpdateinfoIterator {
             .map(|u| base.join(&u.location_href));
 
         let reader = if let Some(updateinfo_href) = updateinfo_href {
-            let reader = UpdateinfoXml::new_reader(utils::xml_reader_from_file(
-                &base.join(updateinfo_href),
-            )?);
+            let reader = UpdateinfoXml::new_reader(utils::xml_reader_from_file(&updateinfo_href)?);
             Some(reader)
         } else {
             None

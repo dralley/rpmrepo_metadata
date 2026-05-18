@@ -6,6 +6,7 @@
 
 use std::io::{BufRead, Write};
 
+use crate::utils::{XmlAttrUnescape, XmlTextUnescape};
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::name::QName;
 use quick_xml::{Reader, Writer};
@@ -148,12 +149,9 @@ pub fn parse_package<R: BufRead>(
             Event::End(e) if e.name().as_ref() == TAG_PACKAGE.as_bytes() => break,
             Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
                 TAG_PACKAGE => {
-                    let ptype = e
-                        .try_get_attribute(b"type")?
-                        .unwrap()
-                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
+                    let ptype = e.try_get_attribute(b"type")?.unwrap().xml_attr()?;
 
-                    assert_eq!(ptype.as_ref(), "rpm"); // TODO: better error handling
+                    assert_eq!(ptype, "rpm"); // TODO: better error handling
 
                     if let Some(_pkg) = package {
                         // TODO: need a temporary place to store this since we don't know the pkgid yet
@@ -167,24 +165,24 @@ pub fn parse_package<R: BufRead>(
                 TAG_NAME => {
                     let text = reader
                         .read_text_into(QName(TAG_NAME.as_bytes()), &mut text_buf)?
-                        .decode()?;
+                        .xml_text()?;
                     package.as_mut().unwrap().set_name(text);
                 }
                 TAG_VERSION => {
-                    let epoch = e
-                        .try_get_attribute("epoch")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("epoch"))?
-                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
+                    let epoch = match e.try_get_attribute("epoch")? {
+                        Some(attr) => attr.xml_attr()?,
+                        None => "0".into(),
+                    };
 
                     let version = e
                         .try_get_attribute("ver")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("ver"))?
-                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
+                        .xml_attr()?;
 
                     let release = e
                         .try_get_attribute("rel")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("rel"))?
-                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
+                        .xml_attr()?;
 
                     // TODO: temporary conversions
                     let evr = EVR::new(epoch, version, release);
@@ -194,11 +192,10 @@ pub fn parse_package<R: BufRead>(
                     let checksum_type = e
                         .try_get_attribute("type")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
-                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
+                        .xml_attr()?;
                     let checksum_value = reader
                         .read_text_into(QName(TAG_CHECKSUM.as_bytes()), &mut text_buf)?
-                        .decode()?
-                        .into_owned();
+                        .xml_text()?;
                     package.as_mut().unwrap().set_checksum(Checksum::try_create(
                         checksum_type.as_bytes(),
                         checksum_value.as_bytes(),
@@ -207,44 +204,44 @@ pub fn parse_package<R: BufRead>(
                 TAG_ARCH => {
                     let text = reader
                         .read_text_into(QName(TAG_ARCH.as_bytes()), &mut text_buf)?
-                        .decode()?;
+                        .xml_text()?;
                     package.as_mut().unwrap().set_arch(text);
                 }
                 TAG_SUMMARY => {
                     let text = reader
                         .read_text_into(QName(TAG_SUMMARY.as_bytes()), &mut text_buf)?
-                        .decode()?;
+                        .xml_text()?;
                     package.as_mut().unwrap().set_summary(text);
                 }
                 TAG_DESCRIPTION => {
                     let text = reader
                         .read_text_into(QName(TAG_DESCRIPTION.as_bytes()), &mut text_buf)?
-                        .decode()?;
+                        .xml_text()?;
                     package.as_mut().unwrap().set_description(text);
                 }
                 TAG_PACKAGER => {
                     let text = reader
                         .read_text_into(QName(TAG_PACKAGER.as_bytes()), &mut text_buf)?
-                        .decode()?;
+                        .xml_text()?;
                     package.as_mut().unwrap().set_packager(text);
                 }
                 TAG_URL => {
                     let text = reader
                         .read_text_into(QName(TAG_URL.as_bytes()), &mut text_buf)?
-                        .decode()?;
+                        .xml_text()?;
                     package.as_mut().unwrap().set_url(text);
                 }
                 TAG_TIME => {
                     let time_file = e
                         .try_get_attribute("file")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("file"))?
-                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                        .xml_attr()?
                         .parse()?;
 
                     let time_build = e
                         .try_get_attribute("build")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("build"))?
-                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                        .xml_attr()?
                         .parse()?;
 
                     package
@@ -257,19 +254,19 @@ pub fn parse_package<R: BufRead>(
                     let package_size = e
                         .try_get_attribute("package")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("package"))?
-                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                        .xml_attr()?
                         .parse()?;
 
                     let installed_size = e
                         .try_get_attribute("installed")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("installed"))?
-                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                        .xml_attr()?
                         .parse()?;
 
                     let archive_size = e
                         .try_get_attribute("archive")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("archive"))?
-                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                        .xml_attr()?
                         .parse()?;
 
                     package
@@ -283,11 +280,10 @@ pub fn parse_package<R: BufRead>(
                     let location_href = e
                         .try_get_attribute("href")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("href"))?
-                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
+                        .xml_attr()?;
 
                     if let Some(base_attr) = e.try_get_attribute("base")? {
-                        let location_base =
-                            base_attr.normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
+                        let location_base = base_attr.xml_attr()?;
                         package
                             .as_mut()
                             .unwrap()
@@ -311,7 +307,7 @@ pub fn parse_package<R: BufRead>(
                                             QName(TAG_RPM_LICENSE.as_bytes()),
                                             &mut text_buf,
                                         )?
-                                        .decode()?;
+                                        .xml_text()?;
                                     package.as_mut().unwrap().set_rpm_license(text);
                                 }
                                 TAG_RPM_VENDOR => {
@@ -320,7 +316,7 @@ pub fn parse_package<R: BufRead>(
                                             QName(TAG_RPM_VENDOR.as_bytes()),
                                             &mut text_buf,
                                         )?
-                                        .decode()?;
+                                        .xml_text()?;
                                     package.as_mut().unwrap().set_rpm_vendor(text);
                                 }
                                 TAG_RPM_GROUP => {
@@ -329,7 +325,7 @@ pub fn parse_package<R: BufRead>(
                                             QName(TAG_RPM_GROUP.as_bytes()),
                                             &mut text_buf,
                                         )?
-                                        .decode()?;
+                                        .xml_text()?;
                                     package.as_mut().unwrap().set_rpm_group(text);
                                 }
                                 TAG_RPM_BUILDHOST => {
@@ -338,7 +334,7 @@ pub fn parse_package<R: BufRead>(
                                             QName(TAG_RPM_BUILDHOST.as_bytes()),
                                             &mut text_buf,
                                         )?
-                                        .decode()?;
+                                        .xml_text()?;
                                     package.as_mut().unwrap().set_rpm_buildhost(text);
                                 }
                                 TAG_RPM_SOURCERPM => {
@@ -347,7 +343,7 @@ pub fn parse_package<R: BufRead>(
                                             QName(TAG_RPM_SOURCERPM.as_bytes()),
                                             &mut text_buf,
                                         )?
-                                        .decode()?;
+                                        .xml_text()?;
                                     package.as_mut().unwrap().set_rpm_sourcerpm(text);
                                 }
                                 TAG_RPM_HEADER_RANGE => {
@@ -356,13 +352,13 @@ pub fn parse_package<R: BufRead>(
                                         .ok_or_else(|| {
                                             MetadataError::MissingAttributeError("start")
                                         })?
-                                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                                        .xml_attr()?
                                         .parse()?;
 
                                     let end = e
                                         .try_get_attribute("end")?
                                         .ok_or_else(|| MetadataError::MissingAttributeError("end"))?
-                                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+                                        .xml_attr()?
                                         .parse()?;
 
                                     package.as_mut().unwrap().set_rpm_header_range(start, end);
@@ -695,34 +691,17 @@ pub fn parse_requirement_list<R: BufRead>(
                     let attr = attr?;
                     match attr.key.as_ref() {
                         b"name" => {
-                            requirement.name = attr
-                                .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
-                                .into_owned();
+                            requirement.name = attr.xml_attr()?;
                         }
                         b"flags" => {
-                            let val = attr.normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
+                            let val = attr.xml_attr()?;
                             requirement.flags = Some(RequirementType::try_from(val.as_ref())?);
                         }
-                        b"epoch" => {
-                            requirement.epoch = Some(
-                                attr.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
-                                    .into_owned(),
-                            )
-                        }
-                        b"ver" => {
-                            requirement.version = Some(
-                                attr.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
-                                    .into_owned(),
-                            )
-                        }
-                        b"rel" => {
-                            requirement.release = Some(
-                                attr.normalized_value(quick_xml::XmlVersion::Implicit1_0)?
-                                    .into_owned(),
-                            )
-                        }
+                        b"epoch" => requirement.epoch = Some(attr.xml_attr()?),
+                        b"ver" => requirement.version = Some(attr.xml_attr()?),
+                        b"rel" => requirement.release = Some(attr.xml_attr()?),
                         b"pre" => {
-                            let val = attr.normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
+                            let val = attr.xml_attr()?;
                             requirement.preinstall =
                                 val != "0" && !val.eq_ignore_ascii_case("false");
                         }

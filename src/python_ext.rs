@@ -1162,20 +1162,20 @@ mod rpmrepo_metadata {
     #[pymethods]
     impl UpdateRecord {
         #[new]
-        #[pyo3(signature = (id="".to_string(), title="".to_string(), update_type="".to_string(), from_="".to_string(), status="".to_string(), version="".to_string(), severity="".to_string(), summary="".to_string(), description="".to_string(), solution="".to_string(), rights="".to_string(), release="".to_string(), issued_date=None, updated_date=None, pushcount=None))]
+        #[pyo3(signature = (id="".to_string(), title="".to_string(), update_type="".to_string(), fromstr="".to_string(), status="".to_string(), version="".to_string(), severity=None, summary=None, description=None, solution=None, rights=None, release=None, issued_date=None, updated_date=None, pushcount=None))]
         fn new(
             id: String,
             title: String,
             update_type: String,
-            from_: String,
+            fromstr: String,
             status: String,
             version: String,
-            severity: String,
-            summary: String,
-            description: String,
-            solution: String,
-            rights: String,
-            release: String,
+            severity: Option<String>,
+            summary: Option<String>,
+            description: Option<String>,
+            solution: Option<String>,
+            rights: Option<String>,
+            release: Option<String>,
             issued_date: Option<String>,
             updated_date: Option<String>,
             pushcount: Option<String>,
@@ -1185,7 +1185,7 @@ mod rpmrepo_metadata {
                     id,
                     title,
                     update_type,
-                    from: from_,
+                    from: fromstr,
                     status,
                     version,
                     severity,
@@ -1203,7 +1203,7 @@ mod rpmrepo_metadata {
             }
         }
 
-        #[setter(from_)]
+        #[setter(fromstr)]
         fn set_from(&mut self, val: String) {
             self.inner.from = val;
         }
@@ -1244,12 +1244,12 @@ mod rpmrepo_metadata {
         }
 
         #[setter]
-        fn set_rights(&mut self, val: String) {
+        fn set_rights(&mut self, val: Option<String>) {
             self.inner.rights = val;
         }
 
         #[setter(release)]
-        fn set_release(&mut self, val: String) {
+        fn set_release(&mut self, val: Option<String>) {
             self.inner.release = val;
         }
 
@@ -1259,22 +1259,22 @@ mod rpmrepo_metadata {
         }
 
         #[setter]
-        fn set_severity(&mut self, val: String) {
+        fn set_severity(&mut self, val: Option<String>) {
             self.inner.severity = val;
         }
 
         #[setter]
-        fn set_summary(&mut self, val: String) {
+        fn set_summary(&mut self, val: Option<String>) {
             self.inner.summary = val;
         }
 
         #[setter(description)]
-        fn set_description(&mut self, val: String) {
+        fn set_description(&mut self, val: Option<String>) {
             self.inner.description = val;
         }
 
         #[setter]
-        fn set_solution(&mut self, val: String) {
+        fn set_solution(&mut self, val: Option<String>) {
             self.inner.solution = val;
         }
 
@@ -1288,8 +1288,8 @@ mod rpmrepo_metadata {
             self.inner.pkglist = pkglist.iter().map(|c| c.borrow(py).inner.clone()).collect();
         }
 
-        #[getter(from_)]
-        fn from_(&self) -> &str {
+        #[getter(fromstr)]
+        fn fromstr(&self) -> &str {
             &self.inner.from
         }
 
@@ -1329,13 +1329,13 @@ mod rpmrepo_metadata {
         }
 
         #[getter]
-        fn rights(&self) -> &str {
-            &self.inner.rights
+        fn rights(&self) -> Option<&str> {
+            self.inner.rights.as_deref()
         }
 
         #[getter]
-        fn release(&self) -> &str {
-            &self.inner.release
+        fn release(&self) -> Option<&str> {
+            self.inner.release.as_deref()
         }
 
         #[getter]
@@ -1344,23 +1344,23 @@ mod rpmrepo_metadata {
         }
 
         #[getter]
-        fn severity(&self) -> &str {
-            &self.inner.severity
+        fn severity(&self) -> Option<&str> {
+            self.inner.severity.as_deref()
         }
 
         #[getter]
-        fn summary(&self) -> &str {
-            &self.inner.summary
+        fn summary(&self) -> Option<&str> {
+            self.inner.summary.as_deref()
         }
 
         #[getter]
-        fn description(&self) -> &str {
-            &self.inner.description
+        fn description(&self) -> Option<&str> {
+            self.inner.description.as_deref()
         }
 
         #[getter]
-        fn solution(&self) -> &str {
-            &self.inner.solution
+        fn solution(&self) -> Option<&str> {
+            self.inner.solution.as_deref()
         }
 
         #[getter]
@@ -1399,8 +1399,8 @@ mod rpmrepo_metadata {
     #[pymethods]
     impl UpdateReference {
         #[new]
-        #[pyo3(signature = (href="".to_string(), id="".to_string(), title="".to_string(), reftype="".to_string()))]
-        fn new(href: String, id: String, title: String, reftype: String) -> Self {
+        #[pyo3(signature = (href="".to_string(), id=None, title="".to_string(), reftype="".to_string()))]
+        fn new(href: String, id: Option<String>, title: String, reftype: String) -> Self {
             Self {
                 inner: crate::UpdateReference {
                     href,
@@ -1417,8 +1417,8 @@ mod rpmrepo_metadata {
         }
 
         #[getter]
-        fn id(&self) -> &str {
-            &self.inner.id
+        fn id(&self) -> Option<&str> {
+            self.inner.id.as_deref()
         }
 
         #[getter]
@@ -1508,7 +1508,7 @@ mod rpmrepo_metadata {
             arch: String,
             epoch: String,
             filename: String,
-            src: String,
+            src: Option<String>,
             reboot_suggested: bool,
             restart_suggested: bool,
             relogin_suggested: bool,
@@ -1566,8 +1566,8 @@ mod rpmrepo_metadata {
         }
 
         #[getter]
-        fn src(&self) -> &str {
-            &self.inner.src
+        fn src(&self) -> Option<&str> {
+            self.inner.src.as_deref()
         }
 
         #[getter]

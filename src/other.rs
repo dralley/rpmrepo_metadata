@@ -4,6 +4,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+use crate::utils::{XmlAttrUnescape, XmlTextUnescape};
 use std::io::{BufRead, Write};
 
 use quick_xml::escape::partial_escape;
@@ -212,23 +213,29 @@ pub fn parse_package<R: BufRead>(
                     let pkgid = e
                         .try_get_attribute("pkgid")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("pkgid"))?
-                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
+                        .xml_attr()?;
                     let name = e
                         .try_get_attribute("name")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("name"))?
-                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
+                        .xml_attr()?;
                     let arch = e
                         .try_get_attribute("arch")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
-                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
+                        .xml_attr()?;
 
                     if let Some(pkg) = package {
-                        assert!(pkg.pkgid() == pkgid.as_ref()); // TODO err instead of assert
+                        if pkg.pkgid() != pkgid {
+                            return Err(MetadataError::InconsistentMetadataError(format!(
+                                "other.xml pkgid {} does not match primary.xml pkgid {}",
+                                pkgid,
+                                pkg.pkgid()
+                            )));
+                        }
                     } else {
                         let mut pkg = Package::default();
                         pkg.set_name(name)
                             .set_arch(arch)
-                            .set_checksum(Checksum::Unknown(pkgid.into_owned()));
+                            .set_checksum(Checksum::Unknown(pkgid));
                         *package = Some(pkg);
                     };
                 }
@@ -260,18 +267,12 @@ pub fn parse_evr<R: BufRead>(
     _reader: &mut Reader<R>,
     open_tag: &BytesStart,
 ) -> Result<EVR, MetadataError> {
-    let epoch = open_tag
-        .try_get_attribute("epoch")?
-        .unwrap()
-        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
-    let version = open_tag
-        .try_get_attribute("ver")?
-        .unwrap()
-        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
-    let release = open_tag
-        .try_get_attribute("rel")?
-        .unwrap()
-        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
+    let epoch = match open_tag.try_get_attribute("epoch")? {
+        Some(attr) => attr.xml_attr()?,
+        None => "0".into(),
+    };
+    let version = open_tag.try_get_attribute("ver")?.unwrap().xml_attr()?;
+    let release = open_tag.try_get_attribute("rel")?.unwrap().xml_attr()?;
 
     Ok(EVR::new(epoch, version, release))
 }
@@ -283,22 +284,17 @@ pub fn parse_changelog<R: BufRead>(
 ) -> Result<Changelog, MetadataError> {
     let mut changelog = Changelog::default();
 
-    changelog.author = open_tag
-        .try_get_attribute("author")?
-        .unwrap()
-        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
-        .into_owned();
+    changelog.author = open_tag.try_get_attribute("author")?.unwrap().xml_attr()?;
     changelog.timestamp = open_tag
         .try_get_attribute("date")?
         .unwrap()
-        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?
+        .xml_attr()?
         .parse()?;
 
     let mut buf = Vec::with_capacity(128);
     changelog.description = reader
         .read_text_into(open_tag.name(), &mut buf)?
-        .decode()?
-        .into_owned();
+        .xml_text()?;
 
     Ok(changelog)
 }

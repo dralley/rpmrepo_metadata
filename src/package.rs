@@ -248,13 +248,14 @@ pub mod rpm_parsing {
             pkg_metadata.set_recommends(convert_deps(pkg.get_recommends()?)?);
             pkg_metadata.set_supplements(convert_deps(pkg.get_supplements()?)?);
 
-            // Sort newest-first and keep only the N most recent entries
+            // Keep only the N most recent entries, sorted oldest-first
             let mut changelogs: Vec<Changelog> = Vec::new();
             for f in pkg.get_changelog_entries()?.into_iter() {
                 changelogs.push(f.into())
             }
             changelogs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
             changelogs.truncate(options.changelog_limit);
+            changelogs.reverse();
             pkg_metadata.set_changelogs(changelogs);
 
             // All files are stored; the primary/filelists split happens at write time
@@ -374,14 +375,6 @@ impl PackageIterator {
         let filelists_pkg_count = self.filelists_xml.read_header()?;
         let other_pkg_count = self.other_xml.read_header()?;
 
-        if primary_pkg_count != filelists_pkg_count || primary_pkg_count != other_pkg_count {
-            return Err(MetadataError::InconsistentMetadataError(
-                "Metadata package counts don't match".to_owned(),
-            ));
-        }
-
-        assert_eq!(primary_pkg_count, filelists_pkg_count);
-        assert_eq!(primary_pkg_count, other_pkg_count);
         self.num_packages = primary_pkg_count;
         self.num_remaining = self.num_packages;
 
@@ -400,17 +393,8 @@ impl PackageIterator {
 
         // TODO: re-enable this with actual error handling instead of panics - RHEL6 for example will fail
         // because the header lies about the number of packages
-        if let Some(_) = package {
-            self.num_remaining -= 1;
-            // self.num_remaining = self
-            //     .num_remaining
-            //     .checked_sub(1)
-            //     .expect("More packages parsed than declared in the metadata header.");
-        } else {
-            // assert!(
-            //     self.num_remaining == 0,
-            //     "Less packages parsed than declared in metadata header."
-            // );
+        if package.is_some() {
+            self.num_remaining = self.num_remaining.saturating_sub(1);
         }
 
         Ok(package)

@@ -4,6 +4,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+use crate::utils::{XML_VERSION, XmlTextUnescape};
 use std::io::{BufRead, Write};
 
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
@@ -221,19 +222,24 @@ pub fn parse_package<R: BufRead>(
                     let pkgid = e
                         .try_get_attribute("pkgid")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("pkgid"))?
-                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
+                        .normalized_value(XML_VERSION)?;
                     let name = e
                         .try_get_attribute("name")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("name"))?
-                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
+                        .normalized_value(XML_VERSION)?;
                     let arch = e
                         .try_get_attribute("arch")?
                         .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
-                        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
+                        .normalized_value(XML_VERSION)?;
 
                     if let Some(pkg) = package {
-                        assert!(pkg.pkgid() == pkgid.as_ref()); // TODO err instead of assert
-                        // make sure we do not duplicate files that may have been parsed from primary.xml
+                        if pkg.pkgid() != pkgid.as_ref() {
+                            return Err(MetadataError::InconsistentMetadataError(format!(
+                                "filelists.xml pkgid {} does not match primary.xml pkgid {}",
+                                pkgid,
+                                pkg.pkgid()
+                            )));
+                        }
                         pkg.rpm_files.clear();
                     } else {
                         let mut pkg = Package::default();
@@ -270,18 +276,18 @@ pub fn parse_evr<R: BufRead>(
     _reader: &mut Reader<R>,
     open_tag: &BytesStart,
 ) -> Result<EVR, MetadataError> {
-    let epoch = open_tag
-        .try_get_attribute("epoch")?
-        .ok_or_else(|| MetadataError::MissingAttributeError("epoch"))?
-        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
+    let epoch = match open_tag.try_get_attribute("epoch")? {
+        Some(attr) => attr.normalized_value(XML_VERSION)?,
+        None => "0".into(),
+    };
     let version = open_tag
         .try_get_attribute("ver")?
         .ok_or_else(|| MetadataError::MissingAttributeError("ver"))?
-        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
+        .normalized_value(XML_VERSION)?;
     let release = open_tag
         .try_get_attribute("rel")?
         .ok_or_else(|| MetadataError::MissingAttributeError("rel"))?
-        .normalized_value(quick_xml::XmlVersion::Implicit1_0)?;
+        .normalized_value(XML_VERSION)?;
 
     Ok(EVR::new(epoch, version, release))
 }
@@ -295,8 +301,7 @@ pub fn parse_file<R: BufRead>(
     let mut buf = Vec::with_capacity(128);
     file.path = reader
         .read_text_into(open_tag.name(), &mut buf)?
-        .decode()?
-        .into_owned();
+        .xml_text()?;
 
     if let Some(filetype) = open_tag.try_get_attribute("type")? {
         file.filetype = FileType::try_create(filetype.value.as_ref())?;
