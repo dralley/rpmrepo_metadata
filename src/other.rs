@@ -4,7 +4,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use crate::utils::{XmlAttrUnescape, XmlTextUnescape};
 use std::io::{BufRead, Write};
 
 use quick_xml::escape::partial_escape;
@@ -12,14 +11,11 @@ use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 
 use crate::Checksum;
-
-use super::metadata::{Changelog, OtherXml, Package, RpmMetadata, XML_NS_OTHER};
-use super::{EVR, MetadataError, Repository};
-
-const TAG_OTHERDATA: &str = "otherdata";
-const TAG_PACKAGE: &str = "package";
-const TAG_VERSION: &str = "version";
-const TAG_CHANGELOG: &str = "changelog";
+use crate::constants::{tag::*, xmlns};
+use crate::metadata::{OtherXml, Package, RpmMetadata};
+use crate::parsing_utils::{self, resolve_attr, resolve_text};
+use crate::visitor::{ChangelogData, OtherVisitor};
+use crate::{EVR, MetadataError, Repository};
 
 impl RpmMetadata for OtherXml {
     fn filename() -> &'static str {
@@ -35,7 +31,7 @@ impl RpmMetadata for OtherXml {
         let mut package = None;
         loop {
             reader.read_package(&mut package)?;
-            if package == None {
+            if package.is_none() {
                 break;
             }
             let pkgid = package.as_ref().unwrap().pkgid().to_owned();
@@ -91,8 +87,8 @@ impl<W: Write> OtherXmlWriter<W> {
             .write_event(Event::Decl(BytesDecl::new("1.0", Some("UTF-8"), None)))?;
 
         // <otherdata xmlns="http://linux.duke.edu/metadata/other" packages="200">
-        let mut other_tag = BytesStart::new(TAG_OTHERDATA);
-        other_tag.push_attribute(("xmlns", XML_NS_OTHER));
+        let mut other_tag = BytesStart::new(TAG_OTHER);
+        other_tag.push_attribute(("xmlns", xmlns::NS_OTHER));
         other_tag.push_attribute(("packages", num_pkgs.to_string().as_str()));
         self.writer.write_event(Event::Start(other_tag))?;
 
@@ -140,7 +136,7 @@ impl<W: Write> OtherXmlWriter<W> {
     pub fn finish(&mut self) -> Result<(), MetadataError> {
         // </otherdata>
         self.writer
-            .write_event(Event::End(BytesEnd::new(TAG_OTHERDATA)))?;
+            .write_event(Event::End(BytesEnd::new(TAG_OTHER)))?;
 
         // trailing newline
         self.writer.write_event(Event::Text(BytesText::new("\n")))?;
@@ -165,136 +161,140 @@ pub struct OtherXmlReader<R: BufRead> {
 impl<R: BufRead> OtherXmlReader<R> {
     /// Read and parse the XML header, returning the declared package count.
     pub fn read_header(&mut self) -> Result<usize, MetadataError> {
-        parse_header(&mut self.reader)
+        parse_other_header(&mut self.reader)
     }
 
     /// Read changelog entries for the next package into `package`.
     pub fn read_package(&mut self, package: &mut Option<Package>) -> Result<(), MetadataError> {
-        parse_package(package, &mut self.reader)
-    }
-}
-
-// <?xml version="1.0" encoding="UTF-8"?>
-// <otherdata xmlns="http://linux.duke.edu/metadata/other" packages="35">
-fn parse_header<R: BufRead>(reader: &mut Reader<R>) -> Result<usize, MetadataError> {
-    let mut buf = Vec::new();
-
-    // TODO: get rid of this buffer
-    loop {
-        match reader.read_event_into(&mut buf)? {
-            Event::Decl(_) => (),
-            Event::Start(e) if e.name().as_ref() == TAG_OTHERDATA.as_bytes() => {
-                let count = e.try_get_attribute("packages")?.unwrap().value;
-                return Ok(std::str::from_utf8(&count)?.parse()?);
-            }
-            _ => return Err(MetadataError::MissingHeaderError),
+        let mut materializer = OtherMaterializer {
+            package,
+            error: None,
+        };
+        let found = parse_other_package(&mut self.reader, &mut materializer)?;
+        if let Some(err) = materializer.error {
+            return Err(err);
         }
+        if !found {
+            *materializer.package = None;
+        }
+        Ok(())
     }
 }
 
-//   <package pkgid="6a915b6e1ad740994aa9688d70a67ff2b6b72e0ced668794aeb27b2d0f2e237b" name="fontconfig" arch="x86_64">
-//     <version epoch="0" ver="2.8.0" rel="5.el6"/>
-//     <changelog author="Lucille Bluth &lt;lucille@bluthcompany.com&gt; - 2.7.2-1" date="1251720000">- Update to 2.7.2</changelog>
-//     <changelog author="Lucille Bluth &lt;lucille@bluthcompany.com&gt; - 2.7.3-1" date="1252411200">- Update to 2.7.3</changelog>
-//     <changelog author="Lucille Bluth &lt;lucille@bluthcompany.com&gt; - 2.8.0-1" date="1259841600">- Update to 2.8.0</changelog>
-//   </package>
-pub fn parse_package<R: BufRead>(
-    package: &mut Option<Package>,
-    reader: &mut Reader<R>,
-) -> Result<(), MetadataError> {
-    let mut buf = Vec::with_capacity(128);
+/// Parse the other.xml header, returning the declared package count.
+pub fn parse_other_header<R: BufRead>(reader: &mut Reader<R>) -> Result<usize, MetadataError> {
+    parsing_utils::parse_header_tag(reader, TAG_OTHER)
+}
 
-    // TODO: get rid of unwraps, various branches could happen in wrong order
+/// Parse one `<package>` element from other.xml, dispatching to `visitor`.
+///
+/// Returns `true` if a package was parsed, `false` at EOF.
+pub fn parse_other_package<R: BufRead, V: OtherVisitor>(
+    reader: &mut Reader<R>,
+    visitor: &mut V,
+) -> Result<bool, MetadataError> {
+    let mut buf = Vec::with_capacity(128);
+    let mut text_buf = Vec::with_capacity(128);
+
     loop {
         match reader.read_event_into(&mut buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_PACKAGE.as_bytes() => break,
+            Event::End(e) if e.name().as_ref() == TAG_PACKAGE.as_bytes() => {
+                visitor.end_package();
+                return Ok(true);
+            }
             Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
                 TAG_PACKAGE => {
-                    let pkgid = e
-                        .try_get_attribute("pkgid")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("pkgid"))?
-                        .xml_attr()?;
-                    let name = e
-                        .try_get_attribute("name")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("name"))?
-                        .xml_attr()?;
-                    let arch = e
-                        .try_get_attribute("arch")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
-                        .xml_attr()?;
+                    let mut pkgid_cow = None;
+                    let mut name_cow = None;
+                    let mut arch_cow = None;
 
-                    if let Some(pkg) = package {
-                        if pkg.pkgid() != pkgid {
-                            return Err(MetadataError::InconsistentMetadataError(format!(
-                                "other.xml pkgid {} does not match primary.xml pkgid {}",
-                                pkgid,
-                                pkg.pkgid()
-                            )));
+                    for attr_result in e.attributes() {
+                        let attr = attr_result?;
+                        match attr.key.as_ref() {
+                            b"pkgid" => pkgid_cow = Some(resolve_attr(&attr)?),
+                            b"name" => name_cow = Some(resolve_attr(&attr)?),
+                            b"arch" => arch_cow = Some(resolve_attr(&attr)?),
+                            _ => (),
                         }
-                    } else {
-                        let mut pkg = Package::default();
-                        pkg.set_name(name)
-                            .set_arch(arch)
-                            .set_checksum(Checksum::Unknown(pkgid));
-                        *package = Some(pkg);
-                    };
+                    }
+
+                    let pkgid = pkgid_cow.ok_or(MetadataError::MissingAttributeError("pkgid"))?;
+                    let name = name_cow.ok_or(MetadataError::MissingAttributeError("name"))?;
+                    let arch = arch_cow.ok_or(MetadataError::MissingAttributeError("arch"))?;
+                    visitor.begin_package(&pkgid, &name, &arch);
                 }
                 TAG_VERSION => {
-                    package.as_mut().unwrap().set_evr(parse_evr(reader, &e)?);
+                    let (epoch, version, release) = parsing_utils::parse_evr_from_tag(&e)?;
+                    visitor.set_evr(&epoch, &version, &release);
                 }
                 TAG_CHANGELOG => {
-                    let changelog = parse_changelog(reader, &e)?;
-                    // TODO: Temporary changelog?
-                    package.as_mut().unwrap().add_changelog(
-                        &changelog.author,
-                        &changelog.description,
-                        changelog.timestamp,
-                    );
+                    let mut author_cow = None;
+                    let mut date_cow = None;
+
+                    for attr_result in e.attributes() {
+                        let attr = attr_result?;
+                        match attr.key.as_ref() {
+                            b"author" => author_cow = Some(resolve_attr(&attr)?),
+                            b"date" => date_cow = Some(resolve_attr(&attr)?),
+                            _ => (),
+                        }
+                    }
+
+                    let author =
+                        author_cow.ok_or(MetadataError::MissingAttributeError("author"))?;
+                    let date_val = date_cow.ok_or(MetadataError::MissingAttributeError("date"))?;
+                    let timestamp: u64 = date_val.parse()?;
+                    let bytes_text = reader.read_text_into(e.name(), &mut text_buf)?;
+                    let description = resolve_text(&bytes_text)?;
+                    visitor.add_changelog(ChangelogData {
+                        author: &author,
+                        description: &description,
+                        timestamp,
+                    });
                 }
                 _ => (),
             },
-            Event::Eof => break,
+            Event::Eof => return Ok(false),
             _ => (),
+        }
+        buf.clear();
+        text_buf.clear();
+    }
+}
+
+struct OtherMaterializer<'a> {
+    package: &'a mut Option<Package>,
+    error: Option<MetadataError>,
+}
+
+impl OtherVisitor for OtherMaterializer<'_> {
+    fn begin_package(&mut self, pkgid: &str, name: &str, arch: &str) {
+        if let Some(pkg) = self.package.as_mut() {
+            if pkg.pkgid() != pkgid {
+                self.error = Some(MetadataError::InconsistentMetadataError(format!(
+                    "other.xml pkgid {} does not match primary.xml pkgid {}",
+                    pkgid,
+                    pkg.pkgid()
+                )));
+            }
+        } else {
+            let mut pkg = Package::default();
+            pkg.set_name(name)
+                .set_arch(arch)
+                .set_checksum(Checksum::Unknown(pkgid.to_owned()));
+            *self.package = Some(pkg);
         }
     }
 
-    // package.parse_state |= ParseState::OTHER;
-    Ok(())
-}
+    fn set_evr(&mut self, epoch: &str, version: &str, release: &str) {
+        if let Some(pkg) = self.package.as_mut() {
+            pkg.set_evr(EVR::new(epoch, version, release));
+        }
+    }
 
-// <version epoch="0" ver="2.8.0" rel="5.el6"/>
-pub fn parse_evr<R: BufRead>(
-    _reader: &mut Reader<R>,
-    open_tag: &BytesStart,
-) -> Result<EVR, MetadataError> {
-    let epoch = match open_tag.try_get_attribute("epoch")? {
-        Some(attr) => attr.xml_attr()?,
-        None => "0".into(),
-    };
-    let version = open_tag.try_get_attribute("ver")?.unwrap().xml_attr()?;
-    let release = open_tag.try_get_attribute("rel")?.unwrap().xml_attr()?;
-
-    Ok(EVR::new(epoch, version, release))
-}
-
-// <changelog author="Lucille Bluth &lt;lucille@bluthcompany.com&gt; - 2.7.2-1" date="1251720000">- Update to 2.7.2</changelog>
-pub fn parse_changelog<R: BufRead>(
-    reader: &mut Reader<R>,
-    open_tag: &BytesStart,
-) -> Result<Changelog, MetadataError> {
-    let mut changelog = Changelog::default();
-
-    changelog.author = open_tag.try_get_attribute("author")?.unwrap().xml_attr()?;
-    changelog.timestamp = open_tag
-        .try_get_attribute("date")?
-        .unwrap()
-        .xml_attr()?
-        .parse()?;
-
-    let mut buf = Vec::with_capacity(128);
-    changelog.description = reader
-        .read_text_into(open_tag.name(), &mut buf)?
-        .xml_text()?;
-
-    Ok(changelog)
+    fn add_changelog(&mut self, changelog: ChangelogData<'_>) {
+        if let Some(pkg) = self.package.as_mut() {
+            pkg.add_changelog(changelog.author, changelog.description, changelog.timestamp);
+        }
+    }
 }

@@ -7,8 +7,8 @@
 use std::io::BufReader;
 use std::path::Path;
 
+use crate::constants::mdrecord;
 use crate::filelist::FilelistsXmlReader;
-use crate::metadata::{METADATA_FILELISTS, METADATA_OTHER, METADATA_PRIMARY};
 use crate::other::OtherXmlReader;
 use crate::primary::PrimaryXmlReader;
 use crate::{ChecksumType, FilelistsXml, MetadataError, OtherXml, Package, PrimaryXml};
@@ -214,7 +214,7 @@ pub mod rpm_parsing {
             // Build a set of provided deps so we can filter self-provided entries from requires
             let provides = convert_deps(pkg.get_provides()?)?;
             let provided: std::collections::HashSet<String> =
-                provides.iter().map(|d| dep_key(d)).collect();
+                provides.iter().map(dep_key).collect();
 
             // Build a set of the package's own file paths for filtering file-path requires
             let file_entries = pkg.get_file_entries()?;
@@ -333,10 +333,19 @@ pub struct PackageIterator {
 impl PackageIterator {
     /// Create an iterator from repodata on disk, using paths from the given [`RepomdData`].
     pub fn from_repodata(base: &Path, repomd: &RepomdData) -> Result<Self, MetadataError> {
-        let primary_path = base.join(&repomd.get_record(METADATA_PRIMARY).unwrap().location_href);
-        let filelists_path =
-            base.join(&repomd.get_record(METADATA_FILELISTS).unwrap().location_href);
-        let other_path = base.join(&repomd.get_record(METADATA_OTHER).unwrap().location_href);
+        let primary_path = base.join(
+            &repomd
+                .get_record(mdrecord::MD_PRIMARY)
+                .unwrap()
+                .location_href,
+        );
+        let filelists_path = base.join(
+            &repomd
+                .get_record(mdrecord::MD_FILELISTS)
+                .unwrap()
+                .location_href,
+        );
+        let other_path = base.join(&repomd.get_record(mdrecord::MD_OTHER).unwrap().location_href);
         Self::from_files(&primary_path, &filelists_path, &other_path)
     }
 
@@ -374,8 +383,8 @@ impl PackageIterator {
 
     fn parse_headers(&mut self) -> Result<(), MetadataError> {
         let primary_pkg_count = self.primary_xml.read_header()?;
-        let filelists_pkg_count = self.filelists_xml.read_header()?;
-        let other_pkg_count = self.other_xml.read_header()?;
+        let _filelists_pkg_count = self.filelists_xml.read_header()?;
+        let _other_pkg_count = self.other_xml.read_header()?;
 
         self.num_packages = primary_pkg_count;
         self.num_remaining = self.num_packages;

@@ -4,7 +4,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use crate::utils::{XmlAttrUnescape, XmlTextUnescape};
 use std::convert::{TryFrom, TryInto};
 use std::io::{BufRead, Write};
 use std::os::unix::prelude::OsStrExt;
@@ -16,11 +15,11 @@ use quick_xml::events::{BytesDecl, BytesStart, BytesText, Event};
 use quick_xml::name::QName;
 use quick_xml::{Reader, Writer};
 
-use super::Repository;
-use super::metadata::RepomdData;
-use super::metadata::{
-    Checksum, MetadataError, RepomdRecord, RepomdXml, RpmMetadata, XML_NS_REPO, XML_NS_RPM,
-};
+use crate::Repository;
+use crate::constants::xmlns;
+use crate::metadata::RepomdData;
+use crate::metadata::{Checksum, MetadataError, RepomdRecord, RepomdXml, RpmMetadata};
+use crate::parsing_utils::{XmlAttrUnescape, XmlTextUnescape};
 
 // RepoMd
 const TAG_REPOMD: &str = "repomd";
@@ -105,15 +104,15 @@ impl TryFrom<RepomdRecordBuilder> for RepomdRecord {
         record.metadata_name = builder.metadata_name;
         record.location_href = builder
             .location_href
-            .ok_or_else(|| MetadataError::MissingFieldError("location_href"))?;
+            .ok_or(MetadataError::MissingFieldError("location_href"))?;
         record.location_base = builder.location_base;
         record.timestamp = builder
             .timestamp
-            .ok_or_else(|| MetadataError::MissingFieldError("timestamp"))?;
+            .ok_or(MetadataError::MissingFieldError("timestamp"))?;
         record.size = builder.size;
         record.checksum = builder
             .checksum
-            .ok_or_else(|| MetadataError::MissingFieldError("checksum"))?;
+            .ok_or(MetadataError::MissingFieldError("checksum"))?;
         record.open_size = builder.open_size;
         record.open_checksum = builder.open_checksum; // TODO: do these need to be conditionally required?
         record.header_size = builder.header_size;
@@ -164,7 +163,7 @@ fn read_repomd_xml<R: BufRead>(
                             Event::Start(e) => {
                                 match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
                                     TAG_DISTRO => {
-                                        let cpeid = (&e)
+                                        let cpeid = e
                                             .try_get_attribute("cpeid")?
                                             .map(|a| a.xml_attr())
                                             .transpose()
@@ -231,7 +230,7 @@ pub fn parse_repomdrecord<R: BufRead>(
 
     let record_type = open_tag
         .try_get_attribute("type")?
-        .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
+        .ok_or(MetadataError::MissingAttributeError("type"))?
         .value
         .iter()
         .cloned()
@@ -247,7 +246,7 @@ pub fn parse_repomdrecord<R: BufRead>(
                 TAG_CHECKSUM => {
                     let checksum_type = e
                         .try_get_attribute("type")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("type"))?;
+                        .ok_or(MetadataError::MissingAttributeError("type"))?;
                     let checksum_value = reader
                         .read_text_into(e.name(), &mut record_buf)?
                         .xml_text()?;
@@ -260,7 +259,7 @@ pub fn parse_repomdrecord<R: BufRead>(
                 TAG_OPEN_CHECKSUM => {
                     let checksum_type = e
                         .try_get_attribute("type")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("type"))?;
+                        .ok_or(MetadataError::MissingAttributeError("type"))?;
                     let checksum_value = reader
                         .read_text_into(e.name(), &mut record_buf)?
                         .xml_text()?;
@@ -273,7 +272,7 @@ pub fn parse_repomdrecord<R: BufRead>(
                 TAG_HEADER_CHECKSUM => {
                     let checksum_type = e
                         .try_get_attribute("type")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("type"))?;
+                        .ok_or(MetadataError::MissingAttributeError("type"))?;
                     let checksum_value = reader
                         .read_text_into(e.name(), &mut record_buf)?
                         .xml_text()?;
@@ -286,7 +285,7 @@ pub fn parse_repomdrecord<R: BufRead>(
                 TAG_LOCATION => {
                     let location = e
                         .try_get_attribute("href")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("href"))?
+                        .ok_or(MetadataError::MissingAttributeError("href"))?
                         .xml_attr()?;
                     record_builder.location_href = Some(location.into());
                 }
@@ -335,7 +334,7 @@ pub fn parse_repomdrecord<R: BufRead>(
         }
         record_buf.clear();
     }
-    Ok(record_builder.try_into()?)
+    record_builder.try_into()
 }
 
 fn write_repomd_xml<W: Write>(
@@ -347,8 +346,8 @@ fn write_repomd_xml<W: Write>(
 
     // <repomd xmlns="http://linux.duke.edu/metadata/repo" xmlns:rpm="http://linux.duke.edu/metadata/rpm">
     let mut repomd_tag = BytesStart::new(TAG_REPOMD);
-    repomd_tag.push_attribute(("xmlns", XML_NS_REPO));
-    repomd_tag.push_attribute(("xmlns:rpm", XML_NS_RPM));
+    repomd_tag.push_attribute(("xmlns", xmlns::NS_REPO));
+    repomd_tag.push_attribute(("xmlns:rpm", xmlns::NS_RPM));
     writer.write_event(Event::Start(repomd_tag.borrow()))?;
 
     // <revision>123897</revision>
@@ -385,7 +384,7 @@ fn write_repomd_xml<W: Write>(
 ///   <repo>Fedora</repo>
 ///   <distro cpeid="cpe:/o:fedoraproject:fedora:33">Fedora 33</distro>
 ///   <content>binary-x86_64</content>
-//// </tags>
+/// </tags>
 fn write_tags<W: Write>(
     repomd_data: &RepomdData,
     writer: &mut Writer<W>,

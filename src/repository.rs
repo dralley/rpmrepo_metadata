@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 
 use crate::UpdateinfoXml;
 use crate::comps::CompsXmlWriter;
+use crate::constants::mdrecord;
 use crate::metadata::CompsXml;
 use crate::updateinfo::{UpdateinfoXmlReader, UpdateinfoXmlWriter};
 use crate::{PackageIterator, utils};
@@ -76,12 +77,12 @@ impl Repository {
     }
 
     /// Returns the repomd metadata.
-    pub fn repomd<'repo>(&'repo self) -> &'repo RepomdData {
+    pub fn repomd(&self) -> &RepomdData {
         &self.repomd_data
     }
 
     /// Returns a mutable reference to the repomd metadata.
-    pub fn repomd_mut<'repo>(&'repo mut self) -> &'repo mut RepomdData {
+    pub fn repomd_mut(&mut self) -> &mut RepomdData {
         &mut self.repomd_data
     }
 
@@ -186,7 +187,7 @@ impl Repository {
     /// Will fail if the RPM repository is not valid.
     pub fn load_from_directory(path: &Path) -> Result<Self, MetadataError> {
         let reader = RepositoryReader::new_from_directory(path)?;
-        Ok(reader.into_repo()?)
+        reader.into_repo()
     }
 
     /// Load a metadata file into an existing repository.
@@ -212,7 +213,7 @@ impl Repository {
 
     /// Write all the RPM metadata out to a directory with default options.
     pub fn write_to_directory(&self, path: &Path) -> Result<(), MetadataError> {
-        Self::write_to_directory_with_options(&self, path, RepositoryOptions::default())
+        Self::write_to_directory_with_options(self, path, RepositoryOptions::default())
     }
 
     /// Write all the RPM metadata out to a directory with the provided options.
@@ -383,7 +384,7 @@ impl RepositoryWriter {
             updateinfo_xml_writer: None,
             comps_xml_writer: None,
 
-            num_pkgs: num_pkgs,
+            num_pkgs,
             num_pkgs_written: 0,
 
             repomd_data: RepomdData::default(),
@@ -560,21 +561,21 @@ impl RepositoryWriter {
 
         let primary_xml = RepomdRecord::new(
             "primary",
-            &primary_path.as_ref(),
+            primary_path.as_ref(),
             &path,
             self.options.checksum_type,
         )?;
         self.repomd_mut().add_record(primary_xml);
         let filelists_xml = RepomdRecord::new(
             "filelists",
-            &filelists_path.as_ref(),
+            filelists_path.as_ref(),
             &path,
             self.options.checksum_type,
         )?;
         self.repomd_mut().add_record(filelists_xml);
         let other_xml = RepomdRecord::new(
             "other",
-            &other_path.as_ref(),
+            other_path.as_ref(),
             &path,
             self.options.checksum_type,
         )?;
@@ -589,7 +590,7 @@ impl RepositoryWriter {
             );
             let updateinfo_xml = RepomdRecord::new(
                 "updateinfo",
-                &updateinfo_path.as_ref(),
+                updateinfo_path.as_ref(),
                 &path,
                 self.options.checksum_type,
             )?;
@@ -605,7 +606,7 @@ impl RepositoryWriter {
             );
             let comps_record = RepomdRecord::new(
                 "group",
-                &comps_path.as_ref(),
+                comps_path.as_ref(),
                 &path,
                 self.options.checksum_type,
             )?;
@@ -650,7 +651,7 @@ impl RepositoryReader {
 
     /// Return the contents of `repomd.xml` in a `RepomdData` struct.
     pub fn repomd(&self) -> &RepomdData {
-        &self.repository.repomd()
+        self.repository.repomd()
     }
 
     /// Iterate over the packages of the repo.
@@ -673,9 +674,9 @@ impl RepositoryReader {
     pub fn read_comps(&self) -> Result<Option<CompsData>, MetadataError> {
         let repomd = self.repository.repomd();
         let group_record = repomd
-            .get_record(crate::metadata::METADATA_GROUP)
-            .or_else(|| repomd.get_record(crate::metadata::METADATA_GROUP_GZ))
-            .or_else(|| repomd.get_record(crate::metadata::METADATA_GROUP_XZ));
+            .get_record(mdrecord::MD_GROUP)
+            .or_else(|| repomd.get_record(mdrecord::MD_GROUP_GZ))
+            .or_else(|| repomd.get_record(mdrecord::MD_GROUP_XZ));
         let group_record = match group_record {
             Some(record) => record,
             None => return Ok(None),
@@ -738,7 +739,7 @@ pub struct UpdateinfoIterator {
 impl UpdateinfoIterator {
     fn from_metadata(base: &Path, repomd: &RepomdData) -> Result<Self, MetadataError> {
         let updateinfo_href = repomd
-            .get_record(crate::metadata::METADATA_UPDATEINFO)
+            .get_record(mdrecord::MD_UPDATEINFO)
             .map(|u| base.join(&u.location_href));
 
         let reader = if let Some(updateinfo_href) = updateinfo_href {

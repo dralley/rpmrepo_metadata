@@ -4,43 +4,21 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use crate::utils::{XmlAttrUnescape, XmlTextUnescape};
+use std::borrow::Cow;
 use std::io::{BufRead, Write};
 
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
-use quick_xml::name::QName;
-use quick_xml::{Reader, Writer};
+use quick_xml::{Reader, Writer, name::QName};
 
+use crate::constants::tag::*;
 use crate::metadata::{
     Checksum, UpdateCollection, UpdateCollectionModule, UpdateCollectionPackage, UpdateReference,
 };
+use crate::parsing_utils::{resolve_attr, resolve_text};
+use crate::visitor::UpdateinfoVisitor;
 
 use super::metadata::{RpmMetadata, UpdateRecord, UpdateinfoXml};
 use super::{MetadataError, Repository};
-
-const TAG_UPDATES: &str = "updates";
-const TAG_UPDATE: &str = "update";
-const TAG_ID: &str = "id";
-const TAG_TITLE: &str = "title";
-const TAG_RELEASE: &str = "release";
-const TAG_SEVERITY: &str = "severity";
-const TAG_ISSUED: &str = "issued";
-const TAG_UPDATED: &str = "updated";
-const TAG_RIGHTS: &str = "rights";
-const TAG_SUMMARY: &str = "summary";
-const TAG_DESCRIPTION: &str = "description";
-const TAG_SOLUTION: &str = "solution";
-const TAG_PKGLIST: &str = "pkglist";
-const TAG_COLLECTION: &str = "collection";
-const TAG_NAME: &str = "name";
-const TAG_MODULE: &str = "module";
-const TAG_PACKAGE: &str = "package";
-const TAG_FILENAME: &str = "filename";
-#[allow(dead_code)]
-const TAG_REBOOT_SUGGESTED: &str = "reboot_suggested";
-const TAG_PUSHCOUNT: &str = "pushcount";
-const TAG_REFERENCES: &str = "references";
-const TAG_REFERENCE: &str = "reference";
 
 impl RpmMetadata for UpdateinfoXml {
     fn filename() -> &'static str {
@@ -124,12 +102,25 @@ impl<W: Write> UpdateinfoXmlWriter<W> {
 /// Streaming reader for updateinfo.xml advisory metadata.
 pub struct UpdateinfoXmlReader<R: BufRead> {
     reader: Reader<R>,
+    header_read: bool,
 }
 
 impl<R: BufRead> UpdateinfoXmlReader<R> {
     /// Read the next advisory record, or `None` if no more updates.
     pub fn read_update(&mut self) -> Result<Option<UpdateRecord>, MetadataError> {
-        parse_updaterecord(&mut self.reader)
+        if !self.header_read {
+            parse_updateinfo_header(&mut self.reader)?;
+            self.header_read = true;
+        }
+        let mut materializer = UpdateRecordMaterializer::new();
+        if parse_updateinfo_update(&mut self.reader, &mut materializer)? {
+            if let Some(err) = materializer.error {
+                return Err(err);
+            }
+            Ok(materializer.record)
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -149,309 +140,547 @@ impl UpdateinfoXml {
 
     /// Create a new updateinfo.xml reader.
     pub fn new_reader<R: BufRead>(reader: quick_xml::Reader<R>) -> UpdateinfoXmlReader<R> {
-        UpdateinfoXmlReader { reader }
+        UpdateinfoXmlReader {
+            reader,
+            header_read: false,
+        }
     }
 }
 
-fn parse_updaterecord<R: BufRead>(
-    reader: &mut Reader<R>,
-) -> Result<Option<UpdateRecord>, MetadataError> {
+struct UpdateRecordMaterializer {
+    record: Option<UpdateRecord>,
+    current_collection: Option<UpdateCollection>,
+    current_package: Option<UpdateCollectionPackage>,
+    error: Option<MetadataError>,
+}
+
+impl UpdateRecordMaterializer {
+    fn new() -> Self {
+        UpdateRecordMaterializer {
+            record: None,
+            current_collection: None,
+            current_package: None,
+            error: None,
+        }
+    }
+}
+
+impl UpdateinfoVisitor for UpdateRecordMaterializer {
+    fn begin_update(&mut self, from: &str, update_type: &str, status: &str, version: &str) {
+        let mut record = UpdateRecord::default();
+        record.from = from.to_owned();
+        record.update_type = update_type.to_owned();
+        record.status = status.to_owned();
+        record.version = version.to_owned();
+        self.record = Some(record);
+    }
+
+    fn set_id(&mut self, id: &str) {
+        if let Some(record) = self.record.as_mut() {
+            record.id = id.to_owned();
+        }
+    }
+
+    fn set_title(&mut self, title: &str) {
+        if let Some(record) = self.record.as_mut() {
+            record.title = title.to_owned();
+        }
+    }
+
+    fn set_issued_date(&mut self, date: &str) {
+        if let Some(record) = self.record.as_mut() {
+            record.issued_date = Some(date.to_owned());
+        }
+    }
+
+    fn set_updated_date(&mut self, date: &str) {
+        if let Some(record) = self.record.as_mut() {
+            record.updated_date = Some(date.to_owned());
+        }
+    }
+
+    fn set_rights(&mut self, rights: &str) {
+        if let Some(record) = self.record.as_mut() {
+            record.rights = Some(rights.to_owned());
+        }
+    }
+
+    fn set_release(&mut self, release: &str) {
+        if let Some(record) = self.record.as_mut() {
+            record.release = Some(release.to_owned());
+        }
+    }
+
+    fn set_severity(&mut self, severity: &str) {
+        if let Some(record) = self.record.as_mut() {
+            record.severity = Some(severity.to_owned());
+        }
+    }
+
+    fn set_pushcount(&mut self, pushcount: &str) {
+        if let Some(record) = self.record.as_mut() {
+            record.pushcount = Some(pushcount.to_owned());
+        }
+    }
+
+    fn set_summary(&mut self, summary: &str) {
+        if let Some(record) = self.record.as_mut() {
+            record.summary = Some(summary.to_owned());
+        }
+    }
+
+    fn set_description(&mut self, description: &str) {
+        if let Some(record) = self.record.as_mut() {
+            record.description = Some(description.to_owned());
+        }
+    }
+
+    fn set_solution(&mut self, solution: &str) {
+        if let Some(record) = self.record.as_mut() {
+            record.solution = Some(solution.to_owned());
+        }
+    }
+
+    fn add_reference(&mut self, href: &str, id: Option<&str>, reftype: &str, title: &str) {
+        if let Some(record) = self.record.as_mut() {
+            record.references.push(UpdateReference {
+                href: href.to_owned(),
+                id: id.map(|s| s.to_owned()),
+                reftype: reftype.to_owned(),
+                title: title.to_owned(),
+            });
+        }
+    }
+
+    fn begin_collection(&mut self, shortname: &str) {
+        let mut collection = UpdateCollection::default();
+        collection.shortname = shortname.to_owned();
+        self.current_collection = Some(collection);
+    }
+
+    fn set_collection_name(&mut self, name: &str) {
+        if let Some(collection) = self.current_collection.as_mut() {
+            collection.name = name.to_owned();
+        }
+    }
+
+    fn set_collection_module(
+        &mut self,
+        name: &str,
+        stream: &str,
+        version: u64,
+        context: &str,
+        arch: &str,
+    ) {
+        if let Some(collection) = self.current_collection.as_mut() {
+            collection.module = Some(UpdateCollectionModule {
+                name: name.to_owned(),
+                stream: stream.to_owned(),
+                version,
+                context: context.to_owned(),
+                arch: arch.to_owned(),
+            });
+        }
+    }
+
+    fn begin_collection_package(
+        &mut self,
+        name: &str,
+        epoch: &str,
+        version: &str,
+        release: &str,
+        arch: &str,
+        src: Option<&str>,
+    ) {
+        let mut package = UpdateCollectionPackage::default();
+        package.name = name.to_owned();
+        package.epoch = epoch.to_owned();
+        package.version = version.to_owned();
+        package.release = release.to_owned();
+        package.arch = arch.to_owned();
+        package.src = src.map(|s| s.to_owned());
+        self.current_package = Some(package);
+    }
+
+    fn set_package_filename(&mut self, filename: &str) {
+        if let Some(pkg) = self.current_package.as_mut() {
+            pkg.filename = filename.to_owned();
+        }
+    }
+
+    fn set_package_checksum(&mut self, checksum_type: &str, value: &str) {
+        if let Some(pkg) = self.current_package.as_mut() {
+            match Checksum::try_create(checksum_type, value) {
+                Ok(checksum) => pkg.checksum = Some(checksum),
+                Err(e) => self.error = Some(e),
+            }
+        }
+    }
+
+    fn set_package_reboot_suggested(&mut self) {
+        if let Some(pkg) = self.current_package.as_mut() {
+            pkg.reboot_suggested = true;
+        }
+    }
+
+    fn set_package_restart_suggested(&mut self) {
+        if let Some(pkg) = self.current_package.as_mut() {
+            pkg.restart_suggested = true;
+        }
+    }
+
+    fn set_package_relogin_suggested(&mut self) {
+        if let Some(pkg) = self.current_package.as_mut() {
+            pkg.relogin_suggested = true;
+        }
+    }
+
+    fn end_collection_package(&mut self) {
+        if let Some(pkg) = self.current_package.take()
+            && let Some(collection) = self.current_collection.as_mut()
+        {
+            collection.packages.push(pkg);
+        }
+    }
+
+    fn end_collection(&mut self) {
+        if let Some(collection) = self.current_collection.take()
+            && let Some(record) = self.record.as_mut()
+        {
+            record.pkglist.push(collection);
+        }
+    }
+}
+
+/// Read past the `<updates>` opening tag in updateinfo.xml.
+pub fn parse_updateinfo_header<R: BufRead>(reader: &mut Reader<R>) -> Result<(), MetadataError> {
     let mut buf = Vec::new();
-    let mut format_text_buf = Vec::new();
-
-    let mut record = UpdateRecord::default();
-
-    // TODO: get rid of unwraps, various branches could happen in wrong order
     loop {
         match reader.read_event_into(&mut buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_UPDATE.as_bytes() => break,
+            Event::Decl(_) => (),
+            Event::Start(e) if e.name().as_ref() == TAG_UPDATES.as_bytes() => return Ok(()),
+            Event::Eof => return Ok(()),
+            _ => return Err(MetadataError::MissingHeaderError),
+        }
+    }
+}
+
+/// Parse one `<update>` element from updateinfo.xml, dispatching to `visitor`.
+///
+/// Returns `true` if an update was parsed, `false` at EOF.
+pub fn parse_updateinfo_update<R: BufRead, V: UpdateinfoVisitor>(
+    reader: &mut Reader<R>,
+    visitor: &mut V,
+) -> Result<bool, MetadataError> {
+    let mut buf = Vec::with_capacity(256);
+    let mut text_buf = Vec::with_capacity(256);
+
+    loop {
+        match reader.read_event_into(&mut buf)? {
+            Event::End(e) if e.name().as_ref() == TAG_UPDATE.as_bytes() => {
+                visitor.end_update();
+                return Ok(true);
+            }
             Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
                 TAG_UPDATE => {
-                    record.status = e
-                        .try_get_attribute("status")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("status"))?
-                        .xml_attr()?;
-                    record.from = e
-                        .try_get_attribute("from")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("from"))?
-                        .xml_attr()?;
-                    record.update_type = e
-                        .try_get_attribute("type")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
-                        .xml_attr()?;
-                    record.version = e
-                        .try_get_attribute("version")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("version"))?
-                        .xml_attr()?;
+                    let mut from_cow = None;
+                    let mut type_cow = None;
+                    let mut status_cow = None;
+                    let mut version_cow = None;
+
+                    for attr_result in e.attributes() {
+                        let attr = attr_result?;
+                        match attr.key.as_ref() {
+                            b"from" => from_cow = Some(resolve_attr(&attr)?),
+                            b"type" => type_cow = Some(resolve_attr(&attr)?),
+                            b"status" => status_cow = Some(resolve_attr(&attr)?),
+                            b"version" => version_cow = Some(resolve_attr(&attr)?),
+                            _ => (),
+                        }
+                    }
+
+                    let from = from_cow.ok_or(MetadataError::MissingAttributeError("from"))?;
+                    let update_type =
+                        type_cow.ok_or(MetadataError::MissingAttributeError("type"))?;
+                    let status =
+                        status_cow.ok_or(MetadataError::MissingAttributeError("status"))?;
+                    let version =
+                        version_cow.ok_or(MetadataError::MissingAttributeError("version"))?;
+                    visitor.begin_update(&from, &update_type, &status, &version);
                 }
                 TAG_ID => {
-                    record.id = reader
-                        .read_text_into(QName(TAG_ID.as_bytes()), &mut format_text_buf)?
-                        .xml_text()?;
+                    let bytes_text =
+                        reader.read_text_into(QName(TAG_ID.as_bytes()), &mut text_buf)?;
+                    let text = resolve_text(&bytes_text)?;
+                    visitor.set_id(&text);
                 }
                 TAG_TITLE => {
-                    record.title = reader
-                        .read_text_into(QName(TAG_TITLE.as_bytes()), &mut format_text_buf)?
-                        .xml_text()?;
+                    let bytes_text =
+                        reader.read_text_into(QName(TAG_TITLE.as_bytes()), &mut text_buf)?;
+                    let text = resolve_text(&bytes_text)?;
+                    visitor.set_title(&text);
                 }
                 TAG_ISSUED => {
-                    record.issued_date = e
-                        .try_get_attribute("date")?
-                        .map(|a| a.xml_attr())
-                        .transpose()?;
+                    if let Some(attr) = e.try_get_attribute("date")? {
+                        let date = resolve_attr(&attr)?;
+                        visitor.set_issued_date(&date);
+                    }
                     reader.read_to_end_into(QName(TAG_ISSUED.as_bytes()), &mut buf)?;
                 }
                 TAG_UPDATED => {
-                    record.updated_date = e
-                        .try_get_attribute("date")?
-                        .map(|a| a.xml_attr())
-                        .transpose()?;
+                    if let Some(attr) = e.try_get_attribute("date")? {
+                        let date = resolve_attr(&attr)?;
+                        visitor.set_updated_date(&date);
+                    }
                     reader.read_to_end_into(QName(TAG_UPDATED.as_bytes()), &mut buf)?;
                 }
                 TAG_RIGHTS => {
-                    record.rights = Some(
-                        reader
-                            .read_text_into(QName(TAG_RIGHTS.as_bytes()), &mut format_text_buf)?
-                            .xml_text()?,
-                    )
-                    .filter(|s| !s.is_empty());
+                    let bytes_text =
+                        reader.read_text_into(QName(TAG_RIGHTS.as_bytes()), &mut text_buf)?;
+                    let text = resolve_text(&bytes_text)?;
+                    if !text.is_empty() {
+                        visitor.set_rights(&text);
+                    }
                 }
                 TAG_RELEASE => {
-                    record.release = Some(
-                        reader
-                            .read_text_into(QName(TAG_RELEASE.as_bytes()), &mut format_text_buf)?
-                            .xml_text()?,
-                    )
-                    .filter(|s| !s.is_empty());
+                    let bytes_text =
+                        reader.read_text_into(QName(TAG_RELEASE.as_bytes()), &mut text_buf)?;
+                    let text = resolve_text(&bytes_text)?;
+                    if !text.is_empty() {
+                        visitor.set_release(&text);
+                    }
                 }
                 TAG_SEVERITY => {
-                    record.severity = Some(
-                        reader
-                            .read_text_into(QName(TAG_SEVERITY.as_bytes()), &mut format_text_buf)?
-                            .xml_text()?,
-                    )
-                    .filter(|s| !s.is_empty());
+                    let bytes_text =
+                        reader.read_text_into(QName(TAG_SEVERITY.as_bytes()), &mut text_buf)?;
+                    let text = resolve_text(&bytes_text)?;
+                    if !text.is_empty() {
+                        visitor.set_severity(&text);
+                    }
                 }
                 TAG_PUSHCOUNT => {
-                    record.pushcount = Some(
-                        reader
-                            .read_text_into(QName(TAG_PUSHCOUNT.as_bytes()), &mut format_text_buf)?
-                            .xml_text()?,
-                    )
-                    .filter(|s| !s.is_empty());
+                    let bytes_text =
+                        reader.read_text_into(QName(TAG_PUSHCOUNT.as_bytes()), &mut text_buf)?;
+                    let text = resolve_text(&bytes_text)?;
+                    if !text.is_empty() {
+                        visitor.set_pushcount(&text);
+                    }
                 }
                 TAG_SUMMARY => {
-                    record.summary = Some(
-                        reader
-                            .read_text_into(QName(TAG_SUMMARY.as_bytes()), &mut format_text_buf)?
-                            .xml_text()?,
-                    )
-                    .filter(|s| !s.is_empty());
+                    let bytes_text =
+                        reader.read_text_into(QName(TAG_SUMMARY.as_bytes()), &mut text_buf)?;
+                    let text = resolve_text(&bytes_text)?;
+                    if !text.is_empty() {
+                        visitor.set_summary(&text);
+                    }
                 }
                 TAG_DESCRIPTION => {
-                    record.description = Some(
-                        reader
-                            .read_text_into(
-                                QName(TAG_DESCRIPTION.as_bytes()),
-                                &mut format_text_buf,
-                            )?
-                            .xml_text()?,
-                    )
-                    .filter(|s| !s.is_empty());
+                    let bytes_text =
+                        reader.read_text_into(QName(TAG_DESCRIPTION.as_bytes()), &mut text_buf)?;
+                    let text = resolve_text(&bytes_text)?;
+                    if !text.is_empty() {
+                        visitor.set_description(&text);
+                    }
                 }
                 TAG_SOLUTION => {
-                    record.solution = Some(
-                        reader
-                            .read_text_into(QName(TAG_SOLUTION.as_bytes()), &mut format_text_buf)?
-                            .xml_text()?,
-                    )
-                    .filter(|s| !s.is_empty());
-                }
-                // reboot_suggested, not clear if it needs to be parsed
-                TAG_REFERENCES => loop {
-                    match reader.read_event_into(&mut buf)? {
-                        Event::Start(e) if e.name().as_ref() == TAG_REFERENCE.as_bytes() => {
-                            let mut reference = UpdateReference::default();
-                            reference.href = e
-                                .try_get_attribute("href")?
-                                .ok_or_else(|| MetadataError::MissingAttributeError("href"))?
-                                .xml_attr()?;
-                            reference.id = e
-                                .try_get_attribute("id")?
-                                .map(|a| a.xml_attr())
-                                .transpose()?;
-                            reference.reftype = e
-                                .try_get_attribute("type")?
-                                .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
-                                .xml_attr()?;
-                            reference.title = e
-                                .try_get_attribute("title")?
-                                .ok_or_else(|| MetadataError::MissingAttributeError("title"))?
-                                .xml_attr()?;
-                            record.references.push(reference);
-                        }
-                        Event::End(e) if e.name().as_ref() == TAG_REFERENCES.as_bytes() => {
-                            break;
-                        }
-                        _ => (),
+                    let bytes_text =
+                        reader.read_text_into(QName(TAG_SOLUTION.as_bytes()), &mut text_buf)?;
+                    let text = resolve_text(&bytes_text)?;
+                    if !text.is_empty() {
+                        visitor.set_solution(&text);
                     }
-                },
-                TAG_PKGLIST => record.pkglist = parse_pkglist(reader)?,
+                }
+                TAG_REFERENCES => {
+                    parse_updateinfo_references(reader, visitor, &mut buf)?;
+                }
+                TAG_PKGLIST => {
+                    parse_updateinfo_pkglist(reader, visitor, &mut buf, &mut text_buf)?;
+                }
                 _ => (),
             },
-            Event::Eof => return Ok(None),
+            Event::Eof => return Ok(false),
             _ => (),
-        }
-        buf.clear();
-        format_text_buf.clear();
-    }
-
-    Ok(Some(record))
-}
-
-pub fn parse_pkglist<R: BufRead>(
-    reader: &mut Reader<R>,
-) -> Result<Vec<UpdateCollection>, MetadataError> {
-    let mut current_collection = None;
-    let mut current_package = None;
-    let mut buf = Vec::with_capacity(256);
-    let mut text_buf = Vec::with_capacity(256);
-    let mut collections = Vec::new();
-
-    loop {
-        match reader.read_event_into(&mut buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_PKGLIST.as_bytes() => break,
-            Event::Start(e) if e.name().as_ref() == TAG_COLLECTION.as_bytes() => {
-                let mut collection = UpdateCollection::default();
-                if let Some(attr) = e.try_get_attribute("short")? {
-                    collection.shortname = attr.xml_attr()?;
-                }
-                current_collection = Some(collection);
-            }
-            Event::End(e) if e.name().as_ref() == TAG_PACKAGE.as_bytes() => {
-                if let Some(pkg) = current_package.take() {
-                    current_collection.as_mut().unwrap().packages.push(pkg);
-                }
-            }
-            Event::End(e) if e.name().as_ref() == TAG_COLLECTION.as_bytes() => {
-                collections.push(current_collection.take().unwrap());
-            }
-            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
-                TAG_NAME => {
-                    current_collection.as_mut().unwrap().name = reader
-                        .read_text_into(QName(TAG_NAME.as_bytes()), &mut text_buf)?
-                        .xml_text()?;
-                }
-                TAG_MODULE => {
-                    let name = e
-                        .try_get_attribute("name")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("name"))?
-                        .xml_attr()?;
-                    let stream = e
-                        .try_get_attribute("stream")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("stream"))?
-                        .xml_attr()?;
-                    let version = e
-                        .try_get_attribute("version")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("version"))?
-                        .xml_attr()?;
-                    let context = e
-                        .try_get_attribute("context")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("context"))?
-                        .xml_attr()?;
-                    let arch = e
-                        .try_get_attribute("arch")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
-                        .xml_attr()?;
-
-                    let version = version.parse()?;
-
-                    let module = UpdateCollectionModule {
-                        name,
-                        stream,
-                        version,
-                        context,
-                        arch,
-                    };
-                    current_collection.as_mut().unwrap().module = Some(module);
-                }
-                TAG_PACKAGE => {
-                    let mut package = UpdateCollectionPackage::default();
-
-                    let name = e
-                        .try_get_attribute("name")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("name"))?
-                        .xml_attr()?;
-                    let version = e
-                        .try_get_attribute("version")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("version"))?
-                        .xml_attr()?;
-                    let epoch = e
-                        .try_get_attribute("epoch")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("epoch"))?
-                        .xml_attr()?;
-                    let src = e
-                        .try_get_attribute("src")?
-                        .map(|a| a.xml_attr())
-                        .transpose()?;
-                    let release = e
-                        .try_get_attribute("release")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("release"))?
-                        .xml_attr()?;
-                    let arch = e
-                        .try_get_attribute("arch")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
-                        .xml_attr()?;
-
-                    package.name = name;
-                    package.version = version;
-                    package.release = release;
-                    package.arch = arch;
-                    package.epoch = epoch;
-                    package.src = src;
-                    current_package = Some(package);
-                    // current_collection.unwrap().packages.push(package);
-                }
-                TAG_FILENAME => {
-                    current_package.as_mut().unwrap().filename = reader
-                        .read_text_into(QName(TAG_FILENAME.as_bytes()), &mut text_buf)?
-                        .xml_text()?;
-                }
-                "sum" => {
-                    let checksum_type = e
-                        .try_get_attribute("type")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("type"))?
-                        .xml_attr()?;
-                    let value = reader
-                        .read_text_into(QName(b"sum"), &mut text_buf)?
-                        .xml_text()?;
-                    let checksum = Checksum::try_create(&checksum_type, &value)?;
-                    current_package.as_mut().unwrap().checksum = Some(checksum);
-                }
-                "reboot_suggested" => {
-                    let val = reader.read_text_into(QName(b"reboot_suggested"), &mut text_buf)?;
-                    current_package.as_mut().unwrap().reboot_suggested =
-                        val.as_ref() == b"1" || val.as_ref() == b"True";
-                }
-                "restart_suggested" => {
-                    let val = reader.read_text_into(QName(b"restart_suggested"), &mut text_buf)?;
-                    current_package.as_mut().unwrap().restart_suggested =
-                        val.as_ref() == b"1" || val.as_ref() == b"True";
-                }
-                "relogin_suggested" => {
-                    let val = reader.read_text_into(QName(b"relogin_suggested"), &mut text_buf)?;
-                    current_package.as_mut().unwrap().relogin_suggested =
-                        val.as_ref() == b"1" || val.as_ref() == b"True";
-                }
-                _ => (),
-            },
-            _ => (), // TODO
         }
         buf.clear();
         text_buf.clear();
     }
+}
 
-    Ok(collections)
+fn parse_updateinfo_references<R: BufRead, V: UpdateinfoVisitor>(
+    reader: &mut Reader<R>,
+    visitor: &mut V,
+    buf: &mut Vec<u8>,
+) -> Result<(), MetadataError> {
+    loop {
+        match reader.read_event_into(buf)? {
+            Event::Start(e) if e.name().as_ref() == TAG_REFERENCE.as_bytes() => {
+                let mut href_cow = None;
+                let mut id_cow = None;
+                let mut type_cow = None;
+                let mut title_cow = None;
+
+                for attr_result in e.attributes() {
+                    let attr = attr_result?;
+                    match attr.key.as_ref() {
+                        b"href" => href_cow = Some(resolve_attr(&attr)?),
+                        b"id" => id_cow = Some(resolve_attr(&attr)?),
+                        b"type" => type_cow = Some(resolve_attr(&attr)?),
+                        b"title" => title_cow = Some(resolve_attr(&attr)?),
+                        _ => (),
+                    }
+                }
+
+                let href = href_cow.ok_or(MetadataError::MissingAttributeError("href"))?;
+                let reftype = type_cow.ok_or(MetadataError::MissingAttributeError("type"))?;
+                let title = title_cow.ok_or(MetadataError::MissingAttributeError("title"))?;
+                visitor.add_reference(&href, id_cow.as_deref(), &reftype, &title);
+            }
+            Event::End(e) if e.name().as_ref() == TAG_REFERENCES.as_bytes() => break,
+            _ => (),
+        }
+    }
+    Ok(())
+}
+
+fn parse_updateinfo_pkglist<R: BufRead, V: UpdateinfoVisitor>(
+    reader: &mut Reader<R>,
+    visitor: &mut V,
+    buf: &mut Vec<u8>,
+    text_buf: &mut Vec<u8>,
+) -> Result<(), MetadataError> {
+    loop {
+        match reader.read_event_into(buf)? {
+            Event::End(e) if e.name().as_ref() == TAG_PKGLIST.as_bytes() => break,
+            Event::Start(e) if e.name().as_ref() == TAG_COLLECTION.as_bytes() => {
+                let shortname = match e.try_get_attribute("short")? {
+                    Some(attr) => resolve_attr(&attr)?,
+                    None => Cow::Borrowed(""),
+                };
+                visitor.begin_collection(&shortname);
+            }
+            Event::End(e) if e.name().as_ref() == TAG_PACKAGE.as_bytes() => {
+                visitor.end_collection_package();
+            }
+            Event::End(e) if e.name().as_ref() == TAG_COLLECTION.as_bytes() => {
+                visitor.end_collection();
+            }
+            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
+                TAG_NAME => {
+                    let bytes_text = reader.read_text_into(QName(TAG_NAME.as_bytes()), text_buf)?;
+                    let text = resolve_text(&bytes_text)?;
+                    visitor.set_collection_name(&text);
+                }
+                TAG_MODULE => {
+                    let mut name_cow = None;
+                    let mut stream_cow = None;
+                    let mut version_cow = None;
+                    let mut context_cow = None;
+                    let mut arch_cow = None;
+
+                    for attr_result in e.attributes() {
+                        let attr = attr_result?;
+                        match attr.key.as_ref() {
+                            b"name" => name_cow = Some(resolve_attr(&attr)?),
+                            b"stream" => stream_cow = Some(resolve_attr(&attr)?),
+                            b"version" => version_cow = Some(resolve_attr(&attr)?),
+                            b"context" => context_cow = Some(resolve_attr(&attr)?),
+                            b"arch" => arch_cow = Some(resolve_attr(&attr)?),
+                            _ => (),
+                        }
+                    }
+
+                    let name = name_cow.ok_or(MetadataError::MissingAttributeError("name"))?;
+                    let stream =
+                        stream_cow.ok_or(MetadataError::MissingAttributeError("stream"))?;
+                    let version_str =
+                        version_cow.ok_or(MetadataError::MissingAttributeError("version"))?;
+                    let version: u64 = version_str.parse()?;
+                    let context =
+                        context_cow.ok_or(MetadataError::MissingAttributeError("context"))?;
+                    let arch = arch_cow.ok_or(MetadataError::MissingAttributeError("arch"))?;
+                    visitor.set_collection_module(&name, &stream, version, &context, &arch);
+                }
+                TAG_PACKAGE => {
+                    let mut name_cow = None;
+                    let mut epoch_cow = None;
+                    let mut version_cow = None;
+                    let mut release_cow = None;
+                    let mut arch_cow = None;
+                    let mut src_cow = None;
+
+                    for attr_result in e.attributes() {
+                        let attr = attr_result?;
+                        match attr.key.as_ref() {
+                            b"name" => name_cow = Some(resolve_attr(&attr)?),
+                            b"epoch" => epoch_cow = Some(resolve_attr(&attr)?),
+                            b"version" => version_cow = Some(resolve_attr(&attr)?),
+                            b"release" => release_cow = Some(resolve_attr(&attr)?),
+                            b"arch" => arch_cow = Some(resolve_attr(&attr)?),
+                            b"src" => src_cow = Some(resolve_attr(&attr)?),
+                            _ => (),
+                        }
+                    }
+
+                    let name = name_cow.ok_or(MetadataError::MissingAttributeError("name"))?;
+                    let epoch = epoch_cow.ok_or(MetadataError::MissingAttributeError("epoch"))?;
+                    let version =
+                        version_cow.ok_or(MetadataError::MissingAttributeError("version"))?;
+                    let release =
+                        release_cow.ok_or(MetadataError::MissingAttributeError("release"))?;
+                    let arch = arch_cow.ok_or(MetadataError::MissingAttributeError("arch"))?;
+                    visitor.begin_collection_package(
+                        &name,
+                        &epoch,
+                        &version,
+                        &release,
+                        &arch,
+                        src_cow.as_deref(),
+                    );
+                }
+                TAG_FILENAME => {
+                    let bytes_text =
+                        reader.read_text_into(QName(TAG_FILENAME.as_bytes()), text_buf)?;
+                    let text = resolve_text(&bytes_text)?;
+                    visitor.set_package_filename(&text);
+                }
+                TAG_SUM => {
+                    let type_attr = e
+                        .try_get_attribute("type")?
+                        .ok_or(MetadataError::MissingAttributeError("type"))?;
+                    let checksum_type = resolve_attr(&type_attr)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_SUM.as_bytes()), text_buf)?;
+                    let value = resolve_text(&bytes_text)?;
+                    visitor.set_package_checksum(&checksum_type, &value);
+                }
+                TAG_REBOOT_SUGGESTED => {
+                    let val =
+                        reader.read_text_into(QName(TAG_REBOOT_SUGGESTED.as_bytes()), text_buf)?;
+                    if val.as_ref() == b"1" || val.as_ref() == b"True" {
+                        visitor.set_package_reboot_suggested();
+                    }
+                }
+                TAG_RESTART_SUGGESTED => {
+                    let val =
+                        reader.read_text_into(QName(TAG_RESTART_SUGGESTED.as_bytes()), text_buf)?;
+                    if val.as_ref() == b"1" || val.as_ref() == b"True" {
+                        visitor.set_package_restart_suggested();
+                    }
+                }
+                TAG_RELOGIN_SUGGESTED => {
+                    let val =
+                        reader.read_text_into(QName(TAG_RELOGIN_SUGGESTED.as_bytes()), text_buf)?;
+                    if val.as_ref() == b"1" || val.as_ref() == b"True" {
+                        visitor.set_package_relogin_suggested();
+                    }
+                }
+                _ => (),
+            },
+            _ => (),
+        }
+        buf.clear();
+        text_buf.clear();
+    }
+    Ok(())
 }
 
 fn write_updaterecord<W: Write>(

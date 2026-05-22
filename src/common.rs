@@ -81,8 +81,8 @@ impl From<(&str, &str, &str)> for EVR {
 impl PartialEq for EVR {
     fn eq(&self, other: &Self) -> bool {
         ((self.epoch == other.epoch)
-            || (self.epoch == "" && other.epoch == "0")
-            || (self.epoch == "0" && other.epoch == ""))
+            || (self.epoch.is_empty() && other.epoch == "0")
+            || (self.epoch == "0" && other.epoch.is_empty()))
             && self.version == other.version
             && self.release == other.release
     }
@@ -218,7 +218,7 @@ fn compare_version_string(version1: &str, version2: &str) -> Ordering {
                     if ordering != Ordering::Equal {
                         return ordering;
                     }
-                    let ordering = prefix1.cmp(&prefix2);
+                    let ordering = prefix1.cmp(prefix2);
                     if ordering != Ordering::Equal {
                         return ordering;
                     }
@@ -236,7 +236,7 @@ fn compare_version_string(version1: &str, version2: &str) -> Ordering {
                     let (prefix2, version2) = b;
                     version1_part = version1;
                     version2_part = version2;
-                    let ordering = prefix1.cmp(&prefix2);
+                    let ordering = prefix1.cmp(prefix2);
                     if ordering != Ordering::Equal {
                         return ordering;
                     }

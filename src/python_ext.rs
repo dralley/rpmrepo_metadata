@@ -8,7 +8,6 @@ use std::fmt;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use pyo3;
 use pyo3::Py;
 use pyo3::basic::CompareOp;
 use pyo3::prelude::*;
@@ -386,8 +385,8 @@ mod rpmrepo_metadata {
             let mut buf = Vec::new();
             let writer = crate::utils::create_xml_writer(&mut buf);
             crate::metadata::CompsXml::write_data(&self.inner, writer)?;
-            Ok(String::from_utf8(buf)
-                .map_err(|e| pyo3::exceptions::PyUnicodeDecodeError::new_err(e.to_string()))?)
+            String::from_utf8(buf)
+                .map_err(|e| pyo3::exceptions::PyUnicodeDecodeError::new_err(e.to_string()))
         }
 
         #[getter]
@@ -742,7 +741,7 @@ mod rpmrepo_metadata {
         pub fn set_requires(&mut self, requires: Vec<RequirementTuple>) {
             let requires: Vec<_> = requires
                 .iter()
-                .map(|r| crate::metadata::Requirement::from(r))
+                .map(crate::metadata::Requirement::from)
                 .collect();
             self.inner.set_requires(requires);
         }
@@ -752,7 +751,7 @@ mod rpmrepo_metadata {
             self.inner
                 .requires()
                 .iter()
-                .map(|r| RequirementTuple::from(r))
+                .map(RequirementTuple::from)
                 .collect()
         }
 
@@ -760,7 +759,7 @@ mod rpmrepo_metadata {
         pub fn set_provides(&mut self, provides: Vec<RequirementTuple>) {
             let provides: Vec<_> = provides
                 .iter()
-                .map(|r| crate::metadata::Requirement::from(r))
+                .map(crate::metadata::Requirement::from)
                 .collect();
             self.inner.set_provides(provides);
         }
@@ -770,7 +769,7 @@ mod rpmrepo_metadata {
             self.inner
                 .provides()
                 .iter()
-                .map(|r| RequirementTuple::from(r))
+                .map(RequirementTuple::from)
                 .collect()
         }
 
@@ -778,7 +777,7 @@ mod rpmrepo_metadata {
         pub fn set_conflicts(&mut self, conflicts: Vec<RequirementTuple>) {
             let conflicts: Vec<_> = conflicts
                 .iter()
-                .map(|r| crate::metadata::Requirement::from(r))
+                .map(crate::metadata::Requirement::from)
                 .collect();
             self.inner.set_conflicts(conflicts);
         }
@@ -788,7 +787,7 @@ mod rpmrepo_metadata {
             self.inner
                 .conflicts()
                 .iter()
-                .map(|r| RequirementTuple::from(r))
+                .map(RequirementTuple::from)
                 .collect()
         }
 
@@ -796,7 +795,7 @@ mod rpmrepo_metadata {
         pub fn set_obsoletes(&mut self, obsoletes: Vec<RequirementTuple>) {
             let obsoletes: Vec<_> = obsoletes
                 .iter()
-                .map(|r| crate::metadata::Requirement::from(r))
+                .map(crate::metadata::Requirement::from)
                 .collect();
             self.inner.set_obsoletes(obsoletes);
         }
@@ -806,7 +805,7 @@ mod rpmrepo_metadata {
             self.inner
                 .obsoletes()
                 .iter()
-                .map(|r| RequirementTuple::from(r))
+                .map(RequirementTuple::from)
                 .collect()
         }
 
@@ -814,7 +813,7 @@ mod rpmrepo_metadata {
         pub fn set_suggests(&mut self, suggests: Vec<RequirementTuple>) {
             let suggests: Vec<_> = suggests
                 .iter()
-                .map(|r| crate::metadata::Requirement::from(r))
+                .map(crate::metadata::Requirement::from)
                 .collect();
             self.inner.set_suggests(suggests);
         }
@@ -824,7 +823,7 @@ mod rpmrepo_metadata {
             self.inner
                 .suggests()
                 .iter()
-                .map(|r| RequirementTuple::from(r))
+                .map(RequirementTuple::from)
                 .collect()
         }
 
@@ -832,7 +831,7 @@ mod rpmrepo_metadata {
         pub fn set_enhances(&mut self, enhances: Vec<RequirementTuple>) {
             let enhances: Vec<_> = enhances
                 .iter()
-                .map(|r| crate::metadata::Requirement::from(r))
+                .map(crate::metadata::Requirement::from)
                 .collect();
             self.inner.set_enhances(enhances);
         }
@@ -842,7 +841,7 @@ mod rpmrepo_metadata {
             self.inner
                 .enhances()
                 .iter()
-                .map(|r| RequirementTuple::from(r))
+                .map(RequirementTuple::from)
                 .collect()
         }
 
@@ -850,7 +849,7 @@ mod rpmrepo_metadata {
         pub fn set_recommends(&mut self, recommends: Vec<RequirementTuple>) {
             let recommends: Vec<_> = recommends
                 .iter()
-                .map(|r| crate::metadata::Requirement::from(r))
+                .map(crate::metadata::Requirement::from)
                 .collect();
             self.inner.set_recommends(recommends);
         }
@@ -860,7 +859,7 @@ mod rpmrepo_metadata {
             self.inner
                 .recommends()
                 .iter()
-                .map(|r| RequirementTuple::from(r))
+                .map(RequirementTuple::from)
                 .collect()
         }
 
@@ -868,7 +867,7 @@ mod rpmrepo_metadata {
         pub fn set_supplements(&mut self, supplements: Vec<RequirementTuple>) {
             let supplements: Vec<_> = supplements
                 .iter()
-                .map(|r| crate::metadata::Requirement::from(r))
+                .map(crate::metadata::Requirement::from)
                 .collect();
             self.inner.set_supplements(supplements);
         }
@@ -878,7 +877,7 @@ mod rpmrepo_metadata {
             self.inner
                 .supplements()
                 .iter()
-                .map(|r| RequirementTuple::from(r))
+                .map(RequirementTuple::from)
                 .collect()
         }
 
@@ -934,7 +933,7 @@ mod rpmrepo_metadata {
         pub fn set_changelogs(&mut self, changelog_tuples: Vec<ChangelogTuple>) {
             let changelogs: Vec<_> = changelog_tuples
                 .into_iter()
-                .map(|r| crate::metadata::Changelog::from(r))
+                .map(crate::metadata::Changelog::from)
                 .collect();
             self.inner.set_changelogs(changelogs);
         }
@@ -944,7 +943,7 @@ mod rpmrepo_metadata {
             self.inner
                 .changelogs()
                 .iter()
-                .map(|r| ChangelogTuple::from(r))
+                .map(ChangelogTuple::from)
                 .collect()
         }
 
@@ -998,7 +997,7 @@ mod rpmrepo_metadata {
                 req.epoch.clone(),
                 req.version.clone(),
                 req.release.clone(),
-                req.preinstall.clone(),
+                req.preinstall,
             )
         }
     }

@@ -13,14 +13,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 // use bitflags;
-use niffler;
-use quick_xml;
 use quick_xml::{Reader, Writer};
 #[cfg(feature = "read_rpm")]
-use rpm;
 use thiserror::Error;
 
-use crate::{EVR, Repository, utils};
+use crate::{EVR, Repository, constants::mdrecord, utils};
 
 /// Marker type for repomd.xml read/write operations.
 pub struct RepomdXml;
@@ -34,14 +31,6 @@ pub struct OtherXml;
 pub struct UpdateinfoXml;
 /// Marker type for comps.xml read/write operations.
 pub struct CompsXml;
-
-pub const METADATA_PRIMARY: &str = "primary";
-pub const METADATA_FILELISTS: &str = "filelists";
-pub const METADATA_OTHER: &str = "other";
-pub const METADATA_UPDATEINFO: &str = "updateinfo";
-pub const METADATA_GROUP: &str = "group";
-pub const METADATA_GROUP_GZ: &str = "group_gz";
-pub const METADATA_GROUP_XZ: &str = "group_xz";
 
 /// Errors that can occur when reading, writing, or validating RPM repository metadata.
 #[derive(Error, Debug)]
@@ -96,17 +85,6 @@ impl From<quick_xml::encoding::EncodingError> for MetadataError {
         MetadataError::XmlParseError(e.into())
     }
 }
-
-/// Default namespace for primary.xml
-pub const XML_NS_COMMON: &str = "http://linux.duke.edu/metadata/common";
-/// Default namespace for filelists.xml
-pub const XML_NS_FILELISTS: &str = "http://linux.duke.edu/metadata/filelists";
-/// Default namespace for other.xml
-pub const XML_NS_OTHER: &str = "http://linux.duke.edu/metadata/other";
-/// Default namespace for repomd.xml
-pub const XML_NS_REPO: &str = "http://linux.duke.edu/metadata/repo";
-/// Namespace for rpm (used in primary.xml and repomd.xml)
-pub const XML_NS_RPM: &str = "http://linux.duke.edu/metadata/rpm";
 
 /// Trait implemented by each metadata type (primary, filelists, other, repomd, updateinfo, comps).
 ///
@@ -262,7 +240,7 @@ impl Package {
     }
 
     pub fn set_epoch(&mut self, epoch: u32) -> &mut Self {
-        self.evr.epoch = epoch.to_string().into();
+        self.evr.epoch = epoch.to_string();
         self
     }
 
@@ -271,7 +249,7 @@ impl Package {
     }
 
     pub fn set_version(&mut self, version: impl Into<String>) -> &mut Self {
-        self.evr.version = version.into().into();
+        self.evr.version = version.into();
         self
     }
 
@@ -280,7 +258,7 @@ impl Package {
     }
 
     pub fn set_release(&mut self, release: impl Into<String>) -> &mut Self {
-        self.evr.release = release.into().into();
+        self.evr.release = release.into();
         self
     }
 
@@ -350,7 +328,7 @@ impl Package {
     /// Returns the package ID (hex-encoded file checksum).
     pub fn pkgid(&self) -> &str {
         // TODO: better way to do this
-        &self.checksum.to_values().unwrap().1
+        self.checksum.to_values().unwrap().1
     }
 
     pub fn set_location_href(&mut self, location_href: impl Into<String>) -> &mut Self {
@@ -363,12 +341,12 @@ impl Package {
     }
 
     pub fn set_location_base(&mut self, location_base: Option<impl Into<String>>) -> &mut Self {
-        self.location_base = location_base.and_then(|a| Some(a.into()));
+        self.location_base = location_base.map(|a| a.into());
         self
     }
 
     pub fn location_base(&self) -> Option<&str> {
-        self.location_base.as_ref().and_then(|a| Some(a.as_ref()))
+        self.location_base.as_ref().map(|a| a.as_ref())
     }
 
     pub fn set_summary(&mut self, summary: impl Into<String>) -> &mut Self {
@@ -617,25 +595,20 @@ impl Package {
 }
 
 /// Hash algorithm used for checksums in repository metadata.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub enum ChecksumType {
     Md5,
     Sha1,
     Sha224,
+    #[default]
     Sha256,
     Sha384,
     Sha512,
     Unknown,
 }
 
-impl Default for ChecksumType {
-    fn default() -> Self {
-        ChecksumType::Sha256
-    }
-}
-
 /// A checksum value tagged with its algorithm type.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub enum Checksum {
     Md5(String),
     Sha1(String),
@@ -644,13 +617,8 @@ pub enum Checksum {
     Sha384(String),
     Sha512(String),
     Unknown(String),
+    #[default]
     Empty,
-}
-
-impl Default for Checksum {
-    fn default() -> Self {
-        Checksum::Empty
-    }
 }
 
 impl Hash for Checksum {
@@ -756,16 +724,14 @@ impl Checksum {
                     Ok(Checksum::Sha512(digest))
                 }
             }
-            _ => {
-                return Err(MetadataError::UnsupportedChecksumTypeError(bytes_to_str(
-                    checksum_type.as_ref(),
-                )));
-            }
+            _ => Err(MetadataError::UnsupportedChecksumTypeError(bytes_to_str(
+                checksum_type.as_ref(),
+            ))),
         }
     }
 
     /// Returns the `(type_name, hex_digest)` pair (e.g. `("sha256", "abcd...")`).
-    pub fn to_values<'a>(&'a self) -> Result<(&'a str, &'a str), MetadataError> {
+    pub fn to_values(&self) -> Result<(&str, &str), MetadataError> {
         let values = match self {
             Checksum::Md5(c) => ("md5", c.as_str()),
             Checksum::Sha1(c) => ("sha1", c.as_str()),
@@ -861,7 +827,7 @@ impl TryFrom<&str> for RequirementType {
             "EQ" => RequirementType::EQ,
             "LE" => RequirementType::LE,
             "GE" => RequirementType::GE,
-            t @ _ => return Err(MetadataError::InvalidFlagsError(t.to_owned())),
+            t => return Err(MetadataError::InvalidFlagsError(t.to_owned())),
         };
 
         Ok(reqtype)
@@ -869,8 +835,9 @@ impl TryFrom<&str> for RequirementType {
 }
 
 /// Type of a file entry within an RPM package.
-#[derive(Copy, Clone, Debug, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Hash, Default)]
 pub enum FileType {
+    #[default]
     File,
     Dir,
     Ghost,
@@ -896,12 +863,6 @@ impl FileType {
             FileType::Dir => b"dir",
             FileType::Ghost => b"ghost",
         }
-    }
-}
-
-impl Default for FileType {
-    fn default() -> Self {
-        FileType::File
     }
 }
 
@@ -1125,30 +1086,15 @@ pub enum MetadataType {
     Filelists,
     Other,
 
-    // PrimaryZck,
-    // FilelistsZck,
-    // OtherZck,
-
-    // PrimaryDb,
-    // FilelistsDb,
-    // OtherDb,
     Unknown,
 }
 
 impl From<&str> for MetadataType {
     fn from(name: &str) -> Self {
         match name {
-            METADATA_PRIMARY => MetadataType::Primary,
-            METADATA_FILELISTS => MetadataType::Filelists,
-            METADATA_OTHER => MetadataType::Other,
-
-            // METADATA_PRIMARY_DB => MetadataType::PrimaryDb,
-            // METADATA_FILELISTS_DB => MetadataType::FilelistsDb,
-            // METADATA_OTHER_DB => MetadataType::OtherDb,
-
-            // METADATA_PRIMARY_ZCK => MetadataType::PrimaryZck,
-            // METADATA_FILELISTS_ZCK => MetadataType::FilelistsZck,
-            // METADATA_OTHER_ZCK => MetadataType::OtherZck,
+            mdrecord::MD_PRIMARY => MetadataType::Primary,
+            mdrecord::MD_FILELISTS => MetadataType::Filelists,
+            mdrecord::MD_OTHER => MetadataType::Other,
             _ => MetadataType::Unknown,
         }
     }
@@ -1191,7 +1137,7 @@ impl RepomdData {
     pub fn get_record(&self, rectype: &str) -> Option<&RepomdRecord> {
         self.metadata_files
             .iter()
-            .find(|r| &r.metadata_name == rectype)
+            .find(|r| r.metadata_name == rectype)
     }
 
     /// Returns all metadata file records.
@@ -1260,33 +1206,27 @@ impl RepomdData {
                 MetadataType::Primary => 1,
                 MetadataType::Filelists => 2,
                 MetadataType::Other => 3,
-                // MetadataType::PrimaryDb => 4,
-                // MetadataType::FilelistsDb => 5,
-                // MetadataType::OtherDb => 6,
-                // MetadataType::PrimaryZck => 7,
-                // MetadataType::FilelistsZck => 8,
-                // MetadataType::OtherZck => 9,
                 MetadataType::Unknown => 10,
             }
         }
-        self.metadata_files.sort_by(|a, b| value(a).cmp(&value(b)));
+        self.metadata_files.sort_by_key(|a| value(a));
     }
 
     /// Returns the primary metadata record. Panics if not present.
     pub fn get_primary_data(&self) -> &RepomdRecord {
-        self.get_record(METADATA_PRIMARY)
+        self.get_record(mdrecord::MD_PRIMARY)
             .expect("Cannot find primary metadata")
     }
 
     /// Returns the filelists metadata record. Panics if not present.
     pub fn get_filelist_data(&self) -> &RepomdRecord {
-        self.get_record(METADATA_FILELISTS)
+        self.get_record(mdrecord::MD_FILELISTS)
             .expect("Cannot find filelists metadata")
     }
 
     /// Returns the other metadata record. Panics if not present.
     pub fn get_other_data(&self) -> &RepomdRecord {
-        self.get_record(METADATA_OTHER)
+        self.get_record(mdrecord::MD_OTHER)
             .expect("Cannot find other metadata")
     }
 }

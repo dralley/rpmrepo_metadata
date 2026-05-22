@@ -4,23 +4,18 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use crate::utils::{XML_VERSION, XmlTextUnescape};
 use std::io::{BufRead, Write};
 
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 
-use crate::Checksum;
+use crate::constants::{tag::*, xmlns};
+use crate::parsing_utils::{self, resolve_attr, resolve_text};
+use crate::visitor::FilelistsVisitor;
+use crate::{Checksum, EVR};
 
-use super::metadata::{
-    FileType, FilelistsXml, Package, PackageFile, RpmMetadata, XML_NS_FILELISTS,
-};
-use super::{EVR, MetadataError, Repository};
-
-const TAG_FILELISTS: &str = "filelists";
-const TAG_PACKAGE: &str = "package";
-const TAG_VERSION: &str = "version";
-const TAG_FILE: &str = "file";
+use super::Repository;
+use super::metadata::{FileType, FilelistsXml, MetadataError, Package, RpmMetadata};
 
 impl RpmMetadata for FilelistsXml {
     fn filename() -> &'static str {
@@ -36,7 +31,7 @@ impl RpmMetadata for FilelistsXml {
         let mut package = None;
         loop {
             reader.read_package(&mut package)?;
-            if package == None {
+            if package.is_none() {
                 break;
             }
             let pkgid = package.as_ref().unwrap().pkgid().to_owned();
@@ -90,7 +85,7 @@ impl<W: Write> FilelistsXmlWriter<W> {
 
         // <filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="210">
         let mut filelists_tag = BytesStart::new(TAG_FILELISTS);
-        filelists_tag.push_attribute(("xmlns", XML_NS_FILELISTS));
+        filelists_tag.push_attribute(("xmlns", xmlns::NS_FILELISTS));
         filelists_tag.push_attribute(("packages", num_pkgs.to_string().as_str()));
         self.writer
             .write_event(Event::Start(filelists_tag.borrow()))?;
@@ -122,10 +117,10 @@ impl<W: Write> FilelistsXmlWriter<W> {
         let writer = &mut self.writer;
         let mut err: Result<(), MetadataError> = Ok(());
         package.files().for_each_file(|filetype, path| {
-            if err.is_ok() {
-                if let Err(e) = write_file_entry(writer, filetype, path) {
-                    err = Err(e);
-                }
+            if err.is_ok()
+                && let Err(e) = write_file_entry(writer, filetype, path)
+            {
+                err = Err(e);
             }
         });
         err?;
@@ -181,138 +176,127 @@ pub struct FilelistsXmlReader<R: BufRead> {
 impl<R: BufRead> FilelistsXmlReader<R> {
     /// Read and parse the XML header, returning the declared package count.
     pub fn read_header(&mut self) -> Result<usize, MetadataError> {
-        parse_header(&mut self.reader)
+        parse_filelists_header(&mut self.reader)
     }
 
     /// Read file entries for the next package into `package`.
     pub fn read_package(&mut self, package: &mut Option<Package>) -> Result<(), MetadataError> {
-        parse_package(package, &mut self.reader)
-    }
-}
-
-// <?xml version="1.0" encoding="UTF-8"?>
-// <filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="35">
-fn parse_header<R: BufRead>(reader: &mut Reader<R>) -> Result<usize, MetadataError> {
-    let mut buf = Vec::new();
-
-    // TODO: get rid of this buffer
-    loop {
-        match reader.read_event_into(&mut buf)? {
-            Event::Decl(_) => (),
-            Event::Start(e) if e.name().as_ref() == TAG_FILELISTS.as_bytes() => {
-                let count = e.try_get_attribute("packages")?.unwrap().value;
-                return Ok(std::str::from_utf8(&count)?.parse()?);
-            }
-            _ => return Err(MetadataError::MissingHeaderError),
+        let mut materializer = FilelistsMaterializer {
+            package,
+            error: None,
+        };
+        let found = parse_filelists_package(&mut self.reader, &mut materializer)?;
+        if let Some(err) = materializer.error {
+            return Err(err);
         }
+        if !found {
+            *materializer.package = None;
+        }
+        Ok(())
     }
 }
 
-//   <package pkgid="a2d3bce512f79b0bc840ca7912a86bbc0016cf06d5c363ffbb6fd5e1ef03de1b" name="fontconfig" arch="x86_64">
-//     <version epoch="0" ver="2.8.0" rel="5.fc33"/>
-//     <file type="dir">/etc/fonts/conf.avail</file>
-//     ...
-//     <file>/etc/fonts/conf.avail/10-autohint.conf</file>
-//   </package>
-pub fn parse_package<R: BufRead>(
-    package: &mut Option<Package>,
+/// Parse the filelists.xml header, returning the declared package count.
+pub fn parse_filelists_header<R: BufRead>(reader: &mut Reader<R>) -> Result<usize, MetadataError> {
+    parsing_utils::parse_header_tag(reader, TAG_FILELISTS)
+}
+
+/// Parse one `<package>` element from filelists.xml, dispatching to `visitor`.
+///
+/// Returns `true` if a package was parsed, `false` at EOF.
+pub fn parse_filelists_package<R: BufRead, V: FilelistsVisitor>(
     reader: &mut Reader<R>,
-) -> Result<(), MetadataError> {
+    visitor: &mut V,
+) -> Result<bool, MetadataError> {
     let mut buf = Vec::with_capacity(128);
+    let mut text_buf = Vec::with_capacity(128);
 
     loop {
         match reader.read_event_into(&mut buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_PACKAGE.as_bytes() => break,
-
+            Event::End(e) if e.name().as_ref() == TAG_PACKAGE.as_bytes() => {
+                visitor.end_package();
+                return Ok(true);
+            }
             Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
                 TAG_PACKAGE => {
-                    let pkgid = e
-                        .try_get_attribute("pkgid")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("pkgid"))?
-                        .normalized_value(XML_VERSION)?;
-                    let name = e
-                        .try_get_attribute("name")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("name"))?
-                        .normalized_value(XML_VERSION)?;
-                    let arch = e
-                        .try_get_attribute("arch")?
-                        .ok_or_else(|| MetadataError::MissingAttributeError("arch"))?
-                        .normalized_value(XML_VERSION)?;
+                    let mut pkgid_cow = None;
+                    let mut name_cow = None;
+                    let mut arch_cow = None;
 
-                    if let Some(pkg) = package {
-                        if pkg.pkgid() != pkgid.as_ref() {
-                            return Err(MetadataError::InconsistentMetadataError(format!(
-                                "filelists.xml pkgid {} does not match primary.xml pkgid {}",
-                                pkgid,
-                                pkg.pkgid()
-                            )));
+                    for attr_result in e.attributes() {
+                        let attr = attr_result?;
+                        match attr.key.as_ref() {
+                            b"pkgid" => pkgid_cow = Some(resolve_attr(&attr)?),
+                            b"name" => name_cow = Some(resolve_attr(&attr)?),
+                            b"arch" => arch_cow = Some(resolve_attr(&attr)?),
+                            _ => (),
                         }
-                        pkg.rpm_files.clear();
-                    } else {
-                        let mut pkg = Package::default();
-                        pkg.set_name(name)
-                            .set_arch(arch)
-                            .set_checksum(Checksum::Unknown(pkgid.into_owned()));
-                        *package = Some(pkg);
-                    };
+                    }
+
+                    let pkgid = pkgid_cow.ok_or(MetadataError::MissingAttributeError("pkgid"))?;
+                    let name = name_cow.ok_or(MetadataError::MissingAttributeError("name"))?;
+                    let arch = arch_cow.ok_or(MetadataError::MissingAttributeError("arch"))?;
+                    visitor.begin_package(&pkgid, &name, &arch);
                 }
                 TAG_VERSION => {
-                    package.as_mut().unwrap().set_evr(parse_evr(reader, &e)?);
+                    let (epoch, version, release) = parsing_utils::parse_evr_from_tag(&e)?;
+                    visitor.set_evr(&epoch, &version, &release);
                 }
                 TAG_FILE => {
-                    let file = parse_file(reader, &e)?;
-                    // TODO: temporary PackageFile?
-                    package
-                        .as_mut()
-                        .unwrap()
-                        .add_file(file.filetype, &file.path);
+                    let filetype = if let Some(attr) = e.try_get_attribute("type")? {
+                        FileType::try_create(attr.value.as_ref())?
+                    } else {
+                        FileType::File
+                    };
+                    let bytes_text = reader.read_text_into(e.name(), &mut text_buf)?;
+                    let path = resolve_text(&bytes_text)?;
+                    visitor.add_file(filetype, &path);
                 }
                 _ => (),
             },
-            Event::Eof => break,
+            Event::Eof => return Ok(false),
             _ => (),
+        }
+        buf.clear();
+        text_buf.clear();
+    }
+}
+
+struct FilelistsMaterializer<'a> {
+    package: &'a mut Option<Package>,
+    error: Option<MetadataError>,
+}
+
+impl FilelistsVisitor for FilelistsMaterializer<'_> {
+    fn begin_package(&mut self, pkgid: &str, name: &str, arch: &str) {
+        if let Some(pkg) = self.package.as_mut() {
+            if pkg.pkgid() != pkgid {
+                self.error = Some(MetadataError::InconsistentMetadataError(format!(
+                    "filelists.xml pkgid {} does not match primary.xml pkgid {}",
+                    pkgid,
+                    pkg.pkgid()
+                )));
+                return;
+            }
+            pkg.rpm_files.clear();
+        } else {
+            let mut pkg = Package::default();
+            pkg.set_name(name)
+                .set_arch(arch)
+                .set_checksum(Checksum::Unknown(pkgid.to_owned()));
+            *self.package = Some(pkg);
         }
     }
 
-    // package.parse_state |= ParseState::FILELISTS;
-    Ok(())
-}
-
-// <version epoch="0" ver="2.8.0" rel="5.fc33"/>
-pub fn parse_evr<R: BufRead>(
-    _reader: &mut Reader<R>,
-    open_tag: &BytesStart,
-) -> Result<EVR, MetadataError> {
-    let epoch = match open_tag.try_get_attribute("epoch")? {
-        Some(attr) => attr.normalized_value(XML_VERSION)?,
-        None => "0".into(),
-    };
-    let version = open_tag
-        .try_get_attribute("ver")?
-        .ok_or_else(|| MetadataError::MissingAttributeError("ver"))?
-        .normalized_value(XML_VERSION)?;
-    let release = open_tag
-        .try_get_attribute("rel")?
-        .ok_or_else(|| MetadataError::MissingAttributeError("rel"))?
-        .normalized_value(XML_VERSION)?;
-
-    Ok(EVR::new(epoch, version, release))
-}
-
-// <file type="dir">/etc/fonts/conf.avail</file>
-pub fn parse_file<R: BufRead>(
-    reader: &mut Reader<R>,
-    open_tag: &BytesStart,
-) -> Result<PackageFile, MetadataError> {
-    let mut file = PackageFile::default();
-    let mut buf = Vec::with_capacity(128);
-    file.path = reader
-        .read_text_into(open_tag.name(), &mut buf)?
-        .xml_text()?;
-
-    if let Some(filetype) = open_tag.try_get_attribute("type")? {
-        file.filetype = FileType::try_create(filetype.value.as_ref())?;
+    fn set_evr(&mut self, epoch: &str, version: &str, release: &str) {
+        if let Some(pkg) = self.package.as_mut() {
+            pkg.set_evr(EVR::new(epoch, version, release));
+        }
     }
 
-    Ok(file)
+    fn add_file(&mut self, filetype: FileType, path: &str) {
+        if let Some(pkg) = self.package.as_mut() {
+            pkg.add_file(filetype, path);
+        }
+    }
 }

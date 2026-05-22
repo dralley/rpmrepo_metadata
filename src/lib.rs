@@ -16,15 +16,18 @@
 
 mod common;
 mod comps;
+pub mod constants;
 mod filelist;
 mod metadata;
 mod other;
 mod package;
+mod parsing_utils;
 mod primary;
 mod repomd;
 mod repository;
 mod updateinfo;
 pub mod utils;
+pub mod visitor;
 
 #[cfg(feature = "python_ext")]
 mod python_ext;
@@ -32,10 +35,15 @@ mod python_ext;
 pub use common::EVR;
 pub use comps::CompsXmlReader;
 pub use metadata::{
-    Changelog, Checksum, ChecksumType, CompressionType, CompsCategory, CompsData, CompsEnvironment,
-    CompsEnvironmentOption, CompsGroup, CompsLangpack, CompsPackageReq, CompsXml, FileIter,
-    FileList, FileRef, FileType, FilelistsXml, MetadataError, OtherXml, Package, PackageFile,
-    PrimaryXml, RepomdData, RepomdRecord, RepomdXml, Requirement, RequirementType,
+    Changelog, Checksum, ChecksumType, CompressionType, FileIter, FileList, FileRef, FileType,
+    FilelistsXml, MetadataError, OtherXml, Package, PackageFile, PrimaryXml, RepomdData,
+    RepomdRecord, RepomdXml, Requirement, RequirementType,
+};
+pub use metadata::{
+    CompsCategory, CompsData, CompsEnvironment, CompsEnvironmentOption, CompsGroup, CompsLangpack,
+    CompsPackageReq, CompsXml,
+};
+pub use metadata::{
     UpdateCollection, UpdateCollectionModule, UpdateCollectionPackage, UpdateRecord,
     UpdateReference, UpdateinfoXml,
 };
@@ -44,3 +52,6 @@ pub use repository::{
     Repository, RepositoryOptions, RepositoryReader, RepositoryWriter, UpdateinfoIterator,
 };
 pub use updateinfo::UpdateinfoXmlReader;
+pub use visitor::{
+    CompsVisitor, FilelistsVisitor, OtherVisitor, PrimaryVisitor, UpdateinfoVisitor,
+};
