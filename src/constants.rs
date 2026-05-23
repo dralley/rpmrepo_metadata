@@ -13,6 +13,7 @@ pub mod mdrecord {
     pub const MD_GROUP_XZ: &str = "group_xz";
 }
 
+/// XML Namespace IDs
 pub(crate) mod xmlns {
     /// Default namespace for primary.xml
     pub const NS_COMMON: &str = "http://linux.duke.edu/metadata/common";
@@ -26,8 +27,7 @@ pub(crate) mod xmlns {
     pub const NS_RPM: &str = "http://linux.duke.edu/metadata/rpm";
 }
 
-// ── Tag constants ───────────────────────────────────────────────────────
-
+///  Tag constants
 pub(crate) mod tag {
     pub const TAG_METADATA: &str = "metadata";
     pub const TAG_PACKAGE: &str = "package";

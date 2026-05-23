@@ -170,7 +170,7 @@ class TestRepositoryWriterAdvisory:
                 title="Test advisory",
                 severity="Critical",
                 summary="A test advisory",
-                from_="security@example.com",
+                fromstr="security@example.com",
             )
             ref = r.UpdateReference(
                 href="https://cve.org/CVE-2024-0001",

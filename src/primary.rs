@@ -17,7 +17,7 @@ use crate::metadata::{
 };
 use crate::parsing_utils::{self, resolve_attr, resolve_text};
 use crate::visitor::{PrimaryVisitor, RequirementData};
-use crate::{EVR, Repository};
+use crate::{Evr, Repository};
 
 impl RpmMetadata for PrimaryXml {
     fn filename() -> &'static str {
@@ -447,7 +447,11 @@ impl PrimaryVisitor for PackageMaterializer<'_> {
 
     fn set_evr(&mut self, epoch: &str, version: &str, release: &str) {
         if let Some(pkg) = self.package.as_mut() {
-            pkg.set_evr(EVR::new(epoch, version, release));
+            pkg.set_evr(Evr::new(
+                epoch.to_owned(),
+                version.to_owned(),
+                release.to_owned(),
+            ));
         }
     }
 
@@ -657,7 +661,7 @@ pub fn write_package<W: Write>(
         .write_text_content(BytesText::new(package.arch()))?;
 
     // <version epoch="0" ver="4.1" rel="1"/>
-    let (epoch, version, release) = package.evr().values();
+    let (epoch, version, release) = package.as_evr().values();
     writer
         .create_element(TAG_VERSION)
         .with_attribute(("epoch", epoch))

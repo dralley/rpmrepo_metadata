@@ -93,7 +93,7 @@ impl From<ChangelogData<'_>> for Changelog {
 #[allow(unused_variables)]
 pub trait PrimaryVisitor {
     fn begin_package(&mut self, name: &str, arch: &str, checksum_type: &str, pkgid: &str) {}
-    fn set_evr(&mut self, _epoch: &str, version: &str, release: &str) {}
+    fn set_evr(&mut self, epoch: &str, version: &str, release: &str) {}
     fn set_summary(&mut self, summary: &str) {}
     fn set_description(&mut self, description: &str) {}
     fn set_packager(&mut self, packager: &str) {}

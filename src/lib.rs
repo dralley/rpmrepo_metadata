@@ -14,7 +14,6 @@
 //! With the `read_rpm` feature enabled, RPM packages can be read directly from disk via
 //! [`Package::from_file`].
 
-mod common;
 mod comps;
 pub mod constants;
 mod filelist;
@@ -32,7 +31,6 @@ pub mod visitor;
 #[cfg(feature = "python_ext")]
 mod python_ext;
 
-pub use common::EVR;
 pub use comps::CompsXmlReader;
 pub use metadata::{
     Changelog, Checksum, ChecksumType, CompressionType, FileIter, FileList, FileRef, FileType,
@@ -55,3 +53,5 @@ pub use updateinfo::UpdateinfoXmlReader;
 pub use visitor::{
     CompsVisitor, FilelistsVisitor, OtherVisitor, PrimaryVisitor, UpdateinfoVisitor,
 };
+
+pub use rpm_version::{Evr, Nevra};

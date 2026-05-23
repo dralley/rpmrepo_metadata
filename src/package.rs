@@ -42,7 +42,7 @@ pub mod rpm_parsing {
     use std::fs::File;
     use std::time::SystemTime;
 
-    use crate::{Changelog, EVR, PackageFile, Requirement, RequirementType};
+    use crate::{Changelog, Evr, PackageFile, Requirement, RequirementType};
 
     use super::*;
     use rpm;
@@ -70,7 +70,7 @@ pub mod rpm_parsing {
                     | rpm::DependencyFlags::SCRIPT_POST
                     | rpm::DependencyFlags::PREREQ);
 
-            let evr = EVR::parse(&d.version);
+            let evr = Evr::parse(&d.version);
 
             let epoch = if evr.epoch().is_empty() {
                 if d.version.is_empty() {
@@ -79,17 +79,17 @@ pub mod rpm_parsing {
                     Some("0".to_string())
                 }
             } else {
-                Some(evr.epoch.to_string())
+                Some(evr.epoch().to_string())
             };
             let version = if evr.version().is_empty() && d.version.is_empty() {
                 None
             } else {
-                Some(evr.version.to_string())
+                Some(evr.version().to_string())
             };
             let release = if evr.release().is_empty() {
                 None
             } else {
-                Some(evr.release.to_string())
+                Some(evr.release().to_string())
             };
 
             Ok(Requirement {
@@ -162,9 +162,11 @@ pub mod rpm_parsing {
             };
 
             pkg_metadata.set_arch(arch);
-            pkg_metadata.set_epoch(pkg.get_epoch().unwrap_or_default());
-            pkg_metadata.set_version(pkg.get_version()?);
-            pkg_metadata.set_release(pkg.get_release()?);
+            pkg_metadata.set_evr(Evr::new(
+                pkg.get_epoch().unwrap_or_default().to_string(),
+                pkg.get_version()?.to_owned(),
+                pkg.get_release()?.to_owned(),
+            ));
 
             // These tags are optional in the RPM spec and default to empty when absent,
             // matching createrepo_c which always emits the XML element with empty content

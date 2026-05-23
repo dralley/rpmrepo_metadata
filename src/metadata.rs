@@ -4,6 +4,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+use std::cmp::Ordering;
 use std::convert::TryInto;
 use std::fmt;
 use std::hash::{Hash, Hasher};
@@ -14,10 +15,11 @@ use std::sync::Arc;
 
 // use bitflags;
 use quick_xml::{Reader, Writer};
+use rpm_version;
 #[cfg(feature = "read_rpm")]
 use thiserror::Error;
 
-use crate::{EVR, Repository, constants::mdrecord, utils};
+use crate::{Repository, constants::mdrecord, utils};
 
 /// Marker type for repomd.xml read/write operations.
 pub struct RepomdXml;
@@ -146,13 +148,6 @@ impl TryInto<CompressionType> for &str {
     }
 }
 
-// impl Ord for Package {
-//     #[inline]
-//     fn cmp(&self, other: &Package) -> Ordering {
-//         other.0.cmp(&self.0)
-//     }
-// }
-
 // bitflags::bitflags! {
 //     #[derive(Default)]
 //     pub struct ParseState: u8 {
@@ -172,7 +167,7 @@ pub struct Package {
     // pub(crate) parse_state: ParseState,
     pub name: String,
     pub arch: String,
-    pub evr: EVR,
+    pub evr: rpm_version::Evr<'static>,
     pub checksum: Checksum,
     pub location_href: String,
     pub location_base: Option<String>,
@@ -210,7 +205,7 @@ impl Package {
     /// Create a new `Package` with the given required fields; all other fields use defaults.
     pub fn new(
         name: &str,
-        version: &EVR,
+        version: &rpm_version::Evr<'_>,
         arch: &str,
         checksum: &Checksum,
         location_href: &str,
@@ -218,8 +213,7 @@ impl Package {
         Package {
             name: name.to_owned(),
             arch: arch.to_owned(),
-            // TODO: https://github.com/rust-lang/rust/issues/107115
-            evr: EVR::new(
+            evr: rpm_version::Evr::new(
                 version.epoch().to_owned(),
                 version.version().to_owned(),
                 version.release().to_owned(),
@@ -230,64 +224,72 @@ impl Package {
         }
     }
 
+    /// Set the package name.
     pub fn set_name(&mut self, name: impl Into<String>) -> &mut Self {
         self.name = name.into();
         self
     }
 
+    /// Return the package name.
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// Set the epoch component of the version.
     pub fn set_epoch(&mut self, epoch: u32) -> &mut Self {
-        self.evr.epoch = epoch.to_string();
+        self.evr.set_epoch(epoch.to_string());
         self
     }
 
+    /// Return the epoch component of the version as a `u32`.
     pub fn epoch(&self) -> u32 {
-        self.evr.epoch.parse().expect("TODO: don't do this")
+        self.evr.epoch().parse().expect("TODO: don't do this")
     }
 
+    /// Set the version component of the EVR.
     pub fn set_version(&mut self, version: impl Into<String>) -> &mut Self {
-        self.evr.version = version.into();
+        self.evr.set_version(version.into());
         self
     }
 
+    /// Return the version component of the EVR.
     pub fn version(&self) -> &str {
-        &self.evr.version
+        self.evr.version()
     }
 
+    /// Set the release component of the EVR.
     pub fn set_release(&mut self, release: impl Into<String>) -> &mut Self {
-        self.evr.release = release.into();
+        self.evr.set_release(release.into());
         self
     }
 
+    /// Return the release component of the EVR.
     pub fn release(&self) -> &str {
-        &self.evr.release
+        self.evr.release()
     }
 
+    /// Set the architecture (e.g. `"x86_64"`, `"noarch"`, `"src"`).
     pub fn set_arch(&mut self, arch: impl Into<String>) -> &mut Self {
         self.arch = arch.into();
         self
     }
 
+    /// Return the architecture.
     pub fn arch(&self) -> &str {
         &self.arch
     }
 
-    // TODO: signature
-    // TODO: https://github.com/rust-lang/rust/issues/107115
-    pub fn set_evr(&mut self, evr: EVR) -> &mut Self {
-        let evr = EVR::new(
-            evr.epoch().to_owned(),
-            evr.version().to_owned(),
-            evr.release().to_owned(),
-        );
+    /// Set the full epoch-version-release.
+    pub fn set_evr(&mut self, evr: rpm_version::Evr<'static>) -> &mut Self {
         self.evr = evr;
         self
     }
 
-    pub fn evr(&self) -> &EVR {
+    /// Return the package EVR (epoch-version-release) as an [`Evr`](rpm_version::Evr) struct.
+    ///
+    /// The returned value supports comparison via RPM's version ordering rules
+    /// and can be formatted as a string (e.g. `"0:1.2.3-4"`).
+    pub fn as_evr(&self) -> &rpm_version::Evr<'static> {
         &self.evr
     }
 
@@ -295,32 +297,46 @@ impl Package {
     pub fn nvra(&self) -> String {
         format!(
             "{}-{}-{}.{}",
-            self.name, self.evr.version, self.evr.release, self.arch
+            self.name,
+            self.evr.version(),
+            self.evr.release(),
+            self.arch
         )
     }
 
-    /// Returns the NEVRA string, omitting the epoch when it is `"0"`.
-    pub fn nevra_short(&self) -> String {
-        if self.evr.epoch == "0" {
-            self.nvra()
-        } else {
-            self.nevra()
-        }
-    }
-
-    /// Returns the full name-epoch:version-release.arch string (e.g. `"foo-1:2.0-3.x86_64"`).
+    /// Returns the name-epoch-version-release.arch string (e.g. `"foo-1:2.0-3.x86_64"`).
     pub fn nevra(&self) -> String {
         format!(
-            "{}-{}:{}-{}.{}",
-            self.name, self.evr.epoch, self.evr.version, self.evr.release, self.arch
+            "{}-{}-{}.{}",
+            self.name,
+            self.evr.version(),
+            self.evr.release(),
+            self.arch
         )
     }
-    // TODO: signature
+
+    /// Return the package NEVRA (name-epoch-version-release.arch) as a
+    /// [`Nevra`](rpm_version::Nevra) struct.
+    ///
+    /// The returned value supports comparison via RPM's version ordering rules
+    /// and can be formatted as a string (e.g. `"foo-1:2.0-3.x86_64"`).
+    pub fn as_nevra(&self) -> rpm_version::Nevra<'static> {
+        rpm_version::Nevra::new(
+            self.name().to_string(),
+            self.epoch().to_string(),
+            self.version().to_string(),
+            self.release().to_string(),
+            self.arch().to_string(),
+        )
+    }
+
+    /// Set the package checksum.
     pub fn set_checksum(&mut self, checksum: Checksum) -> &mut Self {
         self.checksum = checksum;
         self
     }
 
+    /// Return the package checksum.
     pub fn checksum(&self) -> &Checksum {
         &self.checksum
     }
@@ -331,250 +347,305 @@ impl Package {
         self.checksum.to_values().unwrap().1
     }
 
+    /// Set the relative path to the RPM file within the repository.
     pub fn set_location_href(&mut self, location_href: impl Into<String>) -> &mut Self {
         self.location_href = location_href.into();
         self
     }
 
+    /// Return the relative path to the RPM file within the repository.
     pub fn location_href(&self) -> &str {
         &self.location_href
     }
 
+    /// Set the optional base URL prepended to the location href.
     pub fn set_location_base(&mut self, location_base: Option<impl Into<String>>) -> &mut Self {
         self.location_base = location_base.map(|a| a.into());
         self
     }
 
+    /// Return the optional base URL for the package location.
     pub fn location_base(&self) -> Option<&str> {
         self.location_base.as_ref().map(|a| a.as_ref())
     }
 
+    /// Set the package summary.
     pub fn set_summary(&mut self, summary: impl Into<String>) -> &mut Self {
         self.summary = summary.into();
         self
     }
 
+    /// Return the package summary.
     pub fn summary(&self) -> &str {
         &self.summary
     }
 
+    /// Set the package description.
     pub fn set_description(&mut self, description: impl Into<String>) -> &mut Self {
         self.description = description.into();
         self
     }
 
+    /// Return the package description.
     pub fn description(&self) -> &str {
         &self.description
     }
 
+    /// Set the packager name/email.
     pub fn set_packager(&mut self, packager: impl Into<String>) -> &mut Self {
         self.packager = packager.into();
         self
     }
 
+    /// Return the packager name/email.
     pub fn packager(&self) -> &str {
         &self.packager
     }
 
+    /// Set the upstream project URL.
     pub fn set_url(&mut self, url: impl Into<String>) -> &mut Self {
         self.url = url.into();
         self
     }
 
+    /// Return the upstream project URL.
     pub fn url(&self) -> &str {
         &self.url
     }
 
+    /// Set the file modification time as a Unix timestamp.
     pub fn set_time_file(&mut self, time_file: u64) -> &mut Self {
         self.time_file = time_file;
         self
     }
 
+    /// Return the file modification time as a Unix timestamp.
     pub fn time_file(&self) -> u64 {
         self.time_file
     }
 
+    /// Set the build time as a Unix timestamp.
     pub fn set_time_build(&mut self, time_build: u64) -> &mut Self {
         self.time_build = time_build;
         self
     }
 
+    /// Return the build time as a Unix timestamp.
     pub fn time_build(&self) -> u64 {
         self.time_build
     }
 
+    /// Set the size of the RPM file in bytes.
     pub fn set_size_package(&mut self, size_package: u64) -> &mut Self {
         self.size_package = size_package;
         self
     }
 
+    /// Return the size of the RPM file in bytes.
     pub fn size_package(&self) -> u64 {
         self.size_package
     }
 
+    /// Set the total installed size in bytes.
     pub fn set_size_installed(&mut self, size_installed: u64) -> &mut Self {
         self.size_installed = size_installed;
         self
     }
 
+    /// Return the total installed size in bytes.
     pub fn size_installed(&self) -> u64 {
         self.size_installed
     }
 
+    /// Set the uncompressed payload archive size in bytes.
     pub fn set_size_archive(&mut self, size_archive: u64) -> &mut Self {
         self.size_archive = size_archive;
         self
     }
 
+    /// Return the uncompressed payload archive size in bytes.
     pub fn size_archive(&self) -> u64 {
         self.size_archive
     }
 
+    /// Set the RPM license tag.
     pub fn set_rpm_license(&mut self, license: impl Into<String>) -> &mut Self {
         self.rpm_license = license.into();
         self
     }
 
+    /// Return the RPM license tag.
     pub fn rpm_license(&self) -> &str {
         &self.rpm_license
     }
 
+    /// Set the RPM vendor tag.
     pub fn set_rpm_vendor(&mut self, vendor: impl Into<String>) -> &mut Self {
         self.rpm_vendor = vendor.into();
         self
     }
 
+    /// Return the RPM vendor tag.
     pub fn rpm_vendor(&self) -> &str {
         &self.rpm_vendor
     }
 
+    /// Set the RPM group tag.
     pub fn set_rpm_group(&mut self, group: impl Into<String>) -> &mut Self {
         self.rpm_group = group.into();
         self
     }
 
+    /// Return the RPM group tag.
     pub fn rpm_group(&self) -> &str {
         &self.rpm_group
     }
 
+    /// Set the hostname of the build machine.
     pub fn set_rpm_buildhost(&mut self, rpm_buildhost: impl Into<String>) -> &mut Self {
         self.rpm_buildhost = rpm_buildhost.into();
         self
     }
 
+    /// Return the hostname of the build machine.
     pub fn rpm_buildhost(&self) -> &str {
         &self.rpm_buildhost
     }
 
+    /// Set the source RPM filename.
     pub fn set_rpm_sourcerpm(&mut self, rpm_sourcerpm: impl Into<String>) -> &mut Self {
         self.rpm_sourcerpm = rpm_sourcerpm.into();
         self
     }
 
+    /// Return the source RPM filename.
     pub fn rpm_sourcerpm(&self) -> &str {
         &self.rpm_sourcerpm
     }
 
+    /// Set the byte offsets of the RPM header within the file.
     pub fn set_rpm_header_range(&mut self, start: u64, end: u64) -> &mut Self {
         self.rpm_header_range = HeaderRange { start, end };
         self
     }
 
+    /// Return the byte offsets of the RPM header within the file.
     pub fn rpm_header_range(&self) -> &HeaderRange {
         &self.rpm_header_range
     }
 
     // TODO: probably adjust the signatures on all of these w/ builder pattern or something
+    /// Set the list of `Requires` dependencies.
     pub fn set_requires(&mut self, requires: Vec<Requirement>) -> &mut Self {
         self.rpm_requires = requires;
         self
     }
 
+    /// Return the `Requires` dependencies.
     pub fn requires(&self) -> &[Requirement] {
         &self.rpm_requires
     }
 
+    /// Set the list of `Provides` capabilities.
     pub fn set_provides(&mut self, provides: Vec<Requirement>) -> &mut Self {
         self.rpm_provides = provides;
         self
     }
 
+    /// Return the `Provides` capabilities.
     pub fn provides(&self) -> &[Requirement] {
         &self.rpm_provides
     }
 
+    /// Set the list of `Conflicts` dependencies.
     pub fn set_conflicts(&mut self, conflicts: Vec<Requirement>) -> &mut Self {
         self.rpm_conflicts = conflicts;
         self
     }
 
+    /// Return the `Conflicts` dependencies.
     pub fn conflicts(&self) -> &[Requirement] {
         &self.rpm_conflicts
     }
 
+    /// Set the list of `Obsoletes` dependencies.
     pub fn set_obsoletes(&mut self, obsoletes: Vec<Requirement>) -> &mut Self {
         self.rpm_obsoletes = obsoletes;
         self
     }
 
+    /// Return the `Obsoletes` dependencies.
     pub fn obsoletes(&self) -> &[Requirement] {
         &self.rpm_obsoletes
     }
 
+    /// Set the list of `Suggests` (weak forward) dependencies.
     pub fn set_suggests(&mut self, suggests: Vec<Requirement>) -> &mut Self {
         self.rpm_suggests = suggests;
         self
     }
 
+    /// Return the `Suggests` dependencies.
     pub fn suggests(&self) -> &[Requirement] {
         &self.rpm_suggests
     }
 
+    /// Set the list of `Enhances` (weak reverse) dependencies.
     pub fn set_enhances(&mut self, enhances: Vec<Requirement>) -> &mut Self {
         self.rpm_enhances = enhances;
         self
     }
 
+    /// Return the `Enhances` dependencies.
     pub fn enhances(&self) -> &[Requirement] {
         &self.rpm_enhances
     }
 
+    /// Set the list of `Recommends` (weak forward) dependencies.
     pub fn set_recommends(&mut self, recommends: Vec<Requirement>) -> &mut Self {
         self.rpm_recommends = recommends;
         self
     }
 
+    /// Return the `Recommends` dependencies.
     pub fn recommends(&self) -> &[Requirement] {
         &self.rpm_recommends
     }
 
+    /// Set the list of `Supplements` (weak reverse) dependencies.
     pub fn set_supplements(&mut self, supplements: Vec<Requirement>) -> &mut Self {
         self.rpm_supplements = supplements;
         self
     }
 
+    /// Return the `Supplements` dependencies.
     pub fn supplements(&self) -> &[Requirement] {
         &self.rpm_supplements
     }
 
+    /// Add a file entry to the package.
     pub fn add_file(&mut self, filetype: FileType, path: &str) -> &mut Self {
         self.rpm_files.add_file(filetype, path);
         self
     }
 
+    /// Remove all file entries from the package.
     pub fn clear_files(&mut self) -> &mut Self {
         self.rpm_files.clear();
         self
     }
 
+    /// Return the file list.
     pub fn files(&self) -> &FileList {
         &self.rpm_files
     }
 
+    /// Iterate over files, calling `f` with each file's type and full path.
     pub fn for_each_file(&self, f: impl FnMut(FileType, &str)) {
         self.rpm_files.for_each_file(f);
     }
 
+    /// Append a changelog entry.
     pub fn add_changelog(&mut self, author: &str, description: &str, date: u64) -> &mut Self {
         self.rpm_changelogs.push(Changelog {
             author: author.to_owned(),
@@ -584,13 +655,22 @@ impl Package {
         self
     }
 
+    /// Replace the changelog entries.
     pub fn set_changelogs(&mut self, changelogs: Vec<Changelog>) -> &mut Self {
         self.rpm_changelogs = changelogs;
         self
     }
 
+    /// Return the changelog entries.
     pub fn changelogs(&self) -> &[Changelog] {
         &self.rpm_changelogs
+    }
+}
+
+impl PartialOrd for Package {
+    #[inline]
+    fn partial_cmp(&self, other: &Package) -> Option<Ordering> {
+        Some(other.as_nevra().cmp(&self.as_nevra()))
     }
 }
 

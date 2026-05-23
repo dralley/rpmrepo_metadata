@@ -47,7 +47,7 @@ class TestPackage:
         pkg.epoch = 1
         pkg.version = "2.3"
         pkg.release = "4"
-        evr = pkg.evr()
+        evr = pkg.as_evr()
         assert evr.epoch == "1"
         assert evr.version == "2.3"
         assert evr.release == "4"
@@ -202,7 +202,6 @@ class TestPackage:
         pkg.arch = "x86_64"
         assert "foo" in pkg.nevra()
         assert "foo" in pkg.nvra()
-        assert "foo" in pkg.nevra_short()
 
 
 class TestPackageFromFile:
@@ -251,6 +250,57 @@ class TestPackageFromFile:
         pkg = r.Package.from_file(RPM_EMPTY)
         assert pkg.name == "rpm-empty"
         assert pkg.arch == "x86_64"
+
+
+class TestPackageSorting:
+    def _make_pkg(self, name, epoch, version, release, arch):
+        pkg = r.Package()
+        pkg.name = name
+        pkg.epoch = epoch
+        pkg.version = version
+        pkg.release = release
+        pkg.arch = arch
+        return pkg
+
+    def test_sort_by_evr(self):
+        packages = [
+            self._make_pkg("foo", 0, "3.0", "1.el9", "x86_64"),
+            self._make_pkg("foo", 0, "1.0", "1.el9", "x86_64"),
+            self._make_pkg("foo", 1, "1.0", "1.el9", "x86_64"),
+            self._make_pkg("foo", 0, "2.0", "1.el9", "x86_64"),
+            self._make_pkg("foo", 0, "1.0", "2.el9", "x86_64"),
+        ]
+
+        packages.sort(key=lambda p: p.as_evr())
+
+        versions = [p.version for p in packages]
+        assert versions == ["1.0", "1.0", "2.0", "3.0", "1.0"]
+
+        releases = [p.release for p in packages]
+        assert releases == ["1.el9", "2.el9", "1.el9", "1.el9", "1.el9"]
+
+        epochs = [p.epoch for p in packages]
+        assert epochs == [0, 0, 0, 0, 1]
+
+    def test_sort_by_nevra(self):
+        packages = [
+            self._make_pkg("zlib", 0, "1.0", "1.el9", "x86_64"),
+            self._make_pkg("bash", 0, "5.0", "1.el9", "x86_64"),
+            self._make_pkg("bash", 0, "4.0", "1.el9", "x86_64"),
+            self._make_pkg("glibc", 0, "2.0", "1.el9", "i686"),
+            self._make_pkg("glibc", 0, "2.0", "1.el9", "x86_64"),
+        ]
+
+        packages.sort(key=lambda p: p.as_nevra())
+
+        nevras = [p.nvra() for p in packages]
+        assert nevras == [
+            "bash-4.0-1.el9.x86_64",
+            "bash-5.0-1.el9.x86_64",
+            "glibc-2.0-1.el9.i686",
+            "glibc-2.0-1.el9.x86_64",
+            "zlib-1.0-1.el9.x86_64",
+        ]
 
 
 class TestChecksumType:

@@ -9,7 +9,6 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use pyo3::Py;
-use pyo3::basic::CompareOp;
 use pyo3::prelude::*;
 
 #[pymodule]
@@ -442,21 +441,6 @@ mod rpmrepo_metadata {
             }
         }
 
-        /// Return the name-version-release-arch string.
-        fn nvra(&self) -> String {
-            self.inner.nvra()
-        }
-
-        /// Return the name-epoch-version-release-arch string.
-        fn nevra(&self) -> String {
-            self.inner.nevra()
-        }
-
-        /// Return the NEVRA string, omitting epoch when it is 0.
-        fn nevra_short(&self) -> String {
-            self.inner.nevra_short()
-        }
-
         /// Read package metadata from an RPM file on disk.
         #[cfg(feature = "read_rpm")]
         #[staticmethod]
@@ -486,11 +470,40 @@ mod rpmrepo_metadata {
             Ok(Package { inner: pkg })
         }
 
-        /// Return the epoch-version-release as an EVR object.
-        fn evr(&self) -> EVR {
-            EVR {
-                inner: self.inner.evr.clone(),
-            }
+        /// The full EVR as a structured object that can be sorted on, printed, etc.
+        ///
+        /// # Example
+        /// ```python
+        /// old = Package.from_file("bash-5.2.15-3.fc40.x86_64.rpm")
+        /// new = Package.from_file("bash-5.2.26-3.fc42.x86_64.rpm")
+        /// assert old.as_evr() < new.as_evr()
+        /// ```
+        fn as_evr(&self) -> rpm_version::python::PyEvr {
+            self.inner.as_evr().clone().into()
+        }
+
+        /// Return the name-version-release-arch string.
+        fn nvra(&self) -> String {
+            self.inner.nvra()
+        }
+
+        /// Return the name-epoch:version-release-arch string.
+        fn nevra(&self) -> String {
+            self.inner.nevra()
+        }
+
+        /// The full NEVRA as a structured object that can be sorted on, printed, etc.
+        ///
+        /// # Example
+        /// ```python
+        /// pkgs = [Package.from_file("bash-5.2.26-3.fc42.x86_64.rpm"),
+        ///         Package.from_file("bash-5.2.15-3.fc40.x86_64.rpm")]
+        /// pkgs.sort(key=lambda p: p.as_nevra())
+        /// print([str(p.as_nevra()) for p in pkgs])
+        /// # ["bash-5.2.15-3.fc40.x86_64", "bash-5.2.26-3.fc42.x86_64"]
+        /// ```
+        fn as_nevra(&self) -> rpm_version::python::PyNevra {
+            self.inner.as_nevra().into()
         }
 
         #[setter(name)]
@@ -958,7 +971,7 @@ mod rpmrepo_metadata {
 
     impl fmt::Display for Package {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            write!(f, "<Package {}>", self.nevra())
+            write!(f, "<Package {}>", self.inner.nevra())
         }
     }
 
@@ -2094,83 +2107,6 @@ mod rpmrepo_metadata {
                 ChecksumType::Sha384 => crate::ChecksumType::Sha384,
                 ChecksumType::Sha512 => crate::ChecksumType::Sha512,
             }
-        }
-    }
-
-    /// An RPM Epoch-Version-Release version specifier.
-    #[pyclass]
-    struct EVR {
-        inner: crate::EVR,
-    }
-
-    #[pymethods]
-    impl EVR {
-        /// Create an EVR from explicit epoch, version, and release strings.
-        #[new]
-        fn new(epoch: &str, version: &str, release: &str) -> EVR {
-            EVR {
-                inner: crate::EVR::new(epoch, version, release),
-            }
-        }
-
-        /// Return the (epoch, version, release) components as a tuple.
-        fn components(&self) -> (&str, &str, &str) {
-            (self.epoch(), self.version(), self.release())
-        }
-
-        /// Parse an EVR string like ``"1:2.3.4-5.el9"`` into its components.
-        #[staticmethod]
-        fn parse(evr: &str) -> PyResult<Self> {
-            let py_evr = EVR {
-                inner: crate::EVR::parse_values(evr).try_into()?,
-            };
-            Ok(py_evr)
-        }
-
-        #[getter]
-        fn epoch(&self) -> &str {
-            &self.inner.epoch
-        }
-
-        #[getter]
-        fn version(&self) -> &str {
-            &self.inner.version
-        }
-
-        #[getter]
-        fn release(&self) -> &str {
-            &self.inner.release
-        }
-
-        fn __str__(&self) -> PyResult<String> {
-            Ok(self.to_string())
-        }
-
-        fn __repr__(&self) -> PyResult<String> {
-            Ok(self.to_string())
-        }
-
-        fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
-            match op {
-                CompareOp::Lt => Ok(self.inner < other.inner),
-                CompareOp::Le => Ok(self.inner <= other.inner),
-                CompareOp::Eq => Ok(self.inner == other.inner),
-                CompareOp::Ne => Ok(self.inner != other.inner),
-                CompareOp::Gt => Ok(self.inner > other.inner),
-                CompareOp::Ge => Ok(self.inner >= other.inner),
-            }
-        }
-    }
-
-    impl fmt::Display for EVR {
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            write!(
-                f,
-                "<EVR ({:?}, {:?}, {:?})>",
-                self.epoch(),
-                self.version(),
-                self.release()
-            )
         }
     }
 }

@@ -128,7 +128,6 @@ pkg.changelogs = [
 ]
 
 print(pkg.nevra())       # "my-package-0:1.2.3-4.el9.x86_64"
-print(pkg.nevra_short())  # "my-package-1.2.3-4.el9.x86_64" (omits epoch 0)
 print(pkg.pkgid)          # "aaaa...aaaa"
 ```
 

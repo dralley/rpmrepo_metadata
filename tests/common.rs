@@ -8,7 +8,7 @@
 
 use std::sync::LazyLock;
 
-use rpmrepo_metadata::{Checksum, EVR, FileType, Package, Requirement, RequirementType};
+use rpmrepo_metadata::{Checksum, Evr, FileType, Package, Requirement, RequirementType};
 
 // const FIXTURE_FILELIST_PATH: &str = "./tests/assets/complex_repo/repodata/filelists.xml.gz";
 
@@ -20,7 +20,7 @@ pub static COMPLEX_PACKAGE: LazyLock<Package> = LazyLock::new(|| {
 
     package.set_name("complex-package");
     package.set_arch("x86_64");
-    package.set_evr(EVR::new("1", "2.3.4", "5.el8"));
+    package.set_evr(Evr::new("1", "2.3.4", "5.el8"));
     package.set_checksum(Checksum::Sha256(
         "bbb7b0e9350a0f75b923bdd0ef4f9af39765c668a3e70bfd3486ea9f0f618aaf".to_owned(),
     ));
@@ -215,7 +215,7 @@ pub static RPM_WITH_INVALID_CHARS: LazyLock<Package> = LazyLock::new(|| {
 
     package.set_name("rpm-with-invalid-chars");
     package.set_arch("noarch");
-    package.set_evr(EVR::new("0", "1", "1.fc33"));
+    package.set_evr(Evr::new("0", "1", "1.fc33"));
     package.set_checksum(Checksum::Sha256(
         "64f1444f8e86a9ae6accdc2c4b12cb4a87fb2414c0998df461a8623a52eb3cc4".to_owned(),
     ));
@@ -255,7 +255,7 @@ pub static RPM_EMPTY: LazyLock<Package> = LazyLock::new(|| {
 
     package.set_name("rpm-empty");
     package.set_arch("x86_64");
-    package.set_evr(EVR::new("0", "0", "0"));
+    package.set_evr(Evr::new("0", "0", "0"));
     package.set_checksum(Checksum::Sha256(
         "90fbba546300f507473547f33e229ee7bad94bbbe6e84b21d485e8e43b5f1132".to_owned(),
     ));
@@ -299,7 +299,7 @@ pub static RPM_WITH_NON_ASCII: LazyLock<Package> = LazyLock::new(|| {
     let mut package = Package::default();
     package.set_name("rpm-with-non-ascii");
     package.set_arch("noarch");
-    package.set_evr(EVR::new("0", "1", "1.fc33"));
+    package.set_evr(Evr::new("0", "1", "1.fc33"));
     package.set_checksum(Checksum::Sha256(
         "957de8a966af8fe8e55102489099d8b20bbecc23954c8c2bd88fb59625260393".to_owned(),
     ));

@@ -12,7 +12,7 @@ use quick_xml::{Reader, Writer};
 use crate::constants::{tag::*, xmlns};
 use crate::parsing_utils::{self, resolve_attr, resolve_text};
 use crate::visitor::FilelistsVisitor;
-use crate::{Checksum, EVR};
+use crate::{Checksum, Evr};
 
 use super::Repository;
 use super::metadata::{FileType, FilelistsXml, MetadataError, Package, RpmMetadata};
@@ -105,7 +105,7 @@ impl<W: Write> FilelistsXmlWriter<W> {
             .write_event(Event::Start(package_tag.borrow()))?;
 
         // <version epoch="0" ver="2.8.0" rel="5.el6"/>
-        let (epoch, version, release) = package.evr().values();
+        let (epoch, version, release) = package.as_evr().values();
         self.writer
             .create_element(TAG_VERSION)
             .with_attribute(("epoch", epoch))
@@ -290,7 +290,11 @@ impl FilelistsVisitor for FilelistsMaterializer<'_> {
 
     fn set_evr(&mut self, epoch: &str, version: &str, release: &str) {
         if let Some(pkg) = self.package.as_mut() {
-            pkg.set_evr(EVR::new(epoch, version, release));
+            pkg.set_evr(Evr::new(
+                epoch.to_owned(),
+                version.to_owned(),
+                release.to_owned(),
+            ));
         }
     }
 

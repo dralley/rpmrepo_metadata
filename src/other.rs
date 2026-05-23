@@ -15,7 +15,7 @@ use crate::constants::{tag::*, xmlns};
 use crate::metadata::{OtherXml, Package, RpmMetadata};
 use crate::parsing_utils::{self, resolve_attr, resolve_text};
 use crate::visitor::{ChangelogData, OtherVisitor};
-use crate::{EVR, MetadataError, Repository};
+use crate::{Evr, MetadataError, Repository};
 
 impl RpmMetadata for OtherXml {
     fn filename() -> &'static str {
@@ -106,7 +106,7 @@ impl<W: Write> OtherXmlWriter<W> {
         self.writer
             .write_event(Event::Start(package_tag.borrow()))?;
 
-        let (epoch, version, release) = package.evr().values();
+        let (epoch, version, release) = package.as_evr().values();
         // <version epoch="0" ver="2.8.0" rel="5.el6"/>
         self.writer
             .create_element(TAG_VERSION)
@@ -288,7 +288,11 @@ impl OtherVisitor for OtherMaterializer<'_> {
 
     fn set_evr(&mut self, epoch: &str, version: &str, release: &str) {
         if let Some(pkg) = self.package.as_mut() {
-            pkg.set_evr(EVR::new(epoch, version, release));
+            pkg.set_evr(Evr::new(
+                epoch.to_owned(),
+                version.to_owned(),
+                release.to_owned(),
+            ));
         }
     }
 

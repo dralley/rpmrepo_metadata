@@ -12,7 +12,7 @@ homepage = "https://github.com/dralley/rpmrepo_metadata/"
 documentation = "https://docs.rs/rpmrepo_metadata/"
 
 [features]
-python_ext = ["pyo3"]
+python_ext = ["pyo3", "rpm-version/python"]
 read_rpm = ["rpm"]
 default = ["python_ext", "read_rpm"]
 
@@ -34,6 +34,7 @@ hex = "0.4.3"
 ahash = "0.8"
 compact_str = "0.9"
 indexmap = "2.14.0"
+rpm-version = { version = "0.4" }
 pyo3 = { version = "0.28.3", features = ["extension-module"], optional = true }
 
 [lib]

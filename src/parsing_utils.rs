@@ -37,7 +37,9 @@ pub(crate) fn resolve_text<'a>(
     }
 }
 
+/// Extension trait for unescaping XML text content into an owned `String`.
 pub(crate) trait XmlTextUnescape {
+    /// Decode and unescape XML text content.
     fn xml_text(&self) -> Result<String, crate::MetadataError>;
 }
 
@@ -49,7 +51,9 @@ impl XmlTextUnescape for quick_xml::events::BytesText<'_> {
     }
 }
 
+/// Extension trait for normalizing and unescaping XML attribute values into an owned `String`.
 pub(crate) trait XmlAttrUnescape {
+    /// Normalize and unescape an XML attribute value, handling double-encoded ampersands.
     fn xml_attr(&self) -> Result<String, crate::MetadataError>;
 }
 
@@ -69,6 +73,7 @@ impl XmlAttrUnescape for quick_xml::events::attributes::Attribute<'_> {
     }
 }
 
+/// Parse the opening element of a metadata XML file and return the `packages` count.
 pub fn parse_header_tag<R: BufRead>(
     reader: &mut quick_xml::Reader<R>,
     expected_tag: &str,
@@ -86,6 +91,7 @@ pub fn parse_header_tag<R: BufRead>(
     }
 }
 
+/// Extract epoch, version, and release attributes from a `<version>` XML element.
 pub fn parse_evr_from_tag<'a>(
     tag: &'a BytesStart<'a>,
 ) -> Result<(Cow<'a, str>, Cow<'a, str>, Cow<'a, str>), MetadataError> {
