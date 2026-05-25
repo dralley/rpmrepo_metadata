@@ -804,7 +804,8 @@ fn parse_comps_packagelist<R: BufRead, V: CompsVisitor>(
                     }
                 }
 
-                let reqtype = type_cow.ok_or(MetadataError::MissingAttributeError("type"))?;
+                // libcomps defaults to "mandatory" when the type attribute is absent
+                let reqtype = type_cow.unwrap_or("mandatory".into());
                 let bytes_text =
                     reader.read_text_into(QName(TAG_PACKAGEREQ.as_bytes()), text_buf)?;
                 let name = resolve_text(&bytes_text)?;

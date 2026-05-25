@@ -299,7 +299,7 @@ pub fn parse_primary_package<R: BufRead, V: PrimaryVisitor>(
                         let attr = attr_result?;
                         match attr.key.as_ref() {
                             b"href" => href_cow = Some(resolve_attr(&attr)?),
-                            b"base" => base_cow = Some(resolve_attr(&attr)?),
+                            b"xml:base" => base_cow = Some(resolve_attr(&attr)?),
                             _ => (),
                         }
                     }
@@ -712,11 +712,15 @@ pub fn write_package<W: Write>(
         .with_attribute(("archive", package.size_archive().to_string().as_str()))
         .write_empty()?;
 
-    // <location href="horse-4.1-1.noarch.rpm"/>
-    writer
+    // <location href="horse-4.1-1.noarch.rpm" xml:base="..."/>
+    let location_elem = writer
         .create_element(TAG_LOCATION)
-        .with_attribute(("href", package.location_href()))
-        .write_empty()?;
+        .with_attribute(("href", package.location_href()));
+    if let Some(base) = package.location_base() {
+        location_elem.with_attribute(("xml:base", base)).write_empty()?;
+    } else {
+        location_elem.write_empty()?;
+    }
 
     // <format>
     let format_tag = BytesStart::new(TAG_FORMAT);

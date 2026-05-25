@@ -6,18 +6,34 @@ use quick_xml::{self, events::*};
 use crate::MetadataError;
 use crate::constants::XML_VERSION;
 
-/// Resolve an attribute value, handling double-encoded `&#38;`.
+/// Normalize an attribute value then resolve double-encoded ampersands.
 ///
-/// Workaround for https://github.com/rpm-software-management/createrepo_c/issues/286
+/// Workaround for an issue first encountered in createrepo_c:
+/// https://github.com/rpm-software-management/createrepo_c/issues/286
+///
+/// `normalized_value` handles standard XML entity resolution (`&amp;` -> `&`,
+/// `&#38;` -> `&`). Some RPM repositories contain double-encoded ampersands
+/// (`&amp;#38;`) which after the first pass leave `&#38;` as a remnant.
+/// This mirrors createrepo_c's `unescape_ampersand_from_values`.
 pub(crate) fn resolve_attr<'a>(
     attr: &quick_xml::events::attributes::Attribute<'a>,
 ) -> Result<Cow<'a, str>, MetadataError> {
     let normalized = attr.normalized_value(XML_VERSION)?;
-    if normalized.contains("&#38;") {
-        Ok(Cow::Owned(normalized.replace("&#38;", "&")))
-    } else {
-        Ok(normalized)
+    let mut s: Option<String> = None;
+    loop {
+        let new_s = {
+            let current: &str = s.as_deref().unwrap_or(normalized.as_ref());
+            if !current.contains("&#38;") {
+                break;
+            }
+            current.replace("&#38;", "&")
+        };
+        s = Some(new_s);
     }
+    Ok(match s {
+        Some(owned) => Cow::Owned(owned),
+        None => normalized,
+    })
 }
 
 /// Unescape XML text content.
@@ -40,36 +56,12 @@ pub(crate) fn resolve_text<'a>(
 /// Extension trait for unescaping XML text content into an owned `String`.
 pub(crate) trait XmlTextUnescape {
     /// Decode and unescape XML text content.
-    fn xml_text(&self) -> Result<String, crate::MetadataError>;
+    fn xml_text<'a>(&'a self) -> Result<Cow<'a, str>, crate::MetadataError>;
 }
 
 impl XmlTextUnescape for quick_xml::events::BytesText<'_> {
-    fn xml_text(&self) -> Result<String, crate::MetadataError> {
-        let decoded = self.xml_content(XML_VERSION)?;
-        let unescaped = quick_xml::escape::unescape(&decoded)?;
-        Ok(unescaped.into_owned())
-    }
-}
-
-/// Extension trait for normalizing and unescaping XML attribute values into an owned `String`.
-pub(crate) trait XmlAttrUnescape {
-    /// Normalize and unescape an XML attribute value, handling double-encoded ampersands.
-    fn xml_attr(&self) -> Result<String, crate::MetadataError>;
-}
-
-impl XmlAttrUnescape for quick_xml::events::attributes::Attribute<'_> {
-    /// Normalize an attribute value then resolve double-encoded ampersands.
-    ///
-    /// Workaround for an issue first encountered in createrepo_c:
-    /// https://github.com/rpm-software-management/createrepo_c/issues/286
-    ///
-    /// `normalized_value` handles standard XML entity resolution (`&amp;` -> `&`,
-    /// `&#38;` -> `&`). Some RPM repositories contain double-encoded ampersands
-    /// (`&amp;#38;`) which after the first pass leave `&#38;` as a remnant.
-    /// This mirrors createrepo_c's `unescape_ampersand_from_values`.
-    fn xml_attr(&self) -> Result<String, crate::MetadataError> {
-        let normalized = self.normalized_value(XML_VERSION)?.into_owned();
-        Ok(normalized.replace("&#38;", "&"))
+    fn xml_text<'a>(&'a self) -> Result<Cow<'a, str>, MetadataError> {
+        resolve_text(self)
     }
 }
 
@@ -92,6 +84,7 @@ pub fn parse_header_tag<R: BufRead>(
 }
 
 /// Extract epoch, version, and release attributes from a `<version>` XML element.
+#[allow(clippy::type_complexity)]
 pub fn parse_evr_from_tag<'a>(
     tag: &'a BytesStart<'a>,
 ) -> Result<(Cow<'a, str>, Cow<'a, str>, Cow<'a, str>), MetadataError> {

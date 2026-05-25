@@ -11,29 +11,33 @@ use std::sync::Mutex;
 use pyo3::Py;
 use pyo3::prelude::*;
 
+// Create a Python exception type "MetadataError" to mirror the Rust version
+// No sub-types though, just string-ify the error message.
+pyo3::create_exception!(
+    rpmrepo_metadata,
+    MetadataError,
+    pyo3::exceptions::PyException
+);
+
+impl From<crate::MetadataError> for pyo3::PyErr {
+    fn from(err: crate::MetadataError) -> Self {
+        match err {
+            // TODO: IoError doesn't really belong as part of the (Rust) MetadataError type to begin with,
+            // might make sense to split it out
+            crate::MetadataError::IoError(err) => {
+                pyo3::exceptions::PyOSError::new_err(err.to_string())
+            }
+            _ => MetadataError::new_err(err.to_string()),
+        }
+    }
+}
+
 #[pymodule]
 mod rpmrepo_metadata {
     use super::*;
-    // Create a Python exception type "MetadataError" to mirror the Rust version
-    // No sub-types though, just string-ify the error message.
-    pyo3::create_exception!(
-        rpmrepo_metadata,
-        MetadataError,
-        pyo3::exceptions::PyException
-    );
 
-    impl From<crate::MetadataError> for pyo3::PyErr {
-        fn from(err: crate::MetadataError) -> Self {
-            match err {
-                // TODO: IoError doesn't really belong as part of the (Rust) MetadataError type to begin with,
-                // might make sense to split it out
-                crate::MetadataError::IoError(err) => {
-                    pyo3::exceptions::PyOSError::new_err(err.to_string())
-                }
-                _ => MetadataError::new_err(err.to_string()),
-            }
-        }
-    }
+    #[pymodule_export]
+    use super::MetadataError;
 
     /// In-memory representation of a complete RPM repository.
     #[pyclass]
@@ -423,6 +427,10 @@ mod rpmrepo_metadata {
                 .map(|l| CompsLangpack { inner: l.clone() })
                 .collect()
         }
+
+        fn __eq__(&self, other: &CompsData) -> bool {
+            self.inner == other.inner
+        }
     }
 
     /// An RPM package's metadata.
@@ -479,7 +487,7 @@ mod rpmrepo_metadata {
         /// assert old.as_evr() < new.as_evr()
         /// ```
         fn as_evr(&self) -> rpm_version::python::PyEvr {
-            self.inner.as_evr().clone().into()
+            self.inner.as_evr().to_owned().into()
         }
 
         /// Return the name-version-release-arch string.
@@ -503,7 +511,7 @@ mod rpmrepo_metadata {
         /// # ["bash-5.2.15-3.fc40.x86_64", "bash-5.2.26-3.fc42.x86_64"]
         /// ```
         fn as_nevra(&self) -> rpm_version::python::PyNevra {
-            self.inner.as_nevra().into()
+            self.inner.as_nevra().to_owned().into()
         }
 
         #[setter(name)]
@@ -960,6 +968,10 @@ mod rpmrepo_metadata {
                 .collect()
         }
 
+        fn __eq__(&self, other: &Package) -> bool {
+            self.inner == other.inner
+        }
+
         fn __str__(&self) -> PyResult<String> {
             Ok(self.to_string())
         }
@@ -1183,6 +1195,7 @@ mod rpmrepo_metadata {
 
     #[pymethods]
     impl UpdateRecord {
+        #[allow(clippy::too_many_arguments)]
         #[new]
         #[pyo3(signature = (id="".to_string(), title="".to_string(), update_type="".to_string(), fromstr="".to_string(), status="".to_string(), version="".to_string(), severity=None, summary=None, description=None, solution=None, rights=None, release=None, issued_date=None, updated_date=None, pushcount=None))]
         fn new(
@@ -1403,6 +1416,10 @@ mod rpmrepo_metadata {
                 .collect()
         }
 
+        fn __eq__(&self, other: &UpdateRecord) -> bool {
+            self.inner == other.inner
+        }
+
         fn __str__(&self) -> String {
             format!("<UpdateRecord {}>", self.inner.id)
         }
@@ -1451,6 +1468,10 @@ mod rpmrepo_metadata {
         #[getter]
         fn reftype(&self) -> &str {
             &self.inner.reftype
+        }
+
+        fn __eq__(&self, other: &UpdateReference) -> bool {
+            self.inner == other.inner
         }
     }
 
@@ -1511,6 +1532,10 @@ mod rpmrepo_metadata {
                 .as_ref()
                 .map(|m| UpdateCollectionModule { inner: m.clone() })
         }
+
+        fn __eq__(&self, other: &UpdateCollection) -> bool {
+            self.inner == other.inner
+        }
     }
 
     /// A package within an advisory update collection.
@@ -1521,6 +1546,7 @@ mod rpmrepo_metadata {
 
     #[pymethods]
     impl UpdateCollectionPackage {
+        #[allow(clippy::too_many_arguments)]
         #[new]
         #[pyo3(signature = (name="".to_string(), version="".to_string(), release="".to_string(), arch="".to_string(), epoch="".to_string(), filename="".to_string(), src="".to_string(), reboot_suggested=false, restart_suggested=false, relogin_suggested=false))]
         fn new(
@@ -1609,6 +1635,10 @@ mod rpmrepo_metadata {
         fn version(&self) -> &str {
             &self.inner.version
         }
+
+        fn __eq__(&self, other: &UpdateCollectionPackage) -> bool {
+            self.inner == other.inner
+        }
     }
 
     /// Module stream information for a modular advisory update.
@@ -1657,6 +1687,10 @@ mod rpmrepo_metadata {
         fn arch(&self) -> &str {
             &self.inner.arch
         }
+
+        fn __eq__(&self, other: &UpdateCollectionModule) -> bool {
+            self.inner == other.inner
+        }
     }
 
     /// Iterator over advisory records from updateinfo.xml.
@@ -1692,6 +1726,7 @@ mod rpmrepo_metadata {
 
     #[pymethods]
     impl CompsGroup {
+        #[allow(clippy::too_many_arguments)]
         #[new]
         #[pyo3(signature = (id="".to_string(), name="".to_string(), description="".to_string(), default=false, uservisible=true, biarchonly=false, langonly=None, display_order=None))]
         fn new(
@@ -1795,6 +1830,10 @@ mod rpmrepo_metadata {
                 .collect()
         }
 
+        fn __eq__(&self, other: &CompsGroup) -> bool {
+            self.inner == other.inner
+        }
+
         fn __str__(&self) -> String {
             format!("<CompsGroup {}>", self.inner.id)
         }
@@ -1848,6 +1887,10 @@ mod rpmrepo_metadata {
         #[getter]
         fn basearchonly(&self) -> bool {
             self.inner.basearchonly
+        }
+
+        fn __eq__(&self, other: &CompsPackageReq) -> bool {
+            self.inner == other.inner
         }
     }
 
@@ -1923,6 +1966,10 @@ mod rpmrepo_metadata {
         #[getter]
         fn group_ids(&self) -> Vec<String> {
             self.inner.group_ids.clone()
+        }
+
+        fn __eq__(&self, other: &CompsCategory) -> bool {
+            self.inner == other.inner
         }
 
         fn __str__(&self) -> String {
@@ -2023,6 +2070,10 @@ mod rpmrepo_metadata {
                 .collect()
         }
 
+        fn __eq__(&self, other: &CompsEnvironment) -> bool {
+            self.inner == other.inner
+        }
+
         fn __str__(&self) -> String {
             format!("<CompsEnvironment {}>", self.inner.id)
         }
@@ -2057,6 +2108,10 @@ mod rpmrepo_metadata {
         fn default(&self) -> bool {
             self.inner.default
         }
+
+        fn __eq__(&self, other: &CompsEnvironmentOption) -> bool {
+            self.inner == other.inner
+        }
     }
 
     /// A langpack mapping from comps.xml.
@@ -2082,6 +2137,10 @@ mod rpmrepo_metadata {
         #[getter]
         fn install(&self) -> &str {
             &self.inner.install
+        }
+
+        fn __eq__(&self, other: &CompsLangpack) -> bool {
+            self.inner == other.inner
         }
     }
 

@@ -167,11 +167,13 @@ impl UpdateRecordMaterializer {
 
 impl UpdateinfoVisitor for UpdateRecordMaterializer {
     fn begin_update(&mut self, from: &str, update_type: &str, status: &str, version: &str) {
-        let mut record = UpdateRecord::default();
-        record.from = from.to_owned();
-        record.update_type = update_type.to_owned();
-        record.status = status.to_owned();
-        record.version = version.to_owned();
+        let record = UpdateRecord {
+            from: from.to_owned(),
+            update_type: update_type.to_owned(),
+            status: status.to_owned(),
+            version: version.to_owned(),
+            ..UpdateRecord::default()
+        };
         self.record = Some(record);
     }
 
@@ -253,8 +255,7 @@ impl UpdateinfoVisitor for UpdateRecordMaterializer {
     }
 
     fn begin_collection(&mut self, shortname: &str) {
-        let mut collection = UpdateCollection::default();
-        collection.shortname = shortname.to_owned();
+        let collection = UpdateCollection { shortname: shortname.to_owned(), ..Default::default() };
         self.current_collection = Some(collection);
     }
 
@@ -292,13 +293,15 @@ impl UpdateinfoVisitor for UpdateRecordMaterializer {
         arch: &str,
         src: Option<&str>,
     ) {
-        let mut package = UpdateCollectionPackage::default();
-        package.name = name.to_owned();
-        package.epoch = epoch.to_owned();
-        package.version = version.to_owned();
-        package.release = release.to_owned();
-        package.arch = arch.to_owned();
-        package.src = src.map(|s| s.to_owned());
+        let package = UpdateCollectionPackage {
+            name: name.to_owned(),
+            epoch: epoch.to_owned(),
+            version: version.to_owned(),
+            release: release.to_owned(),
+            arch: arch.to_owned(),
+            src: src.map(|s| s.to_owned()),
+            ..Default::default()
+        };
         self.current_package = Some(package);
     }
 

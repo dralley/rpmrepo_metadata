@@ -19,7 +19,7 @@ use crate::Repository;
 use crate::constants::xmlns;
 use crate::metadata::RepomdData;
 use crate::metadata::{Checksum, MetadataError, RepomdRecord, RepomdXml, RpmMetadata};
-use crate::parsing_utils::{XmlAttrUnescape, XmlTextUnescape};
+use crate::parsing_utils::{XmlTextUnescape, resolve_attr};
 
 // RepoMd
 const TAG_REPOMD: &str = "repomd";
@@ -145,7 +145,10 @@ fn read_repomd_xml<R: BufRead>(
                     found_metadata_tag = true;
                 }
                 TAG_REVISION => {
-                    let revision = reader.read_text_into(e.name(), &mut text_buf)?.xml_text()?;
+                    let revision = reader
+                        .read_text_into(e.name(), &mut text_buf)?
+                        .xml_text()?
+                        .to_string();
                     repomd_data.set_revision(revision.as_ref());
                 }
                 TAG_DATA => {
@@ -165,28 +168,30 @@ fn read_repomd_xml<R: BufRead>(
                                     TAG_DISTRO => {
                                         let cpeid = e
                                             .try_get_attribute("cpeid")?
-                                            .map(|a| a.xml_attr())
-                                            .transpose()
-                                            .ok()
-                                            .flatten();
+                                            .map(|a| resolve_attr(&a))
+                                            .transpose()?
+                                            .map(|a| a.to_string());
                                         let name = reader
                                             .read_text_into(
                                                 QName(TAG_DISTRO.as_bytes()),
                                                 &mut text_buf,
                                             )?
-                                            .xml_text()?;
+                                            .xml_text()?
+                                            .to_string();
                                         repomd_data.add_distro_tag(name, cpeid);
                                     }
                                     TAG_REPO => {
                                         let repo = reader
                                             .read_text_into(e.name(), &mut text_buf)?
-                                            .xml_text()?;
+                                            .xml_text()?
+                                            .to_string();
                                         repomd_data.add_repo_tag(repo);
                                     }
                                     TAG_CONTENT => {
                                         let content = reader
                                             .read_text_into(e.name(), &mut text_buf)?
-                                            .xml_text()?;
+                                            .xml_text()?
+                                            .to_string();
                                         repomd_data.add_content_tag(content);
                                     }
                                     _ => (),
@@ -249,7 +254,8 @@ pub fn parse_repomdrecord<R: BufRead>(
                         .ok_or(MetadataError::MissingAttributeError("type"))?;
                     let checksum_value = reader
                         .read_text_into(e.name(), &mut record_buf)?
-                        .xml_text()?;
+                        .xml_text()?
+                        .to_string();
                     let checksum = Checksum::try_create(
                         checksum_type.value.as_ref(),
                         checksum_value.as_bytes(),
@@ -262,7 +268,8 @@ pub fn parse_repomdrecord<R: BufRead>(
                         .ok_or(MetadataError::MissingAttributeError("type"))?;
                     let checksum_value = reader
                         .read_text_into(e.name(), &mut record_buf)?
-                        .xml_text()?;
+                        .xml_text()?
+                        .to_string();
                     let checksum = Checksum::try_create(
                         checksum_type.value.as_ref(),
                         checksum_value.as_bytes(),
@@ -275,7 +282,8 @@ pub fn parse_repomdrecord<R: BufRead>(
                         .ok_or(MetadataError::MissingAttributeError("type"))?;
                     let checksum_value = reader
                         .read_text_into(e.name(), &mut record_buf)?
-                        .xml_text()?;
+                        .xml_text()?
+                        .to_string();
                     let checksum = Checksum::try_create(
                         checksum_type.value.as_ref(),
                         checksum_value.as_bytes(),
@@ -285,14 +293,15 @@ pub fn parse_repomdrecord<R: BufRead>(
                 TAG_LOCATION => {
                     let location = e
                         .try_get_attribute("href")?
-                        .ok_or(MetadataError::MissingAttributeError("href"))?
-                        .xml_attr()?;
-                    record_builder.location_href = Some(location.into());
+                        .ok_or(MetadataError::MissingAttributeError("href"))?;
+                    record_builder.location_href =
+                        Some(resolve_attr(&location)?.to_string().into());
                 }
                 TAG_TIMESTAMP => {
                     let text = reader
                         .read_text_into(e.name(), &mut record_buf)?
-                        .xml_text()?;
+                        .xml_text()?
+                        .to_string();
                     let timestamp = match text.parse::<i64>() {
                         Ok(ts) => ts,
                         Err(_) => text.parse::<f64>().map(|f| f as i64).unwrap_or(0),

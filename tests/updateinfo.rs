@@ -97,46 +97,43 @@ fn test_updateinfo_xml_writer_file() -> Result<(), MetadataError> {
     Ok(())
 }
 
-// #[test]
-// fn test_updateinfo_xml_read_header() -> Result<(), MetadataError> {
-//     // Test that the header parses correctly when there are no packages
-//     let mut updateinfo_xml =
-//         UpdateinfoXml::new_reader(utils::create_xml_reader(EMPTY_UPDATEINFO.as_bytes()));
-//     assert_eq!(updateinfo_xml.read_header()?, 0);
-//     assert!(matches!(
-//         updateinfo_xml.read_header(),
-//         Err(MetadataError::MissingHeaderError)
-//     ));
+#[test]
+fn test_updateinfo_xml_read_header() -> Result<(), MetadataError> {
+    // Test that the header parses correctly when there are no packages
+    let mut updateinfo_xml =
+        UpdateinfoXml::new_reader(utils::create_xml_reader(EMPTY_UPDATEINFO.as_bytes()));
+    assert_eq!(
+        updateinfo_xml.read_update()?,
+        None
+    );
 
-//     // Test that the header parses correctly when there are no packages and the footer element doesn't exist (EOF)
-//     let mut updateinfo_xml =
-//         UpdateinfoXml::new_reader(utils::create_xml_reader(EMPTY_UPDATEINFO_NO_FOOTER.as_bytes()));
-//     assert_eq!(updateinfo_xml.read_header()?, 0);
-//     assert!(matches!(
-//         updateinfo_xml.read_header(),
-//         Err(MetadataError::MissingHeaderError)
-//     ));
+    // Test that the header parses correctly when there are no packages and the footer element doesn't exist (EOF)
+    let mut updateinfo_xml =
+        UpdateinfoXml::new_reader(utils::create_xml_reader(EMPTY_UPDATEINFO_NO_FOOTER.as_bytes()));
+    updateinfo_xml.read_update()?;
+    assert!(matches!(
+        updateinfo_xml.read_update(),
+        Err(MetadataError::MissingHeaderError)
+    ));
 
-//     // Test that the header parses correctly when there is no XML declaration at the top
-//     let mut updateinfo_xml =
-//         UpdateinfoXml::new_reader(utils::create_xml_reader(EMPTY_UPDATEINFO_NO_DECL.as_bytes()));
-//     assert_eq!(updateinfo_xml.read_header()?, 0);
-//     assert!(matches!(
-//         updateinfo_xml.read_header(),
-//         Err(MetadataError::MissingHeaderError)
-//     ));
+    // Test that the header parses correctly when there is no XML declaration at the top
+    let mut updateinfo_xml =
+        UpdateinfoXml::new_reader(utils::create_xml_reader(EMPTY_UPDATEINFO_NO_DECL.as_bytes()));
+    assert!(matches!(
+        updateinfo_xml.read_update(),
+        Err(MetadataError::MissingHeaderError)
+    ));
 
-//     // Test that the header parses correctly when there is packages
-//     let mut updateinfo_xml =
-//         UpdateinfoXml::new_reader(utils::create_xml_reader(COMPLEX_UPDATEINFO.as_bytes()));
-//     assert_eq!(updateinfo_xml.read_header()?, 1);
-//     assert!(matches!(
-//         updateinfo_xml.read_header(),
-//         Err(MetadataError::MissingHeaderError)
-//     ));
+    // Test that the header parses correctly when there is packages
+    let mut updateinfo_xml =
+        UpdateinfoXml::new_reader(utils::create_xml_reader(COMPLEX_UPDATEINFO.as_bytes()));
+    assert!(matches!(
+        updateinfo_xml.read_update(),
+        Err(MetadataError::MissingHeaderError)
+    ));
 
-//     Ok(())
-// }
+    Ok(())
+}
 
 #[test]
 fn test_updateinfo_xml_read_updaterecord() -> Result<(), MetadataError> {
@@ -153,12 +150,12 @@ fn test_updateinfo_xml_read_updaterecord() -> Result<(), MetadataError> {
     // assert_eq!(updateinfo_xml.read_header()?, ());
     assert!(matches!(updateinfo_xml.read_update()?, None));
 
-    // // Test that an updaterecord is parsed correctly when there are updaterecords
-    // let mut updateinfo_xml =
-    //     UpdateinfoXml::new_reader(utils::create_xml_reader(COMPLEX_UPDATEINFO.as_bytes()));
-    // // assert_eq!(updateinfo_xml.read_header()?, ());
-    // assert!(matches!(updateinfo_xml.read_update()?, Some(_)));
-    // assert!(matches!(updateinfo_xml.read_update()?, None));
+    // Test that an updaterecord is parsed correctly when there are updaterecords
+    let mut updateinfo_xml =
+        UpdateinfoXml::new_reader(utils::create_xml_reader(COMPLEX_UPDATEINFO.as_bytes()));
+    // assert_eq!(updateinfo_xml.read_header()?, ());
+    assert!(matches!(updateinfo_xml.read_update()?, Some(_)));
+    assert!(matches!(updateinfo_xml.read_update()?, None));
 
     Ok(())
 }

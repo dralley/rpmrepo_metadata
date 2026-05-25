@@ -255,7 +255,7 @@ pub mod rpm_parsing {
             for f in pkg.get_changelog_entries()?.into_iter() {
                 changelogs.push(f.into())
             }
-            changelogs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+            changelogs.sort_by_key(|b| std::cmp::Reverse(b.timestamp));
             changelogs.truncate(options.changelog_limit);
             changelogs.reverse();
             pkg_metadata.set_changelogs(changelogs);

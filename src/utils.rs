@@ -77,6 +77,7 @@ pub fn checksum_inner_file(
 }
 
 /// Return the decompressed size of a compressed file, or `None` if uncompressed.
+#[allow(clippy::unbuffered_bytes)]  // niffler::from_path() uses BufReader
 pub fn size_inner_file(path: &Path) -> Result<Option<u64>, MetadataError> {
     let (reader, format) = niffler::from_path(path)?;
 

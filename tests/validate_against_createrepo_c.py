@@ -93,6 +93,8 @@ def compare_updaterecord(rpmrepo_updaterec, cr_updaterec):
             else:
                 assert cr_updatepkg.sum is None, "sum"
             assert rpmrepo_updatepkg.reboot_suggested == cr_updatepkg.reboot_suggested, "reboot_suggested"
+            assert rpmrepo_updatepkg.restart_suggested == cr_updatepkg.restart_suggested, "restart_suggested"
+            assert rpmrepo_updatepkg.relogin_suggested == cr_updatepkg.relogin_suggested, "relogin_suggested"
 
 
 def compare_pkgs(rpmrepo_pkg, cr_pkg):
@@ -103,8 +105,6 @@ def compare_pkgs(rpmrepo_pkg, cr_pkg):
     #     which validates that the length of the checksum matches the checksum type
     # * returns epoch as an integer whereas createrepo_c returns string e.g. '0'
     # * fields that are always present in the metadata are non-nullable, return "" when unset
-    # * text fields are stripped of leading and trailing newlines
-    #   * This can be fixed but would require some work on the parser
     # * will return "sha1" as checksum type when "sha" was in the metadata
     # * rpm_hreader_range instead of rpm_header_start, rpm_header_end
     # * libxml appears to replace \t (tab) characters in attribute names with spaces, and quick-xml does not

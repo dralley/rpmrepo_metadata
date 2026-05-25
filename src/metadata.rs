@@ -15,7 +15,6 @@ use std::sync::Arc;
 
 // use bitflags;
 use quick_xml::{Reader, Writer};
-use rpm_version;
 #[cfg(feature = "read_rpm")]
 use thiserror::Error;
 
@@ -243,7 +242,7 @@ impl Package {
 
     /// Return the epoch component of the version as a `u32`.
     pub fn epoch(&self) -> u32 {
-        self.evr.epoch().parse().expect("TODO: don't do this")
+        self.evr.epoch().parse().unwrap_or(0)
     }
 
     /// Set the version component of the EVR.
@@ -304,15 +303,9 @@ impl Package {
         )
     }
 
-    /// Returns the name-epoch-version-release.arch string (e.g. `"foo-1:2.0-3.x86_64"`).
+    /// Returns the name-epoch:version-release.arch string (e.g. `"foo-1:2.0-3.x86_64"`).
     pub fn nevra(&self) -> String {
-        format!(
-            "{}-{}-{}.{}",
-            self.name,
-            self.evr.version(),
-            self.evr.release(),
-            self.arch
-        )
+        self.as_nevra().to_string()
     }
 
     /// Return the package NEVRA (name-epoch-version-release.arch) as a
@@ -1289,7 +1282,7 @@ impl RepomdData {
                 MetadataType::Unknown => 10,
             }
         }
-        self.metadata_files.sort_by_key(|a| value(a));
+        self.metadata_files.sort_by_key(value);
     }
 
     /// Returns the primary metadata record. Panics if not present.
@@ -1351,15 +1344,19 @@ impl RepomdRecord {
         base: &Path,
         checksum_type: ChecksumType,
     ) -> Result<Self, MetadataError> {
-        let mut record = RepomdRecord::default();
-        record.metadata_name = name.to_owned();
-        record.location_href = {
+        let location_href = {
             // let href = href
             //     .strip_prefix(href.ancestors().nth(2).unwrap())
             //     .unwrap()
             //     .to_owned();
             assert!(href.starts_with("repodata/"));
             href.to_owned()
+        };
+        let mut record = RepomdRecord {
+            metadata_name: name.to_owned(),
+            location_href,
+            base_path: Some(base.to_owned()),
+            ..Default::default()
         };
         record.base_path = Some(base.to_owned());
         record.fill(checksum_type)?;
