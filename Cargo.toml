@@ -52,6 +52,10 @@ name = "package"
 required-features = ["read_rpm"]
 path = "tests/package.rs"
 
+[[example]]
+name = "write_repo"
+required-features = ["read_rpm"]
+
 [[bench]]
 name = "repository"
 harness = false

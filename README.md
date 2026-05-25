@@ -153,6 +153,53 @@ let options = RepositoryOptions::default()
 repo.write_to_directory_with_options(Path::new("output/repo/"), options)?;
 ```
 
+### Stream packages with the visitor API
+
+The visitor API provides zero-copy streaming access to metadata — visitor methods receive borrowed `&str` references, so you can intern strings directly or extract only the fields you need without allocating full `Package` objects.
+
+```rust
+use rpmrepo_metadata::visitor::{PrimaryVisitor, RequirementData, parse_primary};
+use rpmrepo_metadata::RepositoryReader;
+use std::path::Path;
+
+struct DependencyCounter {
+    total_requires: usize,
+    total_provides: usize,
+    pkg_count: usize,
+}
+
+impl PrimaryVisitor for DependencyCounter {
+    fn begin_package(&mut self, name: &str, arch: &str, _checksum_type: &str, _pkgid: &str) {
+        self.pkg_count += 1;
+    }
+    fn add_require(&mut self, _req: RequirementData<'_>) {
+        self.total_requires += 1;
+    }
+    fn add_provide(&mut self, _req: RequirementData<'_>) {
+        self.total_provides += 1;
+    }
+}
+
+let repo_path = Path::new("repo/");
+let reader = RepositoryReader::new_from_directory(repo_path)?;
+let primary_href = &reader.repomd().get_record("primary").unwrap().location_href;
+let mut xml_reader = rpmrepo_metadata::utils::xml_reader_from_file(
+    &repo_path.join(primary_href),
+)?;
+
+let mut visitor = DependencyCounter {
+    total_requires: 0,
+    total_provides: 0,
+    pkg_count: 0,
+};
+parse_primary(&mut xml_reader, &mut visitor)?;
+
+println!("{} packages, {} requires, {} provides",
+    visitor.pkg_count, visitor.total_requires, visitor.total_provides);
+```
+
+See [examples/](examples/) for more comprehensive examples, including visitors for filelists and changelogs.
+
 ### Parse and compare EVR version strings
 
 ```rust
