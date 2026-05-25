@@ -189,7 +189,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }];
 
     writer.write_comps(&groups, &categories, &environments, &langpacks)?;
-    println!("Added {} groups, {} categories, {} environments", groups.len(), categories.len(), environments.len());
+    println!(
+        "Added {} groups, {} categories, {} environments",
+        groups.len(),
+        categories.len(),
+        environments.len()
+    );
 
     writer.finish()?;
     println!("\nRepository written to: {}", output_dir.display());

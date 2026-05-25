@@ -79,7 +79,7 @@ rpmrepo download --only-metadata "$DEST"/vendor/puppetlabs-puppet7-el8 https://y
 rpmrepo download --only-metadata "$DEST"/vendor/grafana https://packages.grafana.com/oss/rpm/
 
 # Google Cloud SDK EL9 - lots of files in filelists, relatively evenly distributed
-rpmrepo download --only-metadata "$DEST"/vendor/google-cloud-skd-el9 https://packages.cloud.google.com/yum/repos/cloud-sdk-el9-x86_64/
+rpmrepo download --only-metadata "$DEST"/vendor/google-cloud-sdk-el9 https://packages.cloud.google.com/yum/repos/cloud-sdk-el9-x86_64/
 
 # Elasticsearch EL9
 rpmrepo download --only-metadata "$DEST"/vendor/elasticsearch-el9 https://artifacts.elastic.co/packages/9.x/yum/

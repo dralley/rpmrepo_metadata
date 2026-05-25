@@ -60,14 +60,12 @@ pub struct ChangelogData<'a> {
 
 impl From<RequirementData<'_>> for Requirement {
     fn from(data: RequirementData<'_>) -> Self {
-        Requirement {
-            name: data.name.to_owned(),
-            flags: data.flags,
-            epoch: data.epoch.map(|s| s.to_owned()),
-            version: data.version.map(|s| s.to_owned()),
-            release: data.release.map(|s| s.to_owned()),
-            preinstall: data.preinstall,
-        }
+        Requirement::new(data.name)
+            .set_flags(data.flags)
+            .set_epoch(data.epoch)
+            .set_version(data.version)
+            .set_release(data.release)
+            .set_preinstall(data.preinstall)
     }
 }
 

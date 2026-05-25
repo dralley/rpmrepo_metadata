@@ -72,34 +72,32 @@ pub mod rpm_parsing {
 
             let evr = Evr::parse(&d.version);
 
-            let epoch = if evr.epoch().is_empty() {
+            let epoch: Option<&str> = if evr.epoch().is_empty() {
                 if d.version.is_empty() {
                     None
                 } else {
-                    Some("0".to_string())
+                    Some("0")
                 }
             } else {
-                Some(evr.epoch().to_string())
+                Some(evr.epoch())
             };
-            let version = if evr.version().is_empty() && d.version.is_empty() {
+            let version: Option<&str> = if evr.version().is_empty() && d.version.is_empty() {
                 None
             } else {
-                Some(evr.version().to_string())
+                Some(evr.version())
             };
-            let release = if evr.release().is_empty() {
+            let release: Option<&str> = if evr.release().is_empty() {
                 None
             } else {
-                Some(evr.release().to_string())
+                Some(evr.release())
             };
 
-            Ok(Requirement {
-                name: d.name,
-                flags,
-                epoch,
-                version,
-                release,
-                preinstall: !pre.is_empty(),
-            })
+            Ok(Requirement::new(d.name)
+                .set_flags(flags)
+                .set_epoch(epoch)
+                .set_version(version)
+                .set_release(release)
+                .set_preinstall(!pre.is_empty()))
         }
     }
 
@@ -205,11 +203,11 @@ pub mod rpm_parsing {
             fn dep_key(dep: &Requirement) -> String {
                 format!(
                     "{}{}{}{}{}",
-                    dep.name,
-                    dep.flags.map_or("", |f| f.as_str()),
-                    dep.epoch.as_deref().unwrap_or(""),
-                    dep.version.as_deref().unwrap_or(""),
-                    dep.release.as_deref().unwrap_or(""),
+                    dep.name(),
+                    dep.flags().map_or("", |f| f.as_str()),
+                    dep.epoch().unwrap_or(""),
+                    dep.version().unwrap_or(""),
+                    dep.release().unwrap_or(""),
                 )
             }
 
@@ -232,11 +230,11 @@ pub mod rpm_parsing {
             let requires = convert_deps(pkg.get_requires()?)?;
             let requires: Vec<_> = requires
                 .into_iter()
-                .filter(|r| !r.name.starts_with("rpmlib("))
+                .filter(|r| !r.name().starts_with("rpmlib("))
                 .filter(|r| {
-                    !(r.name.starts_with('/')
-                        && own_files.contains(&r.name)
-                        && utils::is_primary_file(&r.name))
+                    !(r.name().starts_with('/')
+                        && own_files.contains(r.name())
+                        && utils::is_primary_file(r.name()))
                 })
                 .filter(|r| !provided.contains(&dep_key(r)))
                 .collect();

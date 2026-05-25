@@ -16,3 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `Package` now stores file lists in a `FileList` struct which performs interning of base paths, dramatically reducing memory requirements for large repos. The internal string pool is shared when parsing an entire repository or consecutive packages of the same name. File name itself is now stored in a `compact_str` to prevent extreme numbers of small String allocations.
+- Various other optimizations.
+- Fields on `Requirement` are now private and use getters/setters.
+
+### Fixed
+
+- Lots of compatibility nitpicks found by parsing in-the-wild repos.

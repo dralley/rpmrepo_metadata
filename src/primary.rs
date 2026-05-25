@@ -717,7 +717,9 @@ pub fn write_package<W: Write>(
         .create_element(TAG_LOCATION)
         .with_attribute(("href", package.location_href()));
     if let Some(base) = package.location_base() {
-        location_elem.with_attribute(("xml:base", base)).write_empty()?;
+        location_elem
+            .with_attribute(("xml:base", base))
+            .write_empty()?;
     } else {
         location_elem.write_empty()?;
     }
@@ -811,24 +813,24 @@ fn write_requirement_section<W: Write>(
 
     for entry in entry_list {
         let mut entry_tag = BytesStart::new("rpm:entry");
-        entry_tag.push_attribute(("name", entry.name.as_str()));
+        entry_tag.push_attribute(("name", entry.name()));
 
-        if let Some(flags) = entry.flags {
+        if let Some(flags) = entry.flags() {
             entry_tag.push_attribute(("flags", flags.as_str()));
         }
 
-        if let Some(epoch) = &entry.epoch {
-            entry_tag.push_attribute(("epoch", epoch.as_str()));
+        if let Some(epoch) = entry.epoch() {
+            entry_tag.push_attribute(("epoch", epoch));
         }
 
-        if let Some(version) = &entry.version {
-            entry_tag.push_attribute(("ver", version.as_str()));
+        if let Some(version) = entry.version() {
+            entry_tag.push_attribute(("ver", version));
         }
 
-        if let Some(release) = &entry.release {
-            entry_tag.push_attribute(("rel", release.as_str()));
+        if let Some(release) = entry.release() {
+            entry_tag.push_attribute(("rel", release));
         }
-        if entry.preinstall {
+        if entry.preinstall() {
             entry_tag.push_attribute(("pre", "1"));
         }
         writer.write_event(Event::Empty(entry_tag))?;

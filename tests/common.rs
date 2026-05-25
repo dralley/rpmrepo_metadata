@@ -43,146 +43,81 @@ pub static COMPLEX_PACKAGE: LazyLock<Package> = LazyLock::new(|| {
     package.set_rpm_vendor("Bluth Company");
 
     package.set_provides(vec![
-        Requirement {
-            name: "/usr/bin/ls".to_owned(),
-            ..Requirement::default()
-        },
-        Requirement {
-            name: "complex-package".to_owned(),
-            flags: Some(RequirementType::EQ),
-            epoch: Some("1".to_owned()),
-            version: Some("2.3.4".to_owned()),
-            release: Some("5.el8".to_owned()),
-            ..Requirement::default()
-        },
-        Requirement {
-            name: "complex-package(x86-64)".to_owned(),
-            flags: Some(RequirementType::EQ),
-            epoch: Some("1".to_owned()),
-            version: Some("2.3.4".to_owned()),
-            release: Some("5.el8".to_owned()),
-            ..Requirement::default()
-        },
-        Requirement {
-            name: "laughter".to_owned(),
-            flags: Some(RequirementType::EQ),
-            epoch: Some("0".to_owned()),
-            version: Some("33".to_owned()),
-            ..Requirement::default()
-        },
-        Requirement {
-            name: "narration(ronhoward)".to_owned(),
-            ..Requirement::default()
-        },
+        Requirement::new("/usr/bin/ls"),
+        Requirement::new("complex-package")
+            .set_flags(Some(RequirementType::EQ))
+            .set_epoch(Some("1"))
+            .set_version(Some("2.3.4"))
+            .set_release(Some("5.el8")),
+        Requirement::new("complex-package(x86-64)")
+            .set_flags(Some(RequirementType::EQ))
+            .set_epoch(Some("1"))
+            .set_version(Some("2.3.4"))
+            .set_release(Some("5.el8")),
+        Requirement::new("laughter")
+            .set_flags(Some(RequirementType::EQ))
+            .set_epoch(Some("0"))
+            .set_version(Some("33")),
+        Requirement::new("narration(ronhoward)"),
     ]);
     package.set_requires(vec![
-        Requirement {
-            name: "/usr/bin/bash".to_owned(),
-            ..Requirement::default()
-        },
-        Requirement {
-            name: "/usr/sbin/useradd".to_owned(),
-            preinstall: true,
-            ..Requirement::default()
-        },
-        Requirement {
-            name: "arson".to_owned(),
-            flags: Some(RequirementType::GE),
-            epoch: Some("0".to_owned()),
-            version: Some("1.0.0".to_owned()),
-            release: Some("1".to_owned()),
-            ..Requirement::default()
-        },
-        Requirement {
-            name: "fur".to_owned(),
-            flags: Some(RequirementType::LE),
-            epoch: Some("0".to_owned()),
-            version: Some("2".to_owned()),
-            ..Requirement::default()
-        },
-        Requirement {
-            name: "staircar".to_owned(),
-            flags: Some(RequirementType::LE),
-            epoch: Some("0".to_owned()),
-            version: Some("99.1".to_owned()),
-            release: Some("3".to_owned()),
-            ..Requirement::default()
-        },
+        Requirement::new("/usr/bin/bash"),
+        Requirement::new("/usr/sbin/useradd").set_preinstall(true),
+        Requirement::new("arson")
+            .set_flags(Some(RequirementType::GE))
+            .set_epoch(Some("0"))
+            .set_version(Some("1.0.0"))
+            .set_release(Some("1")),
+        Requirement::new("fur")
+            .set_flags(Some(RequirementType::LE))
+            .set_epoch(Some("0"))
+            .set_version(Some("2")),
+        Requirement::new("staircar")
+            .set_flags(Some(RequirementType::LE))
+            .set_epoch(Some("0"))
+            .set_version(Some("99.1"))
+            .set_release(Some("3")),
     ]);
 
-    package.set_conflicts(vec![Requirement {
-        name: "foxnetwork".to_owned(),
-        flags: Some(RequirementType::GT),
-        epoch: Some("0".to_owned()),
-        version: Some("5555".to_owned()),
-        ..Requirement::default()
-    }]);
+    package.set_conflicts(vec![
+        Requirement::new("foxnetwork")
+            .set_flags(Some(RequirementType::GT))
+            .set_epoch(Some("0"))
+            .set_version(Some("5555")),
+    ]);
     package.set_obsoletes(vec![
-        Requirement {
-            name: "bluemangroup".to_owned(),
-            flags: Some(RequirementType::LT),
-            epoch: Some("0".to_owned()),
-            version: Some("32.1".to_owned()),
-            release: Some("0".to_owned()),
-            ..Requirement::default()
-        },
-        Requirement {
-            name: "cornballer".to_owned(),
-            flags: Some(RequirementType::LT),
-            epoch: Some("0".to_owned()),
-            version: Some("444".to_owned()),
-            ..Requirement::default()
-        },
+        Requirement::new("bluemangroup")
+            .set_flags(Some(RequirementType::LT))
+            .set_epoch(Some("0"))
+            .set_version(Some("32.1"))
+            .set_release(Some("0")),
+        Requirement::new("cornballer")
+            .set_flags(Some(RequirementType::LT))
+            .set_epoch(Some("0"))
+            .set_version(Some("444")),
     ]);
     package.set_suggests(vec![
-        Requirement {
-            name: "(bobloblaw >= 1.1 if maritimelaw else anyone < 0.5.1-2)".to_owned(),
-            ..Requirement::default()
-        },
-        Requirement {
-            name: "(dove and return)".to_owned(),
-            ..Requirement::default()
-        },
-        Requirement {
-            name: "(job or money > 9000)".to_owned(),
-            ..Requirement::default()
-        },
+        Requirement::new("(bobloblaw >= 1.1 if maritimelaw else anyone < 0.5.1-2)"),
+        Requirement::new("(dove and return)"),
+        Requirement::new("(job or money > 9000)"),
     ]);
-    package.set_enhances(vec![Requirement {
-        name: "(bananas or magic)".to_owned(),
-        ..Requirement::default()
-    }]);
+    package.set_enhances(vec![Requirement::new("(bananas or magic)")]);
     package.set_recommends(vec![
-        Requirement {
-            name: "((hiding and attic) if light-treason)".to_owned(),
-            ..Requirement::default()
-        },
-        Requirement {
-            name: "GeneParmesan(PI)".to_owned(),
-            ..Requirement::default()
-        },
-        Requirement {
-            name: "yacht".to_owned(),
-            flags: Some(RequirementType::GT),
-            epoch: Some("9".to_owned()),
-            version: Some("11.0".to_owned()),
-            release: Some("0".to_owned()),
-            ..Requirement::default()
-        },
+        Requirement::new("((hiding and attic) if light-treason)"),
+        Requirement::new("GeneParmesan(PI)"),
+        Requirement::new("yacht")
+            .set_flags(Some(RequirementType::GT))
+            .set_epoch(Some("9"))
+            .set_version(Some("11.0"))
+            .set_release(Some("0")),
     ]);
     package.set_supplements(vec![
-        Requirement {
-            name: "((hiding and illusion) unless alliance-of-magicians)".to_owned(),
-            ..Requirement::default()
-        },
-        Requirement {
-            name: "comedy".to_owned(),
-            flags: Some(RequirementType::EQ),
-            epoch: Some("0".to_owned()),
-            version: Some("11.1".to_owned()),
-            release: Some("4".to_owned()),
-            ..Requirement::default()
-        },
+        Requirement::new("((hiding and illusion) unless alliance-of-magicians)"),
+        Requirement::new("comedy")
+            .set_flags(Some(RequirementType::EQ))
+            .set_epoch(Some("0"))
+            .set_version(Some("11.1"))
+            .set_release(Some("4")),
     ]);
 
     package.add_file(FileType::File, "/etc/complex/pkg.cfg");
@@ -238,14 +173,13 @@ within text content, and not all XML libraries do so. However, it is generally r
     package.set_rpm_group("Unspecified");
     package.set_rpm_header_range(4504, 6445);
 
-    package.set_provides(vec![Requirement {
-        name: "rpm-with-invalid-chars".to_owned(),
-        flags: Some(RequirementType::EQ),
-        epoch: Some("0".to_owned()),
-        version: Some("1".to_owned()),
-        release: Some("1.fc33".to_owned()),
-        preinstall: false,
-    }]);
+    package.set_provides(vec![
+        Requirement::new("rpm-with-invalid-chars")
+            .set_flags(Some(RequirementType::EQ))
+            .set_epoch(Some("0"))
+            .set_version(Some("1"))
+            .set_release(Some("1.fc33")),
+    ]);
 
     package
 });
@@ -274,22 +208,16 @@ pub static RPM_EMPTY: LazyLock<Package> = LazyLock::new(|| {
     package.set_rpm_header_range(4504, 5961);
 
     package.set_provides(vec![
-        Requirement {
-            name: "rpm-empty".to_owned(),
-            flags: Some(RequirementType::EQ),
-            epoch: Some("0".to_owned()),
-            version: Some("0".to_owned()),
-            release: Some("0".to_owned()),
-            ..Requirement::default()
-        },
-        Requirement {
-            name: "rpm-empty(x86-64)".to_owned(),
-            flags: Some(RequirementType::EQ),
-            epoch: Some("0".to_owned()),
-            version: Some("0".to_owned()),
-            release: Some("0".to_owned()),
-            ..Requirement::default()
-        },
+        Requirement::new("rpm-empty")
+            .set_flags(Some(RequirementType::EQ))
+            .set_epoch(Some("0"))
+            .set_version(Some("0"))
+            .set_release(Some("0")),
+        Requirement::new("rpm-empty(x86-64)")
+            .set_flags(Some(RequirementType::EQ))
+            .set_epoch(Some("0"))
+            .set_version(Some("0"))
+            .set_release(Some("0")),
     ]);
 
     package
@@ -334,14 +262,13 @@ See: http://www.unicode.org/charts/"##,
     package.set_rpm_group("Unspecified");
     package.set_rpm_header_range(4504, 6389);
 
-    package.set_provides(vec![Requirement {
-        name: "rpm-with-non-ascii".to_owned(),
-        flags: Some(RequirementType::EQ),
-        epoch: Some("0".to_owned()),
-        version: Some("1".to_owned()),
-        release: Some("1.fc33".to_owned()),
-        preinstall: false,
-    }]);
+    package.set_provides(vec![
+        Requirement::new("rpm-with-non-ascii")
+            .set_flags(Some(RequirementType::EQ))
+            .set_epoch(Some("0"))
+            .set_version(Some("1"))
+            .set_release(Some("1.fc33")),
+    ]);
 
     package
 });

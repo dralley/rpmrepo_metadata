@@ -45,7 +45,7 @@ fn test_sort_packages_by_evr() {
     })
     .collect();
 
-    packages.sort_by(|a, b| a.evr().cmp(b.evr()));
+    packages.sort_by(|a, b| a.as_evr().cmp(b.as_evr()));
 
     let versions: Vec<&str> = packages.iter().map(|p| p.version()).collect();
     assert_eq!(versions, vec!["1.0", "1.0", "2.0", "3.0", "1.0"]);

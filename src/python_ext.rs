@@ -1000,29 +1000,29 @@ mod rpmrepo_metadata {
     // TODO: figure out how to do this without cloning?
     impl From<&RequirementTuple> for crate::metadata::Requirement {
         fn from(tuple: &RequirementTuple) -> Self {
-            crate::metadata::Requirement {
-                name: tuple.0.clone(),
-                flags: tuple
-                    .1
-                    .as_deref()
-                    .and_then(|s| crate::metadata::RequirementType::try_from(s).ok()),
-                epoch: tuple.2.clone(),
-                version: tuple.3.clone(),
-                release: tuple.4.clone(),
-                preinstall: tuple.5,
-            }
+            crate::metadata::Requirement::new(tuple.0.clone())
+                .set_flags(
+                    tuple
+                        .1
+                        .as_deref()
+                        .and_then(|s| crate::metadata::RequirementType::try_from(s).ok()),
+                )
+                .set_epoch(tuple.2.as_deref())
+                .set_version(tuple.3.as_deref())
+                .set_release(tuple.4.as_deref())
+                .set_preinstall(tuple.5)
         }
     }
 
     impl From<&crate::metadata::Requirement> for RequirementTuple {
         fn from(req: &crate::metadata::Requirement) -> Self {
             (
-                req.name.clone(),
-                req.flags.map(|f| f.to_string()),
-                req.epoch.clone(),
-                req.version.clone(),
-                req.release.clone(),
-                req.preinstall,
+                req.name().to_owned(),
+                req.flags().map(|f| f.to_string()),
+                req.epoch().map(|s| s.to_owned()),
+                req.version().map(|s| s.to_owned()),
+                req.release().map(|s| s.to_owned()),
+                req.preinstall(),
             )
         }
     }

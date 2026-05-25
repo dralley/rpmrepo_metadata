@@ -24,7 +24,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("Metadata records:");
     for record in repomd.records() {
-        print!("  {:16} {}", record.metadata_name, record.location_href.display());
+        print!(
+            "  {:16} {}",
+            record.metadata_name,
+            record.location_href.display()
+        );
         if record.timestamp != 0 {
             print!("  (timestamp: {})", record.timestamp);
         }
@@ -41,18 +45,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         println!("  {}", pkg.nevra());
         println!("    Summary:  {}", pkg.summary());
-        println!("    Size:     {} bytes (installed: {})", pkg.size_package(), pkg.size_installed());
+        println!(
+            "    Size:     {} bytes (installed: {})",
+            pkg.size_package(),
+            pkg.size_installed()
+        );
         println!("    Location: {}", pkg.location_href());
         if !pkg.url().is_empty() {
             println!("    URL:      {}", pkg.url());
         }
 
-        let requires: Vec<_> = pkg.requires().iter().map(|r| r.name.as_str()).collect();
+        let requires: Vec<_> = pkg.requires().iter().map(|r| r.name()).collect();
         if !requires.is_empty() {
             println!("    Requires: {}", requires.join(", "));
         }
 
-        let provides: Vec<_> = pkg.provides().iter().map(|r| r.name.as_str()).collect();
+        let provides: Vec<_> = pkg.provides().iter().map(|r| r.name()).collect();
         if !provides.is_empty() {
             println!("    Provides: {}", provides.join(", "));
         }
@@ -70,7 +78,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if !pkg.changelogs().is_empty() {
             println!("    Changelogs: {} entries", pkg.changelogs().len());
             if let Some(latest) = pkg.changelogs().first() {
-                println!("      Latest: {} - {}", latest.author, latest.description.lines().next().unwrap_or(""));
+                println!(
+                    "      Latest: {} - {}",
+                    latest.author,
+                    latest.description.lines().next().unwrap_or("")
+                );
             }
         }
     }
@@ -88,11 +100,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 println!(
                     "  [{:10}] {:8} {} - {}",
-                    advisory.severity.as_deref().unwrap_or(""), advisory.update_type, advisory.id, advisory.title
+                    advisory.severity.as_deref().unwrap_or(""),
+                    advisory.update_type,
+                    advisory.id,
+                    advisory.title
                 );
 
                 for reference in &advisory.references {
-                    println!("    {} {} {}", reference.reftype, reference.id.as_deref().unwrap_or(""), reference.href);
+                    println!(
+                        "    {} {} {}",
+                        reference.reftype,
+                        reference.id.as_deref().unwrap_or(""),
+                        reference.href
+                    );
                 }
 
                 for collection in &advisory.pkglist {
@@ -118,7 +138,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if !comps.groups.is_empty() {
                 println!("  Groups:");
                 for group in &comps.groups {
-                    let pkg_names: Vec<_> = group.packages.iter().map(|p| p.name.as_str()).collect();
+                    let pkg_names: Vec<_> =
+                        group.packages.iter().map(|p| p.name.as_str()).collect();
                     println!(
                         "    {} ({}) - {} packages: {}",
                         group.name,
@@ -132,7 +153,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if !comps.categories.is_empty() {
                 println!("  Categories:");
                 for cat in &comps.categories {
-                    println!("    {} ({}) - groups: {:?}", cat.name, cat.id, cat.group_ids);
+                    println!(
+                        "    {} ({}) - groups: {:?}",
+                        cat.name, cat.id, cat.group_ids
+                    );
                 }
             }
 

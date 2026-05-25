@@ -97,7 +97,10 @@ impl PrimaryVisitor for PrimaryStats {
     }
 
     fn end_package(&mut self) {
-        *self.arch_counts.entry(self.current.arch.clone()).or_insert(0) += 1;
+        *self
+            .arch_counts
+            .entry(self.current.arch.clone())
+            .or_insert(0) += 1;
         self.packages.push(self.current.clone());
     }
 }
@@ -278,15 +281,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // -- Parse filelists.xml --
     if let Some(filelists_record) = repomd.get_record("filelists") {
-        let mut xml_reader =
-            rpmrepo_metadata::utils::xml_reader_from_file(&base.join(&filelists_record.location_href))?;
+        let mut xml_reader = rpmrepo_metadata::utils::xml_reader_from_file(
+            &base.join(&filelists_record.location_href),
+        )?;
 
         let mut filelists_stats = FilelistsStats::new();
         parse_filelists(&mut xml_reader, &mut filelists_stats)?;
 
         println!("\n=== Filelists.xml ===");
         println!("Total files: {}", filelists_stats.total_files);
-        println!("  Regular files: {}", filelists_stats.total_files - filelists_stats.dir_count - filelists_stats.ghost_count);
+        println!(
+            "  Regular files: {}",
+            filelists_stats.total_files - filelists_stats.dir_count - filelists_stats.ghost_count
+        );
         println!("  Directories:   {}", filelists_stats.dir_count);
         println!("  Ghost files:   {}", filelists_stats.ghost_count);
 

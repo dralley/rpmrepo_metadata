@@ -29,8 +29,22 @@ static EMPTY_UPDATEINFO_NO_DECL: &str = r#"
 </updates>
 "#;
 
-#[allow(dead_code)]
-static COMPLEX_UPDATEINFO: &str = r#""#;
+static COMPLEX_UPDATEINFO: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<updates>
+<update from="updates@fedoraproject.org" status="stable" type="bugfix" version="2.0">
+  <id>FEDORA-2020-15f9382449</id>
+  <title>nano-4.9.3-1.fc32</title>
+  <issued date="2020-05-27 04:10:31"/>
+  <rights>Copyright (C) 2020 Red Hat, Inc. and others</rights>
+  <release>Fedora 32</release>
+  <severity>Moderate</severity>
+  <summary>nano-4.9.3-1.fc32 bugfix update</summary>
+  <description>Update to nano 4.9.3</description>
+  <references/>
+  <pkglist/>
+</update>
+</updates>
+"#;
 
 #[test]
 fn test_updateinfo_xml_writer_empty() -> Result<(), MetadataError> {
@@ -48,24 +62,6 @@ fn test_updateinfo_xml_writer_empty() -> Result<(), MetadataError> {
 
     Ok(())
 }
-
-// #[test]
-// fn test_updateinfo_xml_writer_complex_pkg() -> Result<(), MetadataError> {
-//     let mut writer = UpdateinfoXml::new_writer(utils::create_xml_writer(Cursor::new(Vec::new())));
-
-//     writer.write_header()?;
-//     writer.write_updaterecord(&common::UPDATERECORD)?;
-//     writer.finish()?;
-
-//     let buffer = writer.into_inner().into_inner();
-
-//     let actual = std::str::from_utf8(&buffer)?;
-//     let expected = COMPLEX_PRIMARY;
-
-//     assert_eq!(&actual, &expected);
-
-//     Ok(())
-// }
 
 #[test]
 fn test_updateinfo_xml_writer_file() -> Result<(), MetadataError> {
@@ -102,35 +98,24 @@ fn test_updateinfo_xml_read_header() -> Result<(), MetadataError> {
     // Test that the header parses correctly when there are no packages
     let mut updateinfo_xml =
         UpdateinfoXml::new_reader(utils::create_xml_reader(EMPTY_UPDATEINFO.as_bytes()));
-    assert_eq!(
-        updateinfo_xml.read_update()?,
-        None
-    );
+    assert_eq!(updateinfo_xml.read_update()?, None);
 
     // Test that the header parses correctly when there are no packages and the footer element doesn't exist (EOF)
-    let mut updateinfo_xml =
-        UpdateinfoXml::new_reader(utils::create_xml_reader(EMPTY_UPDATEINFO_NO_FOOTER.as_bytes()));
-    updateinfo_xml.read_update()?;
-    assert!(matches!(
-        updateinfo_xml.read_update(),
-        Err(MetadataError::MissingHeaderError)
+    let mut updateinfo_xml = UpdateinfoXml::new_reader(utils::create_xml_reader(
+        EMPTY_UPDATEINFO_NO_FOOTER.as_bytes(),
     ));
+    assert_eq!(updateinfo_xml.read_update()?, None);
 
     // Test that the header parses correctly when there is no XML declaration at the top
-    let mut updateinfo_xml =
-        UpdateinfoXml::new_reader(utils::create_xml_reader(EMPTY_UPDATEINFO_NO_DECL.as_bytes()));
-    assert!(matches!(
-        updateinfo_xml.read_update(),
-        Err(MetadataError::MissingHeaderError)
+    let mut updateinfo_xml = UpdateinfoXml::new_reader(utils::create_xml_reader(
+        EMPTY_UPDATEINFO_NO_DECL.as_bytes(),
     ));
+    assert_eq!(updateinfo_xml.read_update()?, None);
 
-    // Test that the header parses correctly when there is packages
+    // Test that the header parses correctly when there are packages
     let mut updateinfo_xml =
         UpdateinfoXml::new_reader(utils::create_xml_reader(COMPLEX_UPDATEINFO.as_bytes()));
-    assert!(matches!(
-        updateinfo_xml.read_update(),
-        Err(MetadataError::MissingHeaderError)
-    ));
+    assert!(matches!(updateinfo_xml.read_update()?, Some(_)));
 
     Ok(())
 }

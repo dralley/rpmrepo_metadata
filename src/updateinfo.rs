@@ -255,7 +255,10 @@ impl UpdateinfoVisitor for UpdateRecordMaterializer {
     }
 
     fn begin_collection(&mut self, shortname: &str) {
-        let collection = UpdateCollection { shortname: shortname.to_owned(), ..Default::default() };
+        let collection = UpdateCollection {
+            shortname: shortname.to_owned(),
+            ..Default::default()
+        };
         self.current_collection = Some(collection);
     }
 

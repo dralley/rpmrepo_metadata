@@ -842,12 +842,88 @@ pub struct HeaderRange {
 /// An RPM dependency entry (used for Provides, Requires, Conflicts, Obsoletes, etc.).
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct Requirement {
-    pub name: String,
-    pub flags: Option<RequirementType>,
-    pub epoch: Option<String>,
-    pub version: Option<String>,
-    pub release: Option<String>,
-    pub preinstall: bool,
+    name: String,
+    flags: Option<RequirementType>,
+    epoch: Option<compact_str::CompactString>,
+    version: Option<compact_str::CompactString>,
+    release: Option<compact_str::CompactString>,
+    preinstall: bool,
+}
+
+impl Requirement {
+    /// Create a new requirement with the given name.
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            ..Self::default()
+        }
+    }
+
+    /// Return the dependency name.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Set the dependency name.
+    pub fn set_name(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
+    /// Return the comparison operator, if set.
+    pub fn flags(&self) -> Option<RequirementType> {
+        self.flags
+    }
+
+    /// Set the comparison operator.
+    pub fn set_flags(mut self, flags: Option<RequirementType>) -> Self {
+        self.flags = flags;
+        self
+    }
+
+    /// Return the epoch string, if set.
+    pub fn epoch(&self) -> Option<&str> {
+        self.epoch.as_deref()
+    }
+
+    /// Set the epoch constraint (e.g. `"0"`, `"1"`).
+    pub fn set_epoch<S: AsRef<str>>(mut self, epoch: Option<S>) -> Self {
+        self.epoch = epoch.map(|s| compact_str::CompactString::new(s.as_ref()));
+        self
+    }
+
+    /// Return the version string, if set.
+    pub fn version(&self) -> Option<&str> {
+        self.version.as_deref()
+    }
+
+    /// Set the version constraint (e.g. `"2.3.4"`).
+    pub fn set_version<S: AsRef<str>>(mut self, version: Option<S>) -> Self {
+        self.version = version.map(|s| compact_str::CompactString::new(s.as_ref()));
+        self
+    }
+
+    /// Return the release string, if set.
+    pub fn release(&self) -> Option<&str> {
+        self.release.as_deref()
+    }
+
+    /// Set the release constraint (e.g. `"5.el8"`).
+    pub fn set_release<S: AsRef<str>>(mut self, release: Option<S>) -> Self {
+        self.release = release.map(|s| compact_str::CompactString::new(s.as_ref()));
+        self
+    }
+
+    /// Return whether this is a pre-install dependency.
+    pub fn preinstall(&self) -> bool {
+        self.preinstall
+    }
+
+    /// Mark this requirement as a pre-install dependency.
+    pub fn set_preinstall(mut self, preinstall: bool) -> Self {
+        self.preinstall = preinstall;
+        self
+    }
 }
 
 /// Comparison operator for version-constrained dependencies.
@@ -953,7 +1029,7 @@ use compact_str::CompactString;
 use crate::utils::{DirId, StringPool};
 
 #[derive(Clone, Debug)]
-struct FileEntry {
+struct FileListEntry {
     filetype: FileType,
     dir_id: DirId,
     basename: CompactString,
@@ -967,7 +1043,7 @@ struct FileEntry {
 #[derive(Clone, Debug)]
 pub struct FileList {
     dir_pool: Arc<StringPool>,
-    entries: Vec<FileEntry>,
+    entries: Vec<FileListEntry>,
     last_dir: Option<(u32, String)>,
 }
 
@@ -1034,7 +1110,7 @@ impl FileList {
             }
         };
 
-        self.entries.push(FileEntry {
+        self.entries.push(FileListEntry {
             filetype,
             dir_id,
             basename: CompactString::new(basename),
@@ -1120,7 +1196,7 @@ impl fmt::Display for FileRef<'_> {
 /// Iterator over file entries in a [`FileList`], yielding [`FileRef`] values.
 pub struct FileIter<'a> {
     dir_pool: &'a StringPool,
-    inner: std::slice::Iter<'a, FileEntry>,
+    inner: std::slice::Iter<'a, FileListEntry>,
 }
 
 impl<'a> Iterator for FileIter<'a> {

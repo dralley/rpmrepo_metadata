@@ -23,7 +23,7 @@ thiserror = "2"
 niffler = { version = "3", features = ["bz2", "lzma", "gz", "zstd"], default-features = false }
 flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"] }
 bzip2 = { version = "0.6" }
-rpm = { version = "0.23.1", default-features = false, optional = true }
+rpm = { version = "0.24.0", default-features = false, optional = true }
 # tempdir = "0.3.7"
 digest = "0.10.6"
 sha1 = "0.10.5"
@@ -45,7 +45,7 @@ crate-type = ["lib", "cdylib"]
 tempdir = "0.3.7"
 pretty_assertions = "1.4.0"
 criterion = "0.8.2"
-rpm = { version = "0.23.1", default-features = false, features = ["payload"] }
+rpm = { version = "0.24.0", default-features = false, features = ["payload"] }
 
 [[test]]
 name = "package"
