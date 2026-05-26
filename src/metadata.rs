@@ -14,11 +14,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 // use bitflags;
+use compact_str::CompactString;
 use quick_xml::{Reader, Writer};
 #[cfg(feature = "read_rpm")]
 use thiserror::Error;
 
 use crate::{Repository, constants::mdrecord, utils};
+use crate::utils::{DirId, StringPool};
 
 /// Marker type for repomd.xml read/write operations.
 pub struct RepomdXml;
@@ -622,6 +624,12 @@ impl Package {
         self
     }
 
+    /// Add a file entry to the package, but with separate arguments for directory and filename
+    pub fn add_file_split(&mut self, filetype: FileType, dir: &str, basename: &str) -> &mut Self {
+        self.rpm_files.add_file_split(filetype, dir, basename);
+        self
+    }
+
     /// Remove all file entries from the package.
     pub fn clear_files(&mut self) -> &mut Self {
         self.rpm_files.clear();
@@ -1015,19 +1023,6 @@ impl FileType {
     }
 }
 
-/// A file entry within an RPM package, with its type and path.
-#[derive(Clone, Debug, Default, Hash, PartialEq)]
-pub struct PackageFile {
-    /// Whether this is a regular file, directory, or ghost file.
-    pub filetype: FileType,
-    /// Absolute path of the file within the installed filesystem.
-    pub path: String,
-}
-
-use compact_str::CompactString;
-
-use crate::utils::{DirId, StringPool};
-
 #[derive(Clone, Debug)]
 struct FileListEntry {
     filetype: FileType,
@@ -1097,10 +1092,15 @@ impl FileList {
         }
     }
 
-    /// Add a file entry, splitting the path into interned directory and basename components.
+    /// Add a file entry
     pub fn add_file(&mut self, filetype: FileType, path: &str) {
         let (dir, basename) = split_path(path);
 
+        self.add_file_split(filetype, dir, basename)
+    }
+
+    /// Add a file entry, but with the path pre-split into directory and basename components
+    pub(crate) fn add_file_split(&mut self, filetype: FileType, dir: &str, basename: &str) {
         let dir_id = match &self.last_dir {
             Some((id, cached)) if cached == dir => DirId::new(*id),
             _ => {

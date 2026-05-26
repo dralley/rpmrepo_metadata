@@ -905,9 +905,19 @@ mod rpmrepo_metadata {
         #[setter(files)]
         pub fn set_files(&mut self, file_tuples: Vec<FileTuple>) -> PyResult<()> {
             self.inner.clear_files();
-            for file in file_tuples.iter() {
-                let pf = crate::metadata::PackageFile::try_from(file)?;
-                self.inner.add_file(pf.filetype, &pf.path);
+            for file_tuple in file_tuples.iter() {
+                let filetype = match file_tuple.0.as_deref() {
+                    None => crate::metadata::FileType::File,
+                    Some("dir") => crate::metadata::FileType::Dir,
+                    Some("ghost") => crate::metadata::FileType::Ghost,
+                    Some(bad_val) => {
+                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                            "{} is not a permitted file type",
+                            bad_val
+                        )));
+                    }
+                };
+                self.inner.add_file(filetype, &file_tuple.1);
             }
             Ok(())
         }
@@ -929,9 +939,19 @@ mod rpmrepo_metadata {
         #[setter(files_split)]
         pub fn set_files_split(&mut self, file_tuples: Vec<CrFileTuple>) -> PyResult<()> {
             self.inner.clear_files();
-            for file in file_tuples.iter() {
-                let pf = crate::metadata::PackageFile::try_from(file)?;
-                self.inner.add_file(pf.filetype, &pf.path);
+            for file_tuple in file_tuples.iter() {
+                let filetype = match file_tuple.0.as_deref() {
+                    None => crate::metadata::FileType::File,
+                    Some("dir") => crate::metadata::FileType::Dir,
+                    Some("ghost") => crate::metadata::FileType::Ghost,
+                    Some(bad_val) => {
+                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                            "{} is not a permitted file type",
+                            bad_val
+                        )));
+                    }
+                };
+                self.inner.add_file_split(filetype, &file_tuple.1, &file_tuple.2);
             }
             Ok(())
         }
@@ -986,6 +1006,12 @@ mod rpmrepo_metadata {
             write!(f, "<Package {}>", self.inner.nevra())
         }
     }
+
+    // Type, path
+    type FileTuple = (Option<String>, String);
+
+    // Type, basedir, filename
+    type CrFileTuple = (Option<String>, String, String);
 
     // name, flags, epoch, version, release, preinstall
     type RequirementTuple = (
@@ -1049,89 +1075,6 @@ mod rpmrepo_metadata {
             )
         }
     }
-
-    // Type, path
-    type FileTuple = (Option<String>, String);
-
-    impl TryFrom<&FileTuple> for crate::metadata::PackageFile {
-        type Error = pyo3::PyErr;
-
-        fn try_from(tuple: &FileTuple) -> Result<Self, pyo3::PyErr> {
-            let ftype = match tuple.0.as_deref() {
-                None => crate::metadata::FileType::File,
-                Some("dir") => crate::metadata::FileType::Dir,
-                Some("ghost") => crate::metadata::FileType::Ghost,
-                Some(bad_val) => {
-                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                        "{} is not a permitted file type",
-                        bad_val
-                    )));
-                }
-            };
-            let pkgfile = crate::metadata::PackageFile {
-                filetype: ftype,
-                path: tuple.1.clone(),
-            };
-            Ok(pkgfile)
-        }
-    }
-
-    impl From<&crate::metadata::PackageFile> for FileTuple {
-        fn from(pkgfile: &crate::metadata::PackageFile) -> Self {
-            let filetype = match pkgfile.filetype {
-                crate::metadata::FileType::File => None,
-                crate::metadata::FileType::Dir => Some("dir".to_owned()),
-                crate::metadata::FileType::Ghost => Some("ghost".to_owned()),
-            };
-
-            (filetype, pkgfile.path.clone())
-        }
-    }
-
-    // Type, basedir, filename
-    type CrFileTuple = (Option<String>, String, String);
-
-    impl TryFrom<&CrFileTuple> for crate::metadata::PackageFile {
-        type Error = pyo3::PyErr;
-
-        fn try_from(tuple: &CrFileTuple) -> Result<Self, pyo3::PyErr> {
-            let ftype = match tuple.0.as_deref() {
-                None => crate::metadata::FileType::File,
-                Some("dir") => crate::metadata::FileType::Dir,
-                Some("ghost") => crate::metadata::FileType::Ghost,
-                Some(bad_val) => {
-                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                        "'{}' is not a permitted file type",
-                        bad_val
-                    )));
-                }
-            };
-            let pkgfile = crate::metadata::PackageFile {
-                filetype: ftype,
-                path: [tuple.1.as_str(), tuple.2.as_str()].join("/"),
-            };
-            Ok(pkgfile)
-        }
-    }
-
-    impl From<&crate::metadata::PackageFile> for CrFileTuple {
-        fn from(pkgfile: &crate::metadata::PackageFile) -> Self {
-            let (base, file) = if let Some(idx) = pkgfile.path.rfind('/') {
-                pkgfile.path.split_at(idx + 1)
-            } else {
-                ("", pkgfile.path.as_str())
-            };
-
-            let filetype = match pkgfile.filetype {
-                crate::metadata::FileType::File => None,
-                crate::metadata::FileType::Dir => Some("dir".to_owned()),
-                crate::metadata::FileType::Ghost => Some("ghost".to_owned()),
-            };
-
-            (filetype, base.to_owned(), file.to_owned())
-        }
-    }
-
     /// Iterator over packages in repository metadata.
     #[pyclass]
     struct PackageIterator {

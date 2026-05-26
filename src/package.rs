@@ -42,7 +42,7 @@ pub mod rpm_parsing {
     use std::fs::File;
     use std::time::SystemTime;
 
-    use crate::{Changelog, Evr, PackageFile, Requirement, RequirementType};
+    use crate::{Changelog, Evr, Requirement, RequirementType};
 
     use super::*;
     use rpm;
@@ -108,28 +108,6 @@ pub mod rpm_parsing {
                 timestamp: value.timestamp,
                 description: value.description,
             }
-        }
-    }
-
-    impl From<rpm::FileEntry> for PackageFile {
-        fn from(value: rpm::FileEntry) -> Self {
-            let ft = if value.flags.contains(rpm::FileFlags::GHOST) {
-                crate::FileType::Ghost
-            } else {
-                match value.mode.file_type() {
-                    rpm::FileType::Dir => crate::FileType::Dir,
-                    rpm::FileType::Regular | rpm::FileType::SymbolicLink => crate::FileType::File,
-                    _ => {
-                        unreachable!("Failed to detect file type")
-                    }
-                }
-            };
-            let path = value
-                .path
-                .into_os_string()
-                .into_string()
-                .expect("failed to convert PathBuf to String");
-            PackageFile { filetype: ft, path }
         }
     }
 
@@ -260,8 +238,25 @@ pub mod rpm_parsing {
 
             // All files are stored; the primary/filelists split happens at write time
             for f in file_entries {
-                let pf: PackageFile = f.into();
-                pkg_metadata.add_file(pf.filetype, &pf.path);
+                let filetype = if f.flags.contains(rpm::FileFlags::GHOST) {
+                    crate::FileType::Ghost
+                } else {
+                    match f.mode.file_type() {
+                        rpm::FileType::Dir => crate::FileType::Dir,
+                        rpm::FileType::Regular | rpm::FileType::SymbolicLink => crate::FileType::File,
+                        _ => {
+                            unreachable!("Failed to detect file type")
+                        }
+                    }
+                };
+                let path = f
+                    .path
+                    .into_os_string()
+                    .into_string()
+                    .expect("failed to convert PathBuf to String");
+
+                pkg_metadata.add_file(filetype, &path);  // TODO:  use add_file_split
+                // Prerequisite: Convert FileEntry to store Dir + Basename (as Cow?), convert "path" lazily, avoid allocations
             }
 
             pkg_metadata.set_checksum(utils::checksum_file(path.as_ref(), options.checksum_type)?);

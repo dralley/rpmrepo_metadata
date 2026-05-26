@@ -34,7 +34,7 @@ mod python_ext;
 pub use comps::CompsXmlReader;
 pub use metadata::{
     Changelog, Checksum, ChecksumType, CompressionType, FileIter, FileList, FileRef, FileType,
-    FilelistsXml, MetadataError, OtherXml, Package, PackageFile, PrimaryXml, RepomdData,
+    FilelistsXml, MetadataError, OtherXml, Package, PrimaryXml, RepomdData,
     RepomdRecord, RepomdXml, Requirement, RequirementType,
 };
 pub use metadata::{
