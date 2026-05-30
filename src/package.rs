@@ -39,8 +39,8 @@ impl Default for PackageOptions {
 
 #[cfg(feature = "read_rpm")]
 pub mod rpm_parsing {
-    use std::fs::File;
     use std::time::SystemTime;
+    use std::{collections::HashSet, fs::File};
 
     use crate::{Changelog, Evr, Requirement, RequirementType};
 
@@ -191,15 +191,26 @@ pub mod rpm_parsing {
 
             // Build a set of provided deps so we can filter self-provided entries from requires
             let provides = convert_deps(pkg.get_provides()?)?;
-            let provided: std::collections::HashSet<String> =
-                provides.iter().map(dep_key).collect();
+            let provided: HashSet<String> = provides.iter().map(dep_key).collect();
 
-            // Build a set of the package's own file paths for filtering file-path requires
-            let file_entries = pkg.get_file_entries()?;
-            let own_files: std::collections::HashSet<String> = file_entries
-                .iter()
-                .map(|f| f.path.to_string_lossy().into_owned())
-                .collect();
+            // All files are stored; the primary/filelists split happens at write time
+            pkg.for_each_file_entry(|f| {
+                let filetype = if f.flags().contains(rpm::FileFlags::GHOST) {
+                    crate::FileType::Ghost
+                } else {
+                    match f.file_type() {
+                        rpm::FileType::Dir => crate::FileType::Dir,
+                        rpm::FileType::Regular | rpm::FileType::SymbolicLink => {
+                            crate::FileType::File
+                        }
+                        _ => {
+                            unreachable!("Failed to detect file type")
+                        }
+                    }
+                };
+                pkg_metadata.add_file_split(filetype, f.dirname(), f.basename());
+                Ok(())
+            })?;
 
             // Filter requires:
             // - skip rpmlib() deps (internal RPM feature tracking)
@@ -211,7 +222,7 @@ pub mod rpm_parsing {
                 .filter(|r| !r.name().starts_with("rpmlib("))
                 .filter(|r| {
                     !(r.name().starts_with('/')
-                        && own_files.contains(r.name())
+                        && pkg_metadata.files().contains(r.name())
                         && utils::is_primary_file(r.name()))
                 })
                 .filter(|r| !provided.contains(&dep_key(r)))
@@ -235,29 +246,6 @@ pub mod rpm_parsing {
             changelogs.truncate(options.changelog_limit);
             changelogs.reverse();
             pkg_metadata.set_changelogs(changelogs);
-
-            // All files are stored; the primary/filelists split happens at write time
-            for f in file_entries {
-                let filetype = if f.flags.contains(rpm::FileFlags::GHOST) {
-                    crate::FileType::Ghost
-                } else {
-                    match f.mode.file_type() {
-                        rpm::FileType::Dir => crate::FileType::Dir,
-                        rpm::FileType::Regular | rpm::FileType::SymbolicLink => crate::FileType::File,
-                        _ => {
-                            unreachable!("Failed to detect file type")
-                        }
-                    }
-                };
-                let path = f
-                    .path
-                    .into_os_string()
-                    .into_string()
-                    .expect("failed to convert PathBuf to String");
-
-                pkg_metadata.add_file(filetype, &path);  // TODO:  use add_file_split
-                // Prerequisite: Convert FileEntry to store Dir + Basename (as Cow?), convert "path" lazily, avoid allocations
-            }
 
             pkg_metadata.set_checksum(utils::checksum_file(path.as_ref(), options.checksum_type)?);
 

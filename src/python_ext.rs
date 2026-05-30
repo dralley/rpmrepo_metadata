@@ -951,7 +951,8 @@ mod rpmrepo_metadata {
                         )));
                     }
                 };
-                self.inner.add_file_split(filetype, &file_tuple.1, &file_tuple.2);
+                self.inner
+                    .add_file_split(filetype, &file_tuple.1, &file_tuple.2);
             }
             Ok(())
         }

@@ -19,8 +19,8 @@ use quick_xml::{Reader, Writer};
 #[cfg(feature = "read_rpm")]
 use thiserror::Error;
 
-use crate::{Repository, constants::mdrecord, utils};
 use crate::utils::{DirId, StringPool};
+use crate::{Repository, constants::mdrecord, utils};
 
 /// Marker type for repomd.xml read/write operations.
 pub struct RepomdXml;
@@ -1141,6 +1141,18 @@ impl FileList {
         }
     }
 
+    /// Return `true` if the file list contains an entry with the given full path.
+    pub fn contains(&self, path: &str) -> bool {
+        let (dir, basename) = split_path(path);
+        if let Some(dir_id) = self.dir_pool.lookup(dir) {
+            self.entries
+                .iter()
+                .any(|e| e.dir_id.as_u32() == dir_id && e.basename == basename)
+        } else {
+            false
+        }
+    }
+
     /// Iterate over files, calling `f` with the full reconstructed path.
     ///
     /// Uses a single reusable buffer internally — no allocation per file.
@@ -1179,7 +1191,7 @@ impl<'a> FileRef<'a> {
     }
 
     /// Reconstruct the full path by joining dir and basename.
-    pub fn to_path_string(&self) -> String {
+    pub fn path(&self) -> String {
         let mut s = String::with_capacity(self.dir.len() + self.basename.len());
         s.push_str(self.dir);
         s.push_str(self.basename);
@@ -1596,4 +1608,99 @@ pub struct CompsData {
     pub categories: Vec<CompsCategory>,
     pub environments: Vec<CompsEnvironment>,
     pub langpacks: Vec<CompsLangpack>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn filelist_contains_added_file() {
+        let mut fl = FileList::new();
+        fl.add_file(FileType::File, "/usr/bin/python3");
+        assert!(fl.contains("/usr/bin/python3"));
+    }
+
+    #[test]
+    fn filelist_contains_missing_file() {
+        let mut fl = FileList::new();
+        fl.add_file(FileType::File, "/usr/bin/python3");
+        assert!(!fl.contains("/usr/bin/ruby"));
+    }
+
+    #[test]
+    fn filelist_contains_missing_dir() {
+        let mut fl = FileList::new();
+        fl.add_file(FileType::File, "/usr/bin/python3");
+        assert!(!fl.contains("/etc/hosts"));
+    }
+
+    #[test]
+    fn filelist_contains_empty() {
+        let fl = FileList::new();
+        assert!(!fl.contains("/usr/bin/python3"));
+    }
+
+    #[test]
+    fn filelist_contains_root_file() {
+        let mut fl = FileList::new();
+        fl.add_file(FileType::File, "/somefile");
+        assert!(fl.contains("/somefile"));
+        assert!(!fl.contains("/otherfile"));
+    }
+
+    #[test]
+    fn filelist_contains_dir_entry() {
+        let mut fl = FileList::new();
+        fl.add_file(FileType::Dir, "/usr/share/doc/");
+        assert!(fl.contains("/usr/share/doc/"));
+        assert!(!fl.contains("/usr/share/man/"));
+    }
+
+    #[test]
+    fn filelist_contains_multiple_files_same_dir() {
+        let mut fl = FileList::new();
+        fl.add_file(FileType::File, "/usr/bin/python3");
+        fl.add_file(FileType::File, "/usr/bin/pip");
+        fl.add_file(FileType::File, "/usr/bin/easy_install");
+        assert!(fl.contains("/usr/bin/python3"));
+        assert!(fl.contains("/usr/bin/pip"));
+        assert!(fl.contains("/usr/bin/easy_install"));
+        assert!(!fl.contains("/usr/bin/ruby"));
+    }
+
+    #[test]
+    fn filelist_contains_via_add_file_split() {
+        let mut fl = FileList::new();
+        fl.add_file_split(FileType::File, "/usr/bin/", "python3");
+        assert!(fl.contains("/usr/bin/python3"));
+        assert!(!fl.contains("/usr/bin/ruby"));
+    }
+
+    #[test]
+    fn filelist_contains_distinguishes_basename() {
+        let mut fl = FileList::new();
+        fl.add_file(FileType::File, "/usr/bin/python3");
+        assert!(!fl.contains("/usr/bin/python2"));
+    }
+
+    #[test]
+    fn split_path_typical() {
+        assert_eq!(split_path("/usr/bin/python3"), ("/usr/bin/", "python3"));
+    }
+
+    #[test]
+    fn split_path_root_file() {
+        assert_eq!(split_path("/somefile"), ("/", "somefile"));
+    }
+
+    #[test]
+    fn split_path_trailing_slash() {
+        assert_eq!(split_path("/usr/share/doc/"), ("/usr/share/doc/", ""));
+    }
+
+    #[test]
+    fn split_path_no_slash() {
+        assert_eq!(split_path("somefile"), ("", "somefile"));
+    }
 }

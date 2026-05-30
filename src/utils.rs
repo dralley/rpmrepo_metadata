@@ -211,6 +211,11 @@ impl StringPool {
         &self.strings[id as usize]
     }
 
+    /// Return the ID of a previously interned string, or `None` if it is not in the pool.
+    pub fn lookup(&self, s: &str) -> Option<u32> {
+        self.index.get(s).copied()
+    }
+
     /// Return the number of unique strings in the pool.
     pub fn len(&self) -> usize {
         self.strings.len()
@@ -233,5 +238,57 @@ impl DirId {
 
     pub(crate) fn as_u32(self) -> u32 {
         self.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn string_pool_intern_and_resolve() {
+        let mut pool = StringPool::new();
+        let id = pool.intern("/usr/bin/");
+        assert_eq!(pool.resolve(id), "/usr/bin/");
+        assert_eq!(pool.len(), 1);
+    }
+
+    #[test]
+    fn string_pool_deduplicates() {
+        let mut pool = StringPool::new();
+        let id1 = pool.intern("/usr/bin/");
+        let id2 = pool.intern("/usr/bin/");
+        assert_eq!(id1, id2);
+        assert_eq!(pool.len(), 1);
+    }
+
+    #[test]
+    fn string_pool_distinct_strings_get_distinct_ids() {
+        let mut pool = StringPool::new();
+        let id1 = pool.intern("/usr/bin/");
+        let id2 = pool.intern("/etc/");
+        assert_ne!(id1, id2);
+        assert_eq!(pool.len(), 2);
+    }
+
+    #[test]
+    fn string_pool_lookup_present() {
+        let mut pool = StringPool::new();
+        let id = pool.intern("/usr/bin/");
+        assert_eq!(pool.lookup("/usr/bin/"), Some(id));
+    }
+
+    #[test]
+    fn string_pool_lookup_absent() {
+        let mut pool = StringPool::new();
+        pool.intern("/usr/bin/");
+        assert_eq!(pool.lookup("/etc/"), None);
+    }
+
+    #[test]
+    fn string_pool_lookup_empty() {
+        let pool = StringPool::new();
+        assert_eq!(pool.lookup("anything"), None);
+        assert!(pool.is_empty());
     }
 }

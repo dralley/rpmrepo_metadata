@@ -65,7 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("    Provides: {}", provides.join(", "));
         }
 
-        let files: Vec<_> = pkg.files().iter().map(|f| f.to_path_string()).collect();
+        let files: Vec<_> = pkg.files().iter().map(|f| f.path()).collect();
         if !files.is_empty() {
             let display: Vec<_> = files.iter().take(10).map(|s| s.as_str()).collect();
             print!("    Files:    {}", display.join(", "));
