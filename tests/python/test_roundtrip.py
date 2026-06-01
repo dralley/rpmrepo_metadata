@@ -51,6 +51,7 @@ def _repos_with_comps():
 # Package roundtrip via Repository.load_from_directory / write_to_directory
 # ---------------------------------------------------------------------------
 
+
 class TestPackageRoundtrip:
     def test_complex_repo_all_fields(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -148,6 +149,7 @@ class TestPackageRoundtrip:
 # ---------------------------------------------------------------------------
 # Advisory / UpdateInfo roundtrip
 # ---------------------------------------------------------------------------
+
 
 class TestAdvisoryRoundtrip:
     def test_constructed_advisory_roundtrip(self):
@@ -252,8 +254,7 @@ class TestAdvisoryRoundtrip:
             reader = r.RepositoryReader(tmpdir)
             compare_advisory_lists(recs, list(reader.iter_advisories()))
 
-    @pytest.mark.parametrize("repo_path", _repos_with_updateinfo(),
-                             ids=lambda p: os.path.relpath(p, EXTERNAL_REPOS))
+    @pytest.mark.parametrize("repo_path", _repos_with_updateinfo(), ids=lambda p: os.path.relpath(p, EXTERNAL_REPOS))
     def test_external_repo_advisory_roundtrip(self, repo_path):
         reader1 = r.RepositoryReader(repo_path)
         advisories_orig = list(reader1.iter_advisories())
@@ -273,6 +274,7 @@ class TestAdvisoryRoundtrip:
 # ---------------------------------------------------------------------------
 # Comps roundtrip
 # ---------------------------------------------------------------------------
+
 
 class TestCompsRoundtrip:
     def test_comps_xml_roundtrip(self):
@@ -360,8 +362,7 @@ class TestCompsRoundtrip:
             assert len(repo.langpacks) == 1
             compare_comps_langpacks(lp, repo.langpacks[0])
 
-    @pytest.mark.parametrize("repo_path", _repos_with_comps(),
-                             ids=lambda p: os.path.relpath(p, EXTERNAL_REPOS))
+    @pytest.mark.parametrize("repo_path", _repos_with_comps(), ids=lambda p: os.path.relpath(p, EXTERNAL_REPOS))
     def test_external_repo_comps_roundtrip(self, repo_path):
         try:
             reader = r.RepositoryReader(repo_path)
@@ -378,6 +379,7 @@ class TestCompsRoundtrip:
 # ---------------------------------------------------------------------------
 # Full repository roundtrip (packages + comps + advisories together)
 # ---------------------------------------------------------------------------
+
 
 class TestFullRepositoryRoundtrip:
     def test_complex_repo_full(self):

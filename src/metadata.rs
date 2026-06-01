@@ -1374,21 +1374,30 @@ impl RepomdData {
     }
 
     /// Returns the primary metadata record. Panics if not present.
-    pub fn get_primary_data(&self) -> &RepomdRecord {
+    pub fn get_primary_data(&self) -> Option<&RepomdRecord> {
         self.get_record(mdrecord::MD_PRIMARY)
-            .expect("Cannot find primary metadata")
     }
 
     /// Returns the filelists metadata record. Panics if not present.
-    pub fn get_filelist_data(&self) -> &RepomdRecord {
+    pub fn get_filelist_data(&self) -> Option<&RepomdRecord> {
         self.get_record(mdrecord::MD_FILELISTS)
-            .expect("Cannot find filelists metadata")
     }
 
     /// Returns the other metadata record. Panics if not present.
-    pub fn get_other_data(&self) -> &RepomdRecord {
+    pub fn get_other_data(&self) -> Option<&RepomdRecord> {
         self.get_record(mdrecord::MD_OTHER)
-            .expect("Cannot find other metadata")
+    }
+
+    /// Returns the updateinfo metadata record.
+    pub fn get_updateinfo_data(&self) -> Option<&RepomdRecord> {
+        self.get_record(mdrecord::MD_UPDATEINFO)
+    }
+
+    /// Returns the other metadata record.
+    pub fn get_comps_data(&self) -> Option<&RepomdRecord> {
+        self.get_record(mdrecord::MD_GROUP)
+            .or_else(|| self.get_record(mdrecord::MD_GROUP_GZ))
+            .or_else(|| self.get_record(mdrecord::MD_GROUP_XZ))
     }
 }
 

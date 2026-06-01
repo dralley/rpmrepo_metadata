@@ -11,9 +11,7 @@ def assert_eq(a, b, label):
 
 
 def compare_lists(list1, list2, label, item_compare_fn):
-    assert len(list1) == len(list2), (
-        f"{label}: length {len(list1)} != {len(list2)}"
-    )
+    assert len(list1) == len(list2), f"{label}: length {len(list1)} != {len(list2)}"
     for i, (a, b) in enumerate(zip(list1, list2)):
         if a != b:
             item_compare_fn(a, b)
@@ -23,6 +21,7 @@ def compare_lists(list1, list2, label, item_compare_fn):
 # ---------------------------------------------------------------------------
 # Package
 # ---------------------------------------------------------------------------
+
 
 def _compare_packages_fields(p1, p2):
     assert_eq(p1.name, p2.name, "name")
@@ -79,6 +78,7 @@ def compare_package_lists(pkgs1, pkgs2):
 # UpdateInfo / Advisories
 # ---------------------------------------------------------------------------
 
+
 def _compare_update_collection_modules_fields(m1, m2):
     assert_eq(m1.name, m2.name, "module.name")
     assert_eq(m1.stream, m2.stream, "module.stream")
@@ -111,8 +111,10 @@ def _compare_update_collections_fields(c1, c2):
     else:
         assert c2.module is None, "collection.module: expected None"
     compare_lists(
-        c1.packages, c2.packages,
-        "collection.packages", _compare_update_collection_packages_fields,
+        c1.packages,
+        c2.packages,
+        "collection.packages",
+        _compare_update_collection_packages_fields,
     )
 
 
@@ -140,12 +142,16 @@ def _compare_update_records_fields(rec1, rec2):
     assert_eq(rec1.description, rec2.description, "advisory.description")
     assert_eq(rec1.solution, rec2.solution, "advisory.solution")
     compare_lists(
-        rec1.references, rec2.references,
-        "advisory.references", _compare_update_references_fields,
+        rec1.references,
+        rec2.references,
+        "advisory.references",
+        _compare_update_references_fields,
     )
     compare_lists(
-        rec1.pkglist, rec2.pkglist,
-        "advisory.pkglist", _compare_update_collections_fields,
+        rec1.pkglist,
+        rec2.pkglist,
+        "advisory.pkglist",
+        _compare_update_collections_fields,
     )
 
 
@@ -162,6 +168,7 @@ def compare_advisory_lists(recs1, recs2):
 # ---------------------------------------------------------------------------
 # Comps
 # ---------------------------------------------------------------------------
+
 
 def _compare_comps_package_reqs_fields(p1, p2):
     assert_eq(p1.name, p2.name, "package_req.name")
@@ -182,8 +189,10 @@ def _compare_comps_groups_fields(g1, g2):
     assert_eq(g1.name_by_lang, g2.name_by_lang, "group.name_by_lang")
     assert_eq(g1.desc_by_lang, g2.desc_by_lang, "group.desc_by_lang")
     compare_lists(
-        g1.packages, g2.packages,
-        "group.packages", _compare_comps_package_reqs_fields,
+        g1.packages,
+        g2.packages,
+        "group.packages",
+        _compare_comps_package_reqs_fields,
     )
 
 
@@ -211,8 +220,10 @@ def _compare_comps_environments_fields(e1, e2):
     assert_eq(e1.desc_by_lang, e2.desc_by_lang, "environment.desc_by_lang")
     assert_eq(e1.group_ids, e2.group_ids, "environment.group_ids")
     compare_lists(
-        e1.option_ids, e2.option_ids,
-        "environment.option_ids", _compare_comps_environment_options_fields,
+        e1.option_ids,
+        e2.option_ids,
+        "environment.option_ids",
+        _compare_comps_environment_options_fields,
     )
 
 
