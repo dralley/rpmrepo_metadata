@@ -16,7 +16,6 @@ use std::sync::Arc;
 // use bitflags;
 use compact_str::CompactString;
 use quick_xml::{Reader, Writer};
-#[cfg(feature = "read_rpm")]
 use thiserror::Error;
 
 use crate::utils::{DirId, StringPool};
