@@ -9,8 +9,8 @@ use std::convert::TryInto;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::io::{BufRead, Write};
-use std::os::unix::prelude::MetadataExt;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 use std::sync::Arc;
 
 // use bitflags;
@@ -1468,8 +1468,13 @@ impl RepomdRecord {
             .expect("cannot fill metadata if path not on disk")
             .join(&self.location_href);
         let file_metadata = file_path.metadata()?;
-        self.timestamp = file_metadata.mtime();
-        self.size = Some(file_metadata.size());
+        self.timestamp = file_metadata
+            .modified()
+            .unwrap_or(SystemTime::UNIX_EPOCH)
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+        self.size = Some(file_metadata.len());
         self.checksum = utils::checksum_file(&file_path, checksum_type)?;
         self.open_checksum = utils::checksum_inner_file(&file_path, checksum_type)?;
         self.open_size = utils::size_inner_file(&file_path)?;
