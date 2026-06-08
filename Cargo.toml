@@ -1,6 +1,6 @@
 [package]
 name = "rpmrepo_metadata"
-version = "0.5.2"
+version = "0.5.3"
 authors = ["Daniel Alley <dalley@redhat.com>"]
 edition = "2024"
 license = "MPL-2.0"
@@ -14,7 +14,7 @@ documentation = "https://docs.rs/rpmrepo_metadata/"
 [features]
 python_ext = ["pyo3", "rpm-version/python"]
 read_rpm = ["rpm"]
-default = ["python_ext", "read_rpm"]
+default = ["read_rpm"]
 
 [dependencies]
 quick-xml = { version = "0.40.1", default-features = false }
