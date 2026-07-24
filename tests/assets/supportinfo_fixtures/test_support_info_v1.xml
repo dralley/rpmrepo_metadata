@@ -1,0 +1,42 @@
+<?xml version="1.0" ?>
+<package_support schema_version="1.0" current_as="2024-01-17T00:00:00">
+  <lifecycles>
+    <lifecycle name="eol">
+      <phase name="standard_support" support_level="standard" start_milestone="al2023_ga"/>
+    </lifecycle>
+    <lifecycle name="eol_php81" note="eol_php81">
+      <phase name="standard_support" support_level="standard" start_milestone="al2023_ga"/>
+    </lifecycle>
+    <lifecycle name="eol_python36" note="eol_python36">
+      <phase name="end_of_life" support_level="security_only" start_date="2023-03-15"/>
+    </lifecycle>
+  </lifecycles>
+  <support_milestones>
+    <milestone name="al2023_ga" date="2023-03-15"/>
+    <milestone name="al2023_eol" date="2028-03-15"/>
+    <milestone name="php81_eol" date="2026-11-25"/>
+  </support_milestones>
+  <support_levels>
+    <support_level name="standard" severities="Low,Medium,Important,Critical"/>
+    <support_level name="security_only" severities="Important,Critical"/>
+  </support_levels>
+  <packages>
+    <package name="test-glibc" lifecycle="eol" package_class="core" origin="amazonlinux"/>
+    <package name="test-bash" lifecycle="eol" package_class="core" origin="amazonlinux"/>
+    <package name="test-php81" lifecycle="eol_php81" package_class="core" origin="amazonlinux"/>
+    <package name="test-python36" lifecycle="eol_python36" package_class="core" origin="amazonlinux"/>
+  </packages>
+  <package_classes>
+    <package_class name="core">
+      <summary>Core system packages</summary>
+      <text>Essential packages for system operation</text>
+    </package_class>
+  </package_classes>
+  <package_origins>
+    <package_origin name="amazonlinux" repo_id="amazonlinux" dist="amzn2023" vendor="Amazon"/>
+  </package_origins>
+  <notes>
+    <note name="eol_php81">Upstream end-of-life for PHP 8.1 is 2026-11-25</note>
+    <note name="eol_python36">Python 3.6 reached upstream end-of-life on 2021-12-23</note>
+  </notes>
+</package_support>

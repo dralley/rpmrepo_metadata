@@ -1131,6 +1131,8 @@ mod rpmrepo_metadata {
         }
     }
 
+    // ----------------- Updateinfo types --------------------
+
     /// An advisory (errata) entry from updateinfo.xml.
     #[pyclass]
     struct UpdateRecord {
@@ -1662,6 +1664,8 @@ mod rpmrepo_metadata {
         }
     }
 
+    // ---------------- Comps types -------------------
+
     /// A package group from comps.xml.
     #[pyclass]
     struct CompsGroup {
@@ -2084,6 +2088,792 @@ mod rpmrepo_metadata {
         }
 
         fn __eq__(&self, other: &CompsLangpack) -> bool {
+            self.inner == other.inner
+        }
+    }
+
+    // ------------- SupportInfo types -----------------
+
+    #[cfg(feature = "supportinfo")]
+    /// Parsed V1.0 support info document.
+    ///
+    /// Use ``SupportInfoV1Data.from_xml(xml_string)`` to parse, and
+    /// ``data.to_xml()`` to serialize back to XML.
+    #[pyclass]
+    struct SupportInfoV1Data {
+        inner: crate::SupportInfoData,
+    }
+
+    #[cfg(feature = "supportinfo")]
+    #[pymethods]
+    impl SupportInfoV1Data {
+        #[new]
+        #[pyo3(signature = (current_as="".to_string()))]
+        fn new(current_as: String) -> Self {
+            Self {
+                inner: crate::SupportInfoData {
+                    current_as,
+                    ..Default::default()
+                },
+            }
+        }
+
+        /// Parse a V1.0 support_info XML string.
+        #[staticmethod]
+        fn from_xml(xml: &str) -> PyResult<Self> {
+            let reader = crate::utils::create_xml_reader(xml.as_bytes());
+            let mut si_reader = crate::SupportInfoXml::new_reader(reader);
+            match si_reader.read()? {
+                Some(crate::SupportInfo::V1(data)) => Ok(Self { inner: data }),
+                None => Err(pyo3::exceptions::PyValueError::new_err(
+                    "No support info document found in XML",
+                )),
+            }
+        }
+
+        /// Serialize this V1.0 support info to XML.
+        fn to_xml(&self) -> PyResult<String> {
+            let mut buf = Vec::new();
+            let writer = crate::utils::create_xml_writer(&mut buf);
+            let mut w = crate::SupportInfoXml::new_writer(writer);
+            w.write_header(&self.inner.current_as)?;
+            w.write_support_info(&self.inner)?;
+            w.finish()?;
+            String::from_utf8(buf)
+                .map_err(|e| pyo3::exceptions::PyUnicodeDecodeError::new_err(e.to_string()))
+        }
+
+        /// The ``current_as`` attribute identifying the product stream.
+        #[getter]
+        fn current_as(&self) -> &str {
+            &self.inner.current_as
+        }
+
+        #[setter]
+        fn set_current_as(&mut self, val: String) {
+            self.inner.current_as = val;
+        }
+
+        /// Named support lifecycles, each containing ordered phases.
+        #[getter]
+        fn lifecycles(&self) -> Vec<SupportInfoLifecycle> {
+            self.inner
+                .lifecycles
+                .iter()
+                .map(|l| SupportInfoLifecycle { inner: l.clone() })
+                .collect()
+        }
+
+        #[setter]
+        fn set_lifecycles(&mut self, py: Python<'_>, val: Vec<Py<SupportInfoLifecycle>>) {
+            self.inner.lifecycles = val.iter().map(|l| l.borrow(py).inner.clone()).collect();
+        }
+
+        /// Named date milestones that phases can reference.
+        #[getter]
+        fn milestones(&self) -> Vec<SupportInfoMilestone> {
+            self.inner
+                .milestones
+                .iter()
+                .map(|m| SupportInfoMilestone { inner: m.clone() })
+                .collect()
+        }
+
+        #[setter]
+        fn set_milestones(&mut self, py: Python<'_>, val: Vec<Py<SupportInfoMilestone>>) {
+            self.inner.milestones = val.iter().map(|m| m.borrow(py).inner.clone()).collect();
+        }
+
+        /// Definitions of support levels and their severity scopes.
+        #[getter]
+        fn support_levels(&self) -> Vec<SupportInfoLevel> {
+            self.inner
+                .support_levels
+                .iter()
+                .map(|l| SupportInfoLevel { inner: l.clone() })
+                .collect()
+        }
+
+        #[setter]
+        fn set_support_levels(&mut self, py: Python<'_>, val: Vec<Py<SupportInfoLevel>>) {
+            self.inner.support_levels = val.iter().map(|l| l.borrow(py).inner.clone()).collect();
+        }
+
+        /// Package-to-lifecycle assignments.
+        #[getter]
+        fn packages(&self) -> Vec<SupportInfoPackage> {
+            self.inner
+                .packages
+                .iter()
+                .map(|p| SupportInfoPackage { inner: p.clone() })
+                .collect()
+        }
+
+        #[setter]
+        fn set_packages(&mut self, py: Python<'_>, val: Vec<Py<SupportInfoPackage>>) {
+            self.inner.packages = val.iter().map(|p| p.borrow(py).inner.clone()).collect();
+        }
+
+        /// Definitions of package classes.
+        #[getter]
+        fn package_classes(&self) -> Vec<SupportInfoPackageClass> {
+            self.inner
+                .package_classes
+                .iter()
+                .map(|c| SupportInfoPackageClass { inner: c.clone() })
+                .collect()
+        }
+
+        #[setter]
+        fn set_package_classes(&mut self, py: Python<'_>, val: Vec<Py<SupportInfoPackageClass>>) {
+            self.inner.package_classes = val.iter().map(|c| c.borrow(py).inner.clone()).collect();
+        }
+
+        /// Repository origin definitions for packages.
+        #[getter]
+        fn package_origins(&self) -> Vec<SupportInfoPackageOrigin> {
+            self.inner
+                .package_origins
+                .iter()
+                .map(|o| SupportInfoPackageOrigin { inner: o.clone() })
+                .collect()
+        }
+
+        #[setter]
+        fn set_package_origins(&mut self, py: Python<'_>, val: Vec<Py<SupportInfoPackageOrigin>>) {
+            self.inner.package_origins = val.iter().map(|o| o.borrow(py).inner.clone()).collect();
+        }
+
+        /// Supplemental named notes.
+        #[getter]
+        fn notes(&self) -> Vec<SupportInfoNote> {
+            self.inner
+                .notes
+                .iter()
+                .map(|n| SupportInfoNote { inner: n.clone() })
+                .collect()
+        }
+
+        #[setter]
+        fn set_notes(&mut self, py: Python<'_>, val: Vec<Py<SupportInfoNote>>) {
+            self.inner.notes = val.iter().map(|n| n.borrow(py).inner.clone()).collect();
+        }
+
+        fn __eq__(&self, other: &SupportInfoV1Data) -> bool {
+            self.inner == other.inner
+        }
+
+        fn __str__(&self) -> String {
+            format!("<SupportInfoV1Data current_as={}>", self.inner.current_as)
+        }
+
+        fn __repr__(&self) -> String {
+            format!("<SupportInfoV1Data current_as={}>", self.inner.current_as)
+        }
+    }
+
+    #[cfg(feature = "supportinfo")]
+    /// Parse a support_info XML string, auto-detecting V1.0 format.
+    ///
+    /// Returns a ``SupportInfoV1Data`` object.
+    #[pyfunction]
+    fn parse_support_info(py: Python<'_>, xml: &str) -> PyResult<Py<PyAny>> {
+        let reader = crate::utils::create_xml_reader(xml.as_bytes());
+        let mut si_reader = crate::SupportInfoXml::new_reader(reader);
+        match si_reader.read()? {
+            Some(crate::SupportInfo::V1(data)) => Ok(SupportInfoV1Data { inner: data }
+                .into_pyobject(py)?
+                .into_any()
+                .unbind()),
+            None => Err(pyo3::exceptions::PyValueError::new_err(
+                "No support info document found in XML",
+            )),
+        }
+    }
+
+    #[cfg(feature = "supportinfo")]
+    /// A named support lifecycle containing one or more phases.
+    #[pyclass]
+    struct SupportInfoLifecycle {
+        inner: crate::SupportInfoLifecycle,
+    }
+
+    #[cfg(feature = "supportinfo")]
+    #[pymethods]
+    impl SupportInfoLifecycle {
+        #[new]
+        #[pyo3(signature = (name="".to_string(), note=None, display_name=None, description=None))]
+        fn new(
+            name: String,
+            note: Option<String>,
+            display_name: Option<String>,
+            description: Option<String>,
+        ) -> Self {
+            Self {
+                inner: crate::SupportInfoLifecycle {
+                    name,
+                    note,
+                    display_name,
+                    description,
+                    phases: Vec::new(),
+                },
+            }
+        }
+
+        /// Unique identifier for this lifecycle.
+        #[getter]
+        fn name(&self) -> &str {
+            &self.inner.name
+        }
+
+        #[setter]
+        fn set_name(&mut self, val: String) {
+            self.inner.name = val;
+        }
+
+        /// Reference to a named note providing additional context.
+        #[getter]
+        fn note(&self) -> Option<&str> {
+            self.inner.note.as_deref()
+        }
+
+        #[setter]
+        fn set_note(&mut self, val: Option<String>) {
+            self.inner.note = val;
+        }
+
+        /// Human-readable display name.
+        #[getter]
+        fn display_name(&self) -> Option<&str> {
+            self.inner.display_name.as_deref()
+        }
+
+        #[setter]
+        fn set_display_name(&mut self, val: Option<String>) {
+            self.inner.display_name = val;
+        }
+
+        /// Longer description of this lifecycle.
+        #[getter]
+        fn description(&self) -> Option<&str> {
+            self.inner.description.as_deref()
+        }
+
+        #[setter]
+        fn set_description(&mut self, val: Option<String>) {
+            self.inner.description = val;
+        }
+
+        /// Ordered phases within this lifecycle.
+        #[getter]
+        fn phases(&self) -> Vec<SupportInfoPhase> {
+            self.inner
+                .phases
+                .iter()
+                .map(|p| SupportInfoPhase { inner: p.clone() })
+                .collect()
+        }
+
+        #[setter]
+        fn set_phases(&mut self, py: Python<'_>, val: Vec<Py<SupportInfoPhase>>) {
+            self.inner.phases = val.iter().map(|p| p.borrow(py).inner.clone()).collect();
+        }
+
+        fn __eq__(&self, other: &SupportInfoLifecycle) -> bool {
+            self.inner == other.inner
+        }
+
+        fn __str__(&self) -> String {
+            format!("<SupportInfoLifecycle {}>", self.inner.name)
+        }
+
+        fn __repr__(&self) -> String {
+            format!("<SupportInfoLifecycle {}>", self.inner.name)
+        }
+    }
+
+    #[cfg(feature = "supportinfo")]
+    /// A phase within a lifecycle.
+    #[pyclass]
+    struct SupportInfoPhase {
+        inner: crate::SupportInfoPhase,
+    }
+
+    #[cfg(feature = "supportinfo")]
+    #[pymethods]
+    impl SupportInfoPhase {
+        #[new]
+        #[pyo3(signature = (name="".to_string(), support_level="".to_string(), start_date=None, start_milestone=None))]
+        fn new(
+            name: String,
+            support_level: String,
+            start_date: Option<String>,
+            start_milestone: Option<String>,
+        ) -> Self {
+            Self {
+                inner: crate::SupportInfoPhase {
+                    name,
+                    support_level,
+                    start_date,
+                    start_milestone,
+                },
+            }
+        }
+
+        /// Phase name.
+        #[getter]
+        fn name(&self) -> &str {
+            &self.inner.name
+        }
+
+        #[setter]
+        fn set_name(&mut self, val: String) {
+            self.inner.name = val;
+        }
+
+        /// Name of the support level that applies during this phase.
+        #[getter]
+        fn support_level(&self) -> &str {
+            &self.inner.support_level
+        }
+
+        #[setter]
+        fn set_support_level(&mut self, val: String) {
+            self.inner.support_level = val;
+        }
+
+        /// Fixed start date (ISO 8601), mutually exclusive with ``start_milestone``.
+        #[getter]
+        fn start_date(&self) -> Option<&str> {
+            self.inner.start_date.as_deref()
+        }
+
+        #[setter]
+        fn set_start_date(&mut self, val: Option<String>) {
+            self.inner.start_date = val;
+        }
+
+        /// Name of a milestone whose date determines when this phase starts.
+        #[getter]
+        fn start_milestone(&self) -> Option<&str> {
+            self.inner.start_milestone.as_deref()
+        }
+
+        #[setter]
+        fn set_start_milestone(&mut self, val: Option<String>) {
+            self.inner.start_milestone = val;
+        }
+
+        fn __eq__(&self, other: &SupportInfoPhase) -> bool {
+            self.inner == other.inner
+        }
+    }
+
+    #[cfg(feature = "supportinfo")]
+    /// A named date that can be referenced by lifecycle phases.
+    #[pyclass]
+    struct SupportInfoMilestone {
+        inner: crate::SupportInfoMilestone,
+    }
+
+    #[cfg(feature = "supportinfo")]
+    #[pymethods]
+    impl SupportInfoMilestone {
+        #[new]
+        #[pyo3(signature = (name="".to_string(), date="".to_string(), display_name=None, description=None))]
+        fn new(
+            name: String,
+            date: String,
+            display_name: Option<String>,
+            description: Option<String>,
+        ) -> Self {
+            Self {
+                inner: crate::SupportInfoMilestone {
+                    name,
+                    date,
+                    display_name,
+                    description,
+                },
+            }
+        }
+
+        /// Unique identifier for this milestone.
+        #[getter]
+        fn name(&self) -> &str {
+            &self.inner.name
+        }
+
+        #[setter]
+        fn set_name(&mut self, val: String) {
+            self.inner.name = val;
+        }
+
+        /// The date of the milestone (ISO 8601).
+        #[getter]
+        fn date(&self) -> &str {
+            &self.inner.date
+        }
+
+        #[setter]
+        fn set_date(&mut self, val: String) {
+            self.inner.date = val;
+        }
+
+        /// Human-readable display name.
+        #[getter]
+        fn display_name(&self) -> Option<&str> {
+            self.inner.display_name.as_deref()
+        }
+
+        #[setter]
+        fn set_display_name(&mut self, val: Option<String>) {
+            self.inner.display_name = val;
+        }
+
+        /// Longer description of this milestone.
+        #[getter]
+        fn description(&self) -> Option<&str> {
+            self.inner.description.as_deref()
+        }
+
+        #[setter]
+        fn set_description(&mut self, val: Option<String>) {
+            self.inner.description = val;
+        }
+
+        fn __eq__(&self, other: &SupportInfoMilestone) -> bool {
+            self.inner == other.inner
+        }
+    }
+
+    #[cfg(feature = "supportinfo")]
+    /// Defines the scope of support offered during a phase.
+    #[pyclass]
+    struct SupportInfoLevel {
+        inner: crate::SupportInfoLevel,
+    }
+
+    #[cfg(feature = "supportinfo")]
+    #[pymethods]
+    impl SupportInfoLevel {
+        #[new]
+        #[pyo3(signature = (name="".to_string(), severities="".to_string(), description=None))]
+        fn new(name: String, severities: String, description: Option<String>) -> Self {
+            Self {
+                inner: crate::SupportInfoLevel {
+                    name,
+                    severities,
+                    description,
+                },
+            }
+        }
+
+        /// Unique identifier for this support level.
+        #[getter]
+        fn name(&self) -> &str {
+            &self.inner.name
+        }
+
+        #[setter]
+        fn set_name(&mut self, val: String) {
+            self.inner.name = val;
+        }
+
+        /// Comma-separated severity levels addressed at this support level.
+        #[getter]
+        fn severities(&self) -> &str {
+            &self.inner.severities
+        }
+
+        #[setter]
+        fn set_severities(&mut self, val: String) {
+            self.inner.severities = val;
+        }
+
+        /// Longer description of what this support level covers.
+        #[getter]
+        fn description(&self) -> Option<&str> {
+            self.inner.description.as_deref()
+        }
+
+        #[setter]
+        fn set_description(&mut self, val: Option<String>) {
+            self.inner.description = val;
+        }
+
+        fn __eq__(&self, other: &SupportInfoLevel) -> bool {
+            self.inner == other.inner
+        }
+    }
+
+    #[cfg(feature = "supportinfo")]
+    /// Associates a package with a lifecycle, origin, and optional class.
+    #[pyclass]
+    struct SupportInfoPackage {
+        inner: crate::SupportInfoPackage,
+    }
+
+    #[cfg(feature = "supportinfo")]
+    #[pymethods]
+    impl SupportInfoPackage {
+        #[new]
+        #[pyo3(signature = (name="".to_string(), lifecycle="".to_string(), origin="".to_string(), package_class=None))]
+        fn new(
+            name: String,
+            lifecycle: String,
+            origin: String,
+            package_class: Option<String>,
+        ) -> Self {
+            Self {
+                inner: crate::SupportInfoPackage {
+                    name,
+                    lifecycle,
+                    origin,
+                    package_class,
+                },
+            }
+        }
+
+        /// RPM package name.
+        #[getter]
+        fn name(&self) -> &str {
+            &self.inner.name
+        }
+
+        #[setter]
+        fn set_name(&mut self, val: String) {
+            self.inner.name = val;
+        }
+
+        /// Name of the lifecycle this package follows.
+        #[getter]
+        fn lifecycle(&self) -> &str {
+            &self.inner.lifecycle
+        }
+
+        #[setter]
+        fn set_lifecycle(&mut self, val: String) {
+            self.inner.lifecycle = val;
+        }
+
+        /// Name of the package origin this package comes from.
+        #[getter]
+        fn origin(&self) -> &str {
+            &self.inner.origin
+        }
+
+        #[setter]
+        fn set_origin(&mut self, val: String) {
+            self.inner.origin = val;
+        }
+
+        /// Optional package class categorization.
+        #[getter]
+        fn package_class(&self) -> Option<&str> {
+            self.inner.package_class.as_deref()
+        }
+
+        #[setter]
+        fn set_package_class(&mut self, val: Option<String>) {
+            self.inner.package_class = val;
+        }
+
+        fn __eq__(&self, other: &SupportInfoPackage) -> bool {
+            self.inner == other.inner
+        }
+    }
+
+    #[cfg(feature = "supportinfo")]
+    /// Classifies packages by intended use.
+    #[pyclass]
+    struct SupportInfoPackageClass {
+        inner: crate::SupportInfoPackageClass,
+    }
+
+    #[cfg(feature = "supportinfo")]
+    #[pymethods]
+    impl SupportInfoPackageClass {
+        #[new]
+        #[pyo3(signature = (name="".to_string(), summary="".to_string(), text="".to_string()))]
+        fn new(name: String, summary: String, text: String) -> Self {
+            Self {
+                inner: crate::SupportInfoPackageClass {
+                    name,
+                    summary,
+                    text,
+                },
+            }
+        }
+
+        /// Unique identifier for this class.
+        #[getter]
+        fn name(&self) -> &str {
+            &self.inner.name
+        }
+
+        #[setter]
+        fn set_name(&mut self, val: String) {
+            self.inner.name = val;
+        }
+
+        /// Short summary of what this class represents.
+        #[getter]
+        fn summary(&self) -> &str {
+            &self.inner.summary
+        }
+
+        #[setter]
+        fn set_summary(&mut self, val: String) {
+            self.inner.summary = val;
+        }
+
+        /// Longer descriptive text about this package class.
+        #[getter]
+        fn text(&self) -> &str {
+            &self.inner.text
+        }
+
+        #[setter]
+        fn set_text(&mut self, val: String) {
+            self.inner.text = val;
+        }
+
+        fn __eq__(&self, other: &SupportInfoPackageClass) -> bool {
+            self.inner == other.inner
+        }
+    }
+
+    #[cfg(feature = "supportinfo")]
+    /// Repository and distribution information for packages.
+    #[pyclass]
+    struct SupportInfoPackageOrigin {
+        inner: crate::SupportInfoPackageOrigin,
+    }
+
+    #[cfg(feature = "supportinfo")]
+    #[pymethods]
+    impl SupportInfoPackageOrigin {
+        #[new]
+        #[pyo3(signature = (name="".to_string(), repo_id="".to_string(), dist="".to_string(), vendor="".to_string(), signing_key=None))]
+        fn new(
+            name: String,
+            repo_id: String,
+            dist: String,
+            vendor: String,
+            signing_key: Option<String>,
+        ) -> Self {
+            Self {
+                inner: crate::SupportInfoPackageOrigin {
+                    name,
+                    repo_id,
+                    dist,
+                    vendor,
+                    signing_key,
+                },
+            }
+        }
+
+        /// Unique identifier for this origin.
+        #[getter]
+        fn name(&self) -> &str {
+            &self.inner.name
+        }
+
+        #[setter]
+        fn set_name(&mut self, val: String) {
+            self.inner.name = val;
+        }
+
+        /// Repository ID where the packages are published.
+        #[getter]
+        fn repo_id(&self) -> &str {
+            &self.inner.repo_id
+        }
+
+        #[setter]
+        fn set_repo_id(&mut self, val: String) {
+            self.inner.repo_id = val;
+        }
+
+        /// Distribution name.
+        #[getter]
+        fn dist(&self) -> &str {
+            &self.inner.dist
+        }
+
+        #[setter]
+        fn set_dist(&mut self, val: String) {
+            self.inner.dist = val;
+        }
+
+        /// Vendor name.
+        #[getter]
+        fn vendor(&self) -> &str {
+            &self.inner.vendor
+        }
+
+        #[setter]
+        fn set_vendor(&mut self, val: String) {
+            self.inner.vendor = val;
+        }
+
+        /// GPG signing key fingerprint.
+        #[getter]
+        fn signing_key(&self) -> Option<&str> {
+            self.inner.signing_key.as_deref()
+        }
+
+        #[setter]
+        fn set_signing_key(&mut self, val: Option<String>) {
+            self.inner.signing_key = val;
+        }
+
+        fn __eq__(&self, other: &SupportInfoPackageOrigin) -> bool {
+            self.inner == other.inner
+        }
+    }
+
+    #[cfg(feature = "supportinfo")]
+    /// Supplemental text referenced by lifecycle or package elements.
+    #[pyclass]
+    struct SupportInfoNote {
+        inner: crate::SupportInfoNote,
+    }
+
+    #[cfg(feature = "supportinfo")]
+    #[pymethods]
+    impl SupportInfoNote {
+        #[new]
+        #[pyo3(signature = (name="".to_string(), content="".to_string()))]
+        fn new(name: String, content: String) -> Self {
+            Self {
+                inner: crate::SupportInfoNote { name, content },
+            }
+        }
+
+        /// Unique identifier for this note.
+        #[getter]
+        fn name(&self) -> &str {
+            &self.inner.name
+        }
+
+        #[setter]
+        fn set_name(&mut self, val: String) {
+            self.inner.name = val;
+        }
+
+        /// The text content of the note.
+        #[getter]
+        fn content(&self) -> &str {
+            &self.inner.content
+        }
+
+        #[setter]
+        fn set_content(&mut self, val: String) {
+            self.inner.content = val;
+        }
+
+        fn __eq__(&self, other: &SupportInfoNote) -> bool {
             self.inner == other.inner
         }
     }

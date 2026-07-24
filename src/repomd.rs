@@ -478,7 +478,10 @@ fn write_data<W: Write>(data: &RepomdRecord, writer: &mut Writer<W>) -> Result<(
     // <location href="repodata/primary.xml.gz">
     writer
         .create_element(TAG_LOCATION)
-        .with_attribute(("href".as_bytes(), data.location_href.as_os_str().as_encoded_bytes()))
+        .with_attribute((
+            "href".as_bytes(),
+            data.location_href.as_os_str().as_encoded_bytes(),
+        ))
         .write_empty()?;
 
     // <timestamp>1602869947</timestamp>

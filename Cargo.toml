@@ -14,10 +14,11 @@ documentation = "https://docs.rs/rpmrepo_metadata/"
 [features]
 python_ext = ["pyo3", "rpm-version/python"]
 read_rpm = ["rpm"]
+supportinfo = []
 default = ["read_rpm"]
 
 [dependencies]
-quick-xml = { version = "0.40.1", default-features = false }
+quick-xml = { version = "0.41", default-features = false }
 # rayon = "1.5.1"
 thiserror = "2"
 niffler = { version = "3", features = ["bz2", "lzma", "gz", "zstd"], default-features = false }
@@ -32,10 +33,10 @@ md-5 = "0.10.5"
 # bitflags = "1.3.2"
 hex = "0.4.3"
 ahash = "0.8"
-compact_str = "0.9"
+compact_str = "0.10"
 indexmap = "2.14.0"
-rpm-version = "0.5"
-pyo3 = { version = "0.28.3", features = ["extension-module"], optional = true }
+rpm-version = "0.5.1"
+pyo3 = { version = "0.29.0", features = ["extension-module"], optional = true }
 
 [lib]
 name = "rpmrepo_metadata"
@@ -54,6 +55,11 @@ path = "tests/package.rs"
 [[example]]
 name = "write_repo"
 required-features = ["read_rpm"]
+
+[[test]]
+name = "supportinfo"
+required-features = ["supportinfo"]
+path = "tests/supportinfo.rs"
 
 [[bench]]
 name = "repository"
