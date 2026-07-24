@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" 
+           elementFormDefault="qualified" 
+           version="1.1">
+
+  <xs:annotation>
+    <xs:appinfo>
+      <schema-version>1.0</schema-version>
+      <created>2025-10-27</created>
+      <description>Package Support XML Schema</description>
+    </xs:appinfo>
+    <xs:documentation xml:lang="en">
+      This schema defines a document that describes the support lifecycle for RPM packages in
+      one or more DNF repository. It provides a structured way to define support phases,
+      timelines, and classifications for packages. This allows a user to map what packages
+      they have installed to their support level both as of now, and into the future. It also
+      allows an OS vendor to deprecate parts of the Operating System before other parts in
+      order to provide extended support, and for that to be clear and machine readable.
+    </xs:documentation>
+  </xs:annotation>
+
+  <xs:element name="package_support">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        The top level package_support element contains lifecycle definitions, support milestones,
+        support levels, package listings, and classification information. The schema_version and current_as attributes 
+        indicate the version and timestamp of this support data.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="lifecycles" type="lifecyclesType"/>
+        <xs:element name="support_milestones" type="support_milestonesType"/>
+        <xs:element name="support_levels" type="support_levelsType"/>
+        <xs:element name="packages" type="packagesType"/>
+        <xs:element name="package_classes" type="package_classesType"/>
+        <xs:element name="package_origins" type="package_originsType"/>
+        <xs:element name="notes" type="notesType"/>
+      </xs:sequence>
+      <xs:attribute name="schema_version" type="xs:string" use="required">
+        <xs:annotation>
+          <xs:documentation xml:lang="en">
+            Version identifier for this schema format.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="current_as" type="xs:dateTime" use="required">
+        <xs:annotation>
+          <xs:documentation xml:lang="en">
+            Timestamp indicating when support statements were last updated.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+    </xs:complexType>
+    <xs:unique name="uniquePackageNameOrigin">
+      <xs:selector xpath="packages/package"/>
+      <xs:field xpath="@name"/>
+      <xs:field xpath="@origin"/>
+    </xs:unique>
+    <xs:key name="lifecycleKey">
+      <xs:selector xpath="lifecycles/lifecycle"/>
+      <xs:field xpath="@name"/>
+    </xs:key>
+    <xs:keyref name="packageLifecycleRef" refer="lifecycleKey">
+      <xs:selector xpath="packages/package"/>
+      <xs:field xpath="@lifecycle"/>
+    </xs:keyref>
+    <xs:key name="milestoneKey">
+      <xs:selector xpath="support_milestones/milestone"/>
+      <xs:field xpath="@name"/>
+    </xs:key>
+    <xs:keyref name="phaseMilestoneRef" refer="milestoneKey">
+      <xs:selector xpath="lifecycles/lifecycle/phase"/>
+      <xs:field xpath="@start_milestone"/>
+    </xs:keyref>
+    <xs:key name="supportLevelKey">
+      <xs:selector xpath="support_levels/support_level"/>
+      <xs:field xpath="@name"/>
+    </xs:key>
+    <xs:keyref name="phaseSupportLevelRef" refer="supportLevelKey">
+      <xs:selector xpath="lifecycles/lifecycle/phase"/>
+      <xs:field xpath="@support_level"/>
+    </xs:keyref>
+    <xs:key name="packageClassKey">
+      <xs:selector xpath="package_classes/package_class"/>
+      <xs:field xpath="@name"/>
+    </xs:key>
+    <xs:keyref name="packagePackageClassRef" refer="packageClassKey">
+      <xs:selector xpath="packages/package"/>
+      <xs:field xpath="@package_class"/>
+    </xs:keyref>
+    <xs:key name="packageOriginKey">
+      <xs:selector xpath="package_origins/package_origin"/>
+      <xs:field xpath="@name"/>
+    </xs:key>
+    <xs:keyref name="packagePackageOriginRef" refer="packageOriginKey">
+      <xs:selector xpath="packages/package"/>
+      <xs:field xpath="@origin"/>
+    </xs:keyref>
+    <xs:key name="noteKey">
+      <xs:selector xpath="notes/note"/>
+      <xs:field xpath="@name"/>
+    </xs:key>
+    <xs:keyref name="lifecycleNoteRef" refer="noteKey">
+      <xs:selector xpath="lifecycles/lifecycle"/>
+      <xs:field xpath="@note"/>
+    </xs:keyref>
+  </xs:element>
+
+  <xs:complexType name="lifecyclesType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Container for lifecycle definitions that describe support phases for packages.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="lifecycle" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="en">
+            A lifecycle defines a series of support phases that packages can transition through,
+            with each phase having specific support levels and time boundaries.
+          </xs:documentation>
+        </xs:annotation>
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="phase" maxOccurs="unbounded">
+              <xs:annotation>
+                <xs:documentation xml:lang="en">
+                  A phase represents a period in a package's lifecycle with specific support characteristics.
+                  Each phase has only a start boundary (date or milestone). The phase continues until the 
+                  start of the next phase, or indefinitely if it's the last phase in the lifecycle.
+                </xs:documentation>
+              </xs:annotation>
+              <xs:complexType>
+                <xs:attribute name="name" type="xs:string" use="required"/>
+                <xs:attribute name="support_level" type="xs:string" use="required"/>
+                <xs:attribute name="start_date" type="xs:date" use="optional"/>
+                <xs:attribute name="start_milestone" type="xs:string" use="optional"/>
+                <xs:assert test="(@start_date or @start_milestone) and not(@start_date and @start_milestone)"/>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+          <xs:attribute name="name" type="xs:string" use="required">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Unique identifier for this lifecycle.
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+          <xs:attribute name="note" type="xs:string" use="optional">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Optional reference to a note that provides additional context for this lifecycle.
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="support_milestonesType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Container for milestone definitions that can be referenced by lifecycle phases.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="milestone" minOccurs="0" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="en">
+            A milestone represents a significant date that can be re-used to mark phase boundaries.
+            Milestones are identified by a unique name.
+          </xs:documentation>
+        </xs:annotation>
+        <xs:complexType>
+          <xs:attribute name="name" type="xs:string" use="required"/>
+          <xs:attribute name="date" type="xs:date" use="required"/>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="support_levelsType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Container for support level definitions that specify what types of issues are addressed.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="support_level" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="en">
+            Defines a support level and the severities of issues that will be addressed at this level.
+            Support levels are identified by a unique name.
+          </xs:documentation>
+        </xs:annotation>
+        <xs:complexType>
+          <xs:attribute name="name" type="xs:string" use="required"/>
+          <xs:attribute name="severities" type="xs:string" use="required"/>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="packagesType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        A series of RPM packages, mapped to a lifecycle, origin and class.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="package" minOccurs="0" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="en">
+            Associates a package with its lifecycle, origin, and classification. More than one package element
+            can share the same name if their origin differs.
+          </xs:documentation>
+        </xs:annotation>
+        <xs:complexType>
+          <xs:attribute name="name" type="xs:string" use="required"/>
+          <xs:attribute name="lifecycle" type="xs:string" use="required"/>
+          <xs:attribute name="origin" type="xs:string" use="required"/>
+          <xs:attribute name="package_class" type="xs:string" use="optional"/>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="package_classesType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Container for package class definitions that categorize packages by their intended use.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="package_class" minOccurs="0" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="en">
+            Defines a package classification with summary and detailed description.
+            Package classes are identified by a unique name.
+          </xs:documentation>
+        </xs:annotation>
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="summary" type="xs:string"/>
+            <xs:element name="text" type="xs:string"/>
+          </xs:sequence>
+          <xs:attribute name="name" type="xs:string" use="required"/>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="package_originsType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Container for package origin definitions that specify repository and distribution information.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="package_origin" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="en">
+            Defines the source repository and distribution information for packages.
+            Package origins are identified by a unique name.
+          </xs:documentation>
+        </xs:annotation>
+        <xs:complexType>
+          <xs:attribute name="name" type="xs:string" use="required"/>
+          <xs:attribute name="repo_id" type="xs:string" use="required"/>
+          <xs:attribute name="dist" type="xs:string" use="required"/>
+          <xs:attribute name="vendor" type="xs:string" use="required"/>
+          <xs:attribute name="signing_key" type="xs:string" use="optional"/>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="notesType">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">
+        Container for a sequence of note elements.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="note" minOccurs="0" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="en">
+            A note provides additional context that can be referenced by other elements.
+            Notes are useful for explaining why packages are categorized in specific ways.
+          </xs:documentation>
+        </xs:annotation>
+        <xs:complexType>
+          <xs:simpleContent>
+            <xs:extension base="xs:string">
+              <xs:attribute name="name" type="xs:string" use="required">
+                <xs:annotation>
+                  <xs:documentation xml:lang="en">
+                    Unique identifier for this note that can be referenced by other elements.
+                  </xs:documentation>
+                </xs:annotation>
+              </xs:attribute>
+            </xs:extension>
+          </xs:simpleContent>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

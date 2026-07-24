@@ -10,8 +10,8 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 use std::sync::Arc;
+use std::time::SystemTime;
 
 // use bitflags;
 use compact_str::CompactString;
@@ -33,6 +33,9 @@ pub struct OtherXml;
 pub struct UpdateinfoXml;
 /// Marker type for comps.xml read/write operations.
 pub struct CompsXml;
+#[cfg(feature = "supportinfo")]
+/// Marker type for supportinfo.xml read/write operations.
+pub struct SupportInfoXml;
 
 /// Errors that can occur when reading, writing, or validating RPM repository metadata.
 #[derive(Error, Debug)]
@@ -1621,6 +1624,145 @@ pub struct CompsData {
     pub categories: Vec<CompsCategory>,
     pub environments: Vec<CompsEnvironment>,
     pub langpacks: Vec<CompsLangpack>,
+}
+
+// ---------------- Support Info types -----------------------------------
+
+#[cfg(feature = "supportinfo")]
+/// Parsed V1.0 support info document.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct SupportInfoData {
+    /// The `current_as` attribute from the root element, identifying the product stream.
+    pub current_as: String,
+    /// Named support lifecycles, each containing ordered phases.
+    pub lifecycles: Vec<SupportInfoLifecycle>,
+    /// Named date milestones that phases can reference instead of fixed dates.
+    pub milestones: Vec<SupportInfoMilestone>,
+    /// Definitions of support levels (e.g. "Full", "Maintenance") and their severity scopes.
+    pub support_levels: Vec<SupportInfoLevel>,
+    /// Package-to-lifecycle assignments.
+    pub packages: Vec<SupportInfoPackage>,
+    /// Definitions of package classes (e.g. "core", "optional").
+    pub package_classes: Vec<SupportInfoPackageClass>,
+    /// Repository origin definitions for packages.
+    pub package_origins: Vec<SupportInfoPackageOrigin>,
+    /// Supplemental named notes referenced by other elements.
+    pub notes: Vec<SupportInfoNote>,
+}
+
+#[cfg(feature = "supportinfo")]
+/// A named support lifecycle containing one or more phases.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct SupportInfoLifecycle {
+    /// Unique identifier for this lifecycle (e.g. `"rhel-10"`).
+    pub name: String,
+    /// Reference to a named note providing additional context.
+    pub note: Option<String>,
+    /// Human-readable display name.
+    pub display_name: Option<String>,
+    /// Longer description of this lifecycle.
+    pub description: Option<String>,
+    /// Ordered phases within this lifecycle.
+    pub phases: Vec<SupportInfoPhase>,
+}
+
+#[cfg(feature = "supportinfo")]
+/// A phase within a lifecycle. Exactly one of `start_date` or `start_milestone` is set.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct SupportInfoPhase {
+    /// Phase name (e.g. `"Full Support"`, `"Maintenance Support"`).
+    pub name: String,
+    /// Name of the support level that applies during this phase.
+    pub support_level: String,
+    /// Fixed start date (ISO 8601), mutually exclusive with `start_milestone`.
+    pub start_date: Option<String>,
+    /// Name of a milestone whose date determines when this phase starts.
+    pub start_milestone: Option<String>,
+}
+
+#[cfg(feature = "supportinfo")]
+/// A named date that can be referenced by phases.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct SupportInfoMilestone {
+    /// Unique identifier for this milestone (e.g. `"ga"`, `"eos"`).
+    pub name: String,
+    /// The date of the milestone (ISO 8601).
+    pub date: String,
+    /// Human-readable display name.
+    pub display_name: Option<String>,
+    /// Longer description of this milestone.
+    pub description: Option<String>,
+}
+
+#[cfg(feature = "supportinfo")]
+/// Defines the scope of support offered during a phase.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct SupportInfoLevel {
+    /// Unique identifier for this support level (e.g. `"full"`, `"maintenance"`).
+    pub name: String,
+    /// Comma-separated severity levels addressed at this support level.
+    pub severities: String,
+    /// Longer description of what this support level covers.
+    pub description: Option<String>,
+}
+
+#[cfg(feature = "supportinfo")]
+/// Associates a package with a lifecycle, origin, and optional class.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct SupportInfoPackage {
+    /// RPM package name.
+    pub name: String,
+    /// Name of the lifecycle this package follows.
+    pub lifecycle: String,
+    /// Name of the package origin this package comes from.
+    pub origin: String,
+    /// Optional package class categorization.
+    pub package_class: Option<String>,
+}
+
+#[cfg(feature = "supportinfo")]
+/// Classifies packages by intended use.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct SupportInfoPackageClass {
+    /// Unique identifier for this class (e.g. `"core"`, `"optional"`).
+    pub name: String,
+    /// Short summary of what this class represents.
+    pub summary: String,
+    /// Longer descriptive text about this package class.
+    pub text: String,
+}
+
+#[cfg(feature = "supportinfo")]
+/// Repository and distribution information for packages.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct SupportInfoPackageOrigin {
+    /// Unique identifier for this origin.
+    pub name: String,
+    /// Repository ID where the packages are published.
+    pub repo_id: String,
+    /// Distribution name (e.g. `"rhel-10"`).
+    pub dist: String,
+    /// Vendor name (e.g. `"Red Hat, Inc."`).
+    pub vendor: String,
+    /// GPG signing key fingerprint used to sign packages from this origin.
+    pub signing_key: Option<String>,
+}
+
+#[cfg(feature = "supportinfo")]
+/// Supplemental text referenced by lifecycle or package elements.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct SupportInfoNote {
+    /// Unique identifier for this note, referenced by other elements.
+    pub name: String,
+    /// The text content of the note.
+    pub content: String,
+}
+
+#[cfg(feature = "supportinfo")]
+/// A parsed support info document
+#[derive(Clone, Debug, PartialEq)]
+pub enum SupportInfo {
+    V1(SupportInfoData),
 }
 
 #[cfg(test)]

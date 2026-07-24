@@ -11,6 +11,8 @@ pub mod mdrecord {
     pub const MD_GROUP: &str = "group";
     pub const MD_GROUP_GZ: &str = "group_gz";
     pub const MD_GROUP_XZ: &str = "group_xz";
+    #[cfg(feature = "supportinfo")]
+    pub const MD_SUPPORTINFO: &str = "supportinfo";
 }
 
 /// XML Namespace IDs
@@ -103,4 +105,28 @@ pub(crate) mod tag {
     pub const TAG_GROUPID: &str = "groupid";
     pub const TAG_LANGPACKS: &str = "langpacks";
     pub const TAG_MATCH: &str = "match";
+
+    // Support Info constants
+    #[cfg(feature = "supportinfo")]
+    pub use supportinfo::*;
+
+    #[cfg(feature = "supportinfo")]
+    mod supportinfo {
+        pub const TAG_PACKAGE_SUPPORT: &str = "package_support";
+        pub const TAG_LIFECYCLES: &str = "lifecycles";
+        pub const TAG_LIFECYCLE: &str = "lifecycle";
+        pub const TAG_PHASE: &str = "phase";
+        pub const TAG_SUPPORT_MILESTONES: &str = "support_milestones";
+        pub const TAG_MILESTONE: &str = "milestone";
+        pub const TAG_SUPPORT_LEVELS: &str = "support_levels";
+        pub const TAG_SUPPORT_LEVEL: &str = "support_level";
+        pub const TAG_PACKAGES: &str = "packages";
+        pub const TAG_PACKAGE_CLASSES: &str = "package_classes";
+        pub const TAG_PACKAGE_CLASS: &str = "package_class";
+        pub const TAG_PACKAGE_ORIGINS: &str = "package_origins";
+        pub const TAG_PACKAGE_ORIGIN: &str = "package_origin";
+        pub const TAG_NOTES: &str = "notes";
+        pub const TAG_NOTE: &str = "note";
+        pub const TAG_TEXT: &str = "text";
+    }
 }

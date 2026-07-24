@@ -24,6 +24,8 @@ mod parsing_utils;
 mod primary;
 mod repomd;
 mod repository;
+#[cfg(feature = "supportinfo")]
+mod supportinfo;
 mod updateinfo;
 pub mod utils;
 pub mod visitor;
@@ -41,6 +43,12 @@ pub use metadata::{
     CompsCategory, CompsData, CompsEnvironment, CompsEnvironmentOption, CompsGroup, CompsLangpack,
     CompsPackageReq, CompsXml,
 };
+#[cfg(feature = "supportinfo")]
+pub use metadata::{
+    SupportInfo, SupportInfoData, SupportInfoLevel, SupportInfoLifecycle, SupportInfoMilestone,
+    SupportInfoNote, SupportInfoPackage, SupportInfoPackageClass, SupportInfoPackageOrigin,
+    SupportInfoPhase, SupportInfoXml,
+};
 pub use metadata::{
     UpdateCollection, UpdateCollectionModule, UpdateCollectionPackage, UpdateRecord,
     UpdateReference, UpdateinfoXml,
@@ -49,7 +57,11 @@ pub use package::{PackageIterator, PackageOptions};
 pub use repository::{
     Repository, RepositoryOptions, RepositoryReader, RepositoryWriter, UpdateinfoIterator,
 };
+#[cfg(feature = "supportinfo")]
+pub use supportinfo::{SupportInfoXmlReader, SupportInfoXmlWriter};
 pub use updateinfo::UpdateinfoXmlReader;
+#[cfg(feature = "supportinfo")]
+pub use visitor::SupportInfoVisitor;
 pub use visitor::{
     CompsVisitor, FilelistsVisitor, OtherVisitor, PrimaryVisitor, UpdateinfoVisitor,
 };

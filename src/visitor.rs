@@ -32,6 +32,8 @@ use std::io::BufRead;
 
 use crate::MetadataError;
 use crate::metadata::{Changelog, FileType, Requirement, RequirementType};
+#[cfg(feature = "supportinfo")]
+use crate::supportinfo;
 use crate::{comps, filelist, other, primary, updateinfo};
 use quick_xml;
 
@@ -224,6 +226,73 @@ pub trait CompsVisitor {
     fn add_langpack(&mut self, name: &str, install: &str) {}
 }
 
+#[cfg(feature = "supportinfo")]
+/// Visitor trait for streaming support_info.xml v1.0 parsing.
+#[allow(unused_variables)]
+pub trait SupportInfoVisitor {
+    fn begin_lifecycle(
+        &mut self,
+        name: &str,
+        note: Option<&str>,
+        display_name: Option<&str>,
+        description: Option<&str>,
+    ) {
+    }
+    fn add_phase(
+        &mut self,
+        name: &str,
+        support_level: &str,
+        start_date: Option<&str>,
+        start_milestone: Option<&str>,
+    ) {
+    }
+    fn end_lifecycle(&mut self) {}
+    fn add_milestone(
+        &mut self,
+        name: &str,
+        date: &str,
+        display_name: Option<&str>,
+        description: Option<&str>,
+    ) {
+    }
+    fn add_support_level(&mut self, name: &str, severities: &str, description: Option<&str>) {}
+    fn add_package(
+        &mut self,
+        name: &str,
+        lifecycle: &str,
+        origin: &str,
+        package_class: Option<&str>,
+    ) {
+    }
+    fn begin_package_class(&mut self, name: &str) {}
+    fn set_package_class_summary(&mut self, summary: &str) {}
+    fn set_package_class_text(&mut self, text: &str) {}
+    fn end_package_class(&mut self) {}
+    fn add_package_origin(
+        &mut self,
+        name: &str,
+        repo_id: &str,
+        dist: &str,
+        vendor: &str,
+        signing_key: Option<&str>,
+    ) {
+    }
+    fn add_note(&mut self, name: &str, content: &str) {}
+    fn begin_statement(
+        &mut self,
+        id: &str,
+        marker: &str,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+    ) {
+    }
+    fn set_statement_summary(&mut self, summary: &str) {}
+    fn set_statement_text(&mut self, text: &str) {}
+    fn set_statement_link(&mut self, link: &str) {}
+    fn add_statement_package(&mut self, name: &str, note: Option<&str>) {}
+    fn end_statement(&mut self) {}
+}
+
 /// Parse primary.xml, dispatching to `visitor` for each package.
 ///
 /// Returns the declared package count from the header.
@@ -277,4 +346,25 @@ pub fn parse_comps<R: BufRead, V: CompsVisitor>(
 ) -> Result<(), MetadataError> {
     while comps::parse_comps_item(reader, visitor)? {}
     Ok(())
+}
+
+#[cfg(feature = "supportinfo")]
+/// Parse support_info.xml, dispatching to `visitor`.
+///
+/// Automatically detects V1.0 vs legacy format from the root element.
+/// Returns `true` if the document was V1.0, `false` if legacy.
+pub fn parse_support_info<R: BufRead, V: SupportInfoVisitor>(
+    reader: &mut quick_xml::Reader<R>,
+    visitor: &mut V,
+) -> Result<Option<bool>, MetadataError> {
+    match supportinfo::parse_supportinfo_header(reader)? {
+        Some((_, true)) => {
+            supportinfo::parse_supportinfo_v1_body(reader, visitor)?;
+            Ok(Some(true))
+        }
+        Some((_, false)) => {
+            unimplemented!("Legacy format not supported")
+        }
+        None => Ok(None),
+    }
 }

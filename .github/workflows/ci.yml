@@ -93,7 +93,7 @@ jobs:
           python-version: '3.13'
       - uses: PyO3/maturin-action@v1
         with:
-          args: --release --out dist
+          args: --release --out dist --features supportinfo,python_ext
           manylinux: 2_28
       - run: pip install dist/*.whl pytest
       - run: pytest tests/python/
