@@ -17,6 +17,8 @@ pub const COMPLEX_PKG_PATH: &str = "./tests/assets/packages/complex-package-2.3.
 fn test_read_rpm_from_file() -> Result<(), MetadataError> {
     let mut pkg = Package::from_file_with_options(COMPLEX_PKG_PATH, Default::default())?;
     pkg.location_href = "complex-package-2.3.4-5.el8.x86_64.rpm".to_owned();
+    // time_file is the RPM file's mtime on disk, which varies after git checkout
+    pkg.set_time_file(common::COMPLEX_PACKAGE.time_file());
     assert_eq!(&pkg, &*common::COMPLEX_PACKAGE);
 
     Ok(())
