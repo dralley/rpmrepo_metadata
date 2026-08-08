@@ -278,6 +278,7 @@ pub trait SupportInfoVisitor {
     fn set_package_class_summary(&mut self, summary: &str) {}
     fn set_package_class_text(&mut self, text: &str) {}
     fn end_package_class(&mut self) {}
+    #[allow(clippy::too_many_arguments)]
     fn add_package_origin(
         &mut self,
         name: &str,
