@@ -1789,6 +1789,8 @@ pub struct SupportInfoPhase {
     pub start_date: Option<String>,
     /// Name of a milestone whose date determines when this phase starts.
     pub start_milestone: Option<String>,
+    /// Human-readable display name.
+    pub display_name: Option<String>,
 }
 
 #[cfg(feature = "supportinfo")]
@@ -1815,6 +1817,8 @@ pub struct SupportInfoLevel {
     pub severities: String,
     /// Longer description of what this support level covers.
     pub description: Option<String>,
+    /// Human-readable display name.
+    pub display_name: Option<String>,
 }
 
 #[cfg(feature = "supportinfo")]
@@ -1857,6 +1861,10 @@ pub struct SupportInfoPackageOrigin {
     pub vendor: String,
     /// GPG signing key fingerprint used to sign packages from this origin.
     pub signing_key: Option<String>,
+    /// Human-readable display name.
+    pub display_name: Option<String>,
+    /// Longer description of this origin.
+    pub description: Option<String>,
 }
 
 #[cfg(feature = "supportinfo")]

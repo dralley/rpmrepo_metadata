@@ -112,6 +112,7 @@ the start of the next phase, or indefinitely if it is the last phase in the life
 | `support_level` | Yes | `xs:string` | References a `<support_level name="...">`. |
 | `start_date` | Conditional | `xs:date` | ISO 8601 date (YYYY-MM-DD) when this phase starts. Exactly one of `start_date` or `start_milestone` must be present. |
 | `start_milestone` | Conditional | `xs:string` | References a `<milestone name="...">` whose `date` attribute is used as the start date. Exactly one of `start_date` or `start_milestone` must be present. |
+| `display_name` | No | `xs:string` | Human-readable label. Not declared in the XSD but used by the plugin for display output. |
 
 **Constraint (XSD 1.1 assert):**
 ```
@@ -162,7 +163,8 @@ receive fixes.
 |---|---|---|---|
 | `name` | Yes | `xs:string` | Unique identifier. Referenced by `<phase support_level="...">`. |
 | `severities` | Yes | `xs:string` | Comma-separated list of severity names that will be addressed. An empty string `""` means no patches (end-of-support). |
-| `description` | No | `xs:string` | Human-readable description. Not declared in the XSD. |
+| `description` | No | `xs:string` | Human-readable description. Not declared in the XSD but used by the plugin for display output. |
+| `display_name` | No | `xs:string` | Human-readable label. Not declared in the XSD but used by the plugin for display output. |
 
 ---
 
@@ -231,6 +233,8 @@ Defines the source repository and distribution information for packages.
 | `dist` | Yes | `xs:string` | Distribution identifier, e.g. `"amzn2023"`. |
 | `vendor` | Yes | `xs:string` | Vendor/publisher name, e.g. `"Amazon"`. |
 | `signing_key` | No | `xs:string` | GPG signing key reference. |
+| `display_name` | No | `xs:string` | Human-readable label. Not declared in the XSD but used by the plugin for display output. |
+| `description` | No | `xs:string` | Human-readable description. Not declared in the XSD. |
 
 ---
 
@@ -328,3 +332,29 @@ The XSD defines the following key/keyref constraints:
   </notes>
 </package_support>
 ```
+
+---
+
+## Attributes Not Declared in the XSD
+
+The v1.0 XSD schema does not declare every attribute that appears in production XML. The
+`dnf-plugin-support-info` plugin's handler library (`supportinfo.handler`) defines dataclass fields
+for these attributes, and the plugin actively uses several of them for v1 display output — they are
+not solely legacy artifacts. Because the XSD uses `lax` processing, parsers that validate against
+it will accept these extra attributes without error.
+
+The following attributes are present in production data (e.g. the AL2023 support info XML) and used
+by the plugin, but absent from the XSD:
+
+| Element | Attribute | Plugin usage |
+| --- | --- | --- |
+| `<lifecycle>` | `display_name`, `description` | `display_name` used by the legacy converter for summary generation; `description` used by the legacy converter |
+| `<milestone>` | `display_name`, `description` | Not directly consumed by the plugin, but accepted and stored by the handler |
+| `<phase>` | `display_name` | Preferred over `name` for current phase display output |
+| `<support_level>` | `display_name` | Preferred over `name` for support level and patch priority display |
+| `<support_level>` | `description` | Shown in `--pkg` output and `--list-filters` output |
+| `<package_origin>` | `display_name` | Preferred over `name` for origin display output |
+| `<package_origin>` | `description` | Present in production data but not consumed by the plugin |
+
+Consumers should accept these attributes when present and fall back to `name` when `display_name`
+is absent.

@@ -41,12 +41,12 @@ static COMPLEX_V1_SUPPORTINFO: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <package_support schema_version="1.0" current_as="2024-01-17T00:00:00">
   <lifecycles>
     <lifecycle name="default_lc" display_name="Default Lifecycle" description="Main support timeline">
-      <phase name="supported" support_level="standard" start_milestone="ga"/>
-      <phase name="unsupported" support_level="eos" start_milestone="eol"/>
+      <phase name="supported" support_level="standard" start_milestone="ga" display_name="Supported"/>
+      <phase name="unsupported" support_level="eos" start_milestone="eol" display_name="End of Life"/>
     </lifecycle>
     <lifecycle name="php81_lc" note="note_php81" display_name="PHP 8.1 Lifecycle" description="PHP 8.1 support timeline">
-      <phase name="supported" support_level="standard" start_date="2023-03-15"/>
-      <phase name="unsupported" support_level="eos" start_date="2026-11-25"/>
+      <phase name="supported" support_level="standard" start_date="2023-03-15" display_name="Supported"/>
+      <phase name="unsupported" support_level="eos" start_date="2026-11-25" display_name="End of Life"/>
     </lifecycle>
   </lifecycles>
   <support_milestones>
@@ -54,8 +54,8 @@ static COMPLEX_V1_SUPPORTINFO: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
     <milestone name="eol" date="2028-03-15" display_name="EOL" description="End of life"/>
   </support_milestones>
   <support_levels>
-    <support_level name="standard" severities="Low,Medium,Important,Critical" description="Full support"/>
-    <support_level name="eos" severities="" description="End of support"/>
+    <support_level name="standard" severities="Low,Medium,Important,Critical" description="Full support" display_name="Full Support"/>
+    <support_level name="eos" severities="" description="End of support" display_name="End of Support"/>
   </support_levels>
   <packages>
     <package name="test-glibc" lifecycle="default_lc" package_class="core" origin="mylinux"/>
@@ -68,7 +68,7 @@ static COMPLEX_V1_SUPPORTINFO: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
     </package_class>
   </package_classes>
   <package_origins>
-    <package_origin name="mylinux" repo_id="mylinux" dist="ml2023" vendor="MyVendor"/>
+    <package_origin name="mylinux" repo_id="mylinux" dist="ml2023" vendor="MyVendor" display_name="My Linux 2023" description="Core repository"/>
   </package_origins>
   <notes>
     <note name="note_php81">PHP 8.1 upstream EOL is 2026-11-25</note>
@@ -91,12 +91,14 @@ fn complex_v1_data() -> SupportInfoData {
                         support_level: "standard".to_owned(),
                         start_date: None,
                         start_milestone: Some("ga".to_owned()),
+                        display_name: Some("Supported".to_owned()),
                     },
                     SupportInfoPhase {
                         name: "unsupported".to_owned(),
                         support_level: "eos".to_owned(),
                         start_date: None,
                         start_milestone: Some("eol".to_owned()),
+                        display_name: Some("End of Life".to_owned()),
                     },
                 ],
             },
@@ -111,12 +113,14 @@ fn complex_v1_data() -> SupportInfoData {
                         support_level: "standard".to_owned(),
                         start_date: Some("2023-03-15".to_owned()),
                         start_milestone: None,
+                        display_name: Some("Supported".to_owned()),
                     },
                     SupportInfoPhase {
                         name: "unsupported".to_owned(),
                         support_level: "eos".to_owned(),
                         start_date: Some("2026-11-25".to_owned()),
                         start_milestone: None,
+                        display_name: Some("End of Life".to_owned()),
                     },
                 ],
             },
@@ -140,11 +144,13 @@ fn complex_v1_data() -> SupportInfoData {
                 name: "standard".to_owned(),
                 severities: "Low,Medium,Important,Critical".to_owned(),
                 description: Some("Full support".to_owned()),
+                display_name: Some("Full Support".to_owned()),
             },
             SupportInfoLevel {
                 name: "eos".to_owned(),
                 severities: "".to_owned(),
                 description: Some("End of support".to_owned()),
+                display_name: Some("End of Support".to_owned()),
             },
         ],
         packages: vec![
@@ -172,6 +178,8 @@ fn complex_v1_data() -> SupportInfoData {
             dist: "ml2023".to_owned(),
             vendor: "MyVendor".to_owned(),
             signing_key: None,
+            display_name: Some("My Linux 2023".to_owned()),
+            description: Some("Core repository".to_owned()),
         }],
         notes: vec![SupportInfoNote {
             name: "note_php81".to_owned(),
@@ -421,6 +429,56 @@ fn test_supportinfo_fixtures_v1_for_conversion() -> Result<(), MetadataError> {
             assert_eq!(data.support_levels[1].severities, "");
         }
     }
+
+    Ok(())
+}
+
+#[test]
+fn test_supportinfo_fixtures_al2023() -> Result<(), MetadataError> {
+    let path = format!("{}/AL2023-supportinfo-1.0.xml", FIXTURE_DIR);
+    let f = std::fs::File::open(&path).unwrap();
+    let reader = std::io::BufReader::new(f);
+    let mut xml_reader = SupportInfoXml::new_reader(utils::create_xml_reader(reader));
+
+    let result = xml_reader.read()?;
+    assert!(result.is_some());
+
+    match result.unwrap() {
+        SupportInfo::V1(data) => {
+            assert_eq!(data.current_as, "2026-07-24T22:18:47.708693");
+            assert_eq!(data.lifecycles.len(), 54);
+            assert_eq!(data.support_levels.len(), 2);
+            assert_eq!(data.packages.len(), 14366);
+            assert_eq!(data.package_origins.len(), 1);
+            assert_eq!(data.package_classes.len(), 1);
+
+            // display_name on phases
+            let lc0 = &data.lifecycles[0];
+            assert_eq!(lc0.phases[0].display_name.as_deref(), Some("Supported"));
+            assert_eq!(lc0.phases[1].display_name.as_deref(), Some("End of Life"));
+
+            // display_name on support levels
+            assert_eq!(
+                data.support_levels[0].display_name.as_deref(),
+                Some("Full Support")
+            );
+            assert_eq!(
+                data.support_levels[1].display_name.as_deref(),
+                Some("End of Support")
+            );
+
+            // display_name and description on package origin
+            let origin = &data.package_origins[0];
+            assert_eq!(origin.display_name.as_deref(), Some("Amazon Linux 2023 Core"));
+            assert_eq!(
+                origin.description.as_deref(),
+                Some("Core Amazon Linux 2023 repository containing base OS packages")
+            );
+            assert_eq!(origin.signing_key.as_deref(), Some("e951904ad832c631"));
+        }
+    }
+
+    assert!(xml_reader.read()?.is_none());
 
     Ok(())
 }

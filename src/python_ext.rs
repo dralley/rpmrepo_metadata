@@ -2537,12 +2537,13 @@ mod rpmrepo_metadata {
     #[pymethods]
     impl SupportInfoPhase {
         #[new]
-        #[pyo3(signature = (name="".to_string(), support_level="".to_string(), start_date=None, start_milestone=None))]
+        #[pyo3(signature = (name="".to_string(), support_level="".to_string(), start_date=None, start_milestone=None, display_name=None))]
         fn new(
             name: String,
             support_level: String,
             start_date: Option<String>,
             start_milestone: Option<String>,
+            display_name: Option<String>,
         ) -> Self {
             Self {
                 inner: crate::SupportInfoPhase {
@@ -2550,6 +2551,7 @@ mod rpmrepo_metadata {
                     support_level,
                     start_date,
                     start_milestone,
+                    display_name,
                 },
             }
         }
@@ -2596,6 +2598,17 @@ mod rpmrepo_metadata {
         #[setter]
         fn set_start_milestone(&mut self, val: Option<String>) {
             self.inner.start_milestone = val;
+        }
+
+        /// Human-readable display name.
+        #[getter]
+        fn display_name(&self) -> Option<&str> {
+            self.inner.display_name.as_deref()
+        }
+
+        #[setter]
+        fn set_display_name(&mut self, val: Option<String>) {
+            self.inner.display_name = val;
         }
 
         fn __eq__(&self, other: &SupportInfoPhase) -> bool {
@@ -2691,13 +2704,19 @@ mod rpmrepo_metadata {
     #[pymethods]
     impl SupportInfoLevel {
         #[new]
-        #[pyo3(signature = (name="".to_string(), severities="".to_string(), description=None))]
-        fn new(name: String, severities: String, description: Option<String>) -> Self {
+        #[pyo3(signature = (name="".to_string(), severities="".to_string(), description=None, display_name=None))]
+        fn new(
+            name: String,
+            severities: String,
+            description: Option<String>,
+            display_name: Option<String>,
+        ) -> Self {
             Self {
                 inner: crate::SupportInfoLevel {
                     name,
                     severities,
                     description,
+                    display_name,
                 },
             }
         }
@@ -2733,6 +2752,17 @@ mod rpmrepo_metadata {
         #[setter]
         fn set_description(&mut self, val: Option<String>) {
             self.inner.description = val;
+        }
+
+        /// Human-readable display name.
+        #[getter]
+        fn display_name(&self) -> Option<&str> {
+            self.inner.display_name.as_deref()
+        }
+
+        #[setter]
+        fn set_display_name(&mut self, val: Option<String>) {
+            self.inner.display_name = val;
         }
 
         fn __eq__(&self, other: &SupportInfoLevel) -> bool {
@@ -2888,13 +2918,15 @@ mod rpmrepo_metadata {
     #[pymethods]
     impl SupportInfoPackageOrigin {
         #[new]
-        #[pyo3(signature = (name="".to_string(), repo_id="".to_string(), dist="".to_string(), vendor="".to_string(), signing_key=None))]
+        #[pyo3(signature = (name="".to_string(), repo_id="".to_string(), dist="".to_string(), vendor="".to_string(), signing_key=None, display_name=None, description=None))]
         fn new(
             name: String,
             repo_id: String,
             dist: String,
             vendor: String,
             signing_key: Option<String>,
+            display_name: Option<String>,
+            description: Option<String>,
         ) -> Self {
             Self {
                 inner: crate::SupportInfoPackageOrigin {
@@ -2903,6 +2935,8 @@ mod rpmrepo_metadata {
                     dist,
                     vendor,
                     signing_key,
+                    display_name,
+                    description,
                 },
             }
         }
@@ -2960,6 +2994,28 @@ mod rpmrepo_metadata {
         #[setter]
         fn set_signing_key(&mut self, val: Option<String>) {
             self.inner.signing_key = val;
+        }
+
+        /// Human-readable display name.
+        #[getter]
+        fn display_name(&self) -> Option<&str> {
+            self.inner.display_name.as_deref()
+        }
+
+        #[setter]
+        fn set_display_name(&mut self, val: Option<String>) {
+            self.inner.display_name = val;
+        }
+
+        /// Longer description of this origin.
+        #[getter]
+        fn description(&self) -> Option<&str> {
+            self.inner.description.as_deref()
+        }
+
+        #[setter]
+        fn set_description(&mut self, val: Option<String>) {
+            self.inner.description = val;
         }
 
         fn __eq__(&self, other: &SupportInfoPackageOrigin) -> bool {

@@ -246,6 +246,7 @@ pub trait SupportInfoVisitor {
         support_level: &str,
         start_date: Option<&str>,
         start_milestone: Option<&str>,
+        display_name: Option<&str>,
     ) {
     }
     fn end_lifecycle(&mut self) {}
@@ -257,7 +258,14 @@ pub trait SupportInfoVisitor {
         description: Option<&str>,
     ) {
     }
-    fn add_support_level(&mut self, name: &str, severities: &str, description: Option<&str>) {}
+    fn add_support_level(
+        &mut self,
+        name: &str,
+        severities: &str,
+        description: Option<&str>,
+        display_name: Option<&str>,
+    ) {
+    }
     fn add_package(
         &mut self,
         name: &str,
@@ -277,6 +285,8 @@ pub trait SupportInfoVisitor {
         dist: &str,
         vendor: &str,
         signing_key: Option<&str>,
+        display_name: Option<&str>,
+        description: Option<&str>,
     ) {
     }
     fn add_note(&mut self, name: &str, content: &str) {}

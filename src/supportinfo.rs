@@ -124,6 +124,9 @@ impl<W: Write> SupportInfoXmlWriter<W> {
                 if let Some(ms) = &phase.start_milestone {
                     p_tag.push_attribute(("start_milestone", ms.as_str()));
                 }
+                if let Some(dn) = &phase.display_name {
+                    p_tag.push_attribute(("display_name", dn.as_str()));
+                }
                 self.writer.write_event(Event::Empty(p_tag))?;
             }
 
@@ -180,6 +183,9 @@ impl<W: Write> SupportInfoXmlWriter<W> {
             l_tag.push_attribute(("severities", level.severities.as_str()));
             if let Some(desc) = &level.description {
                 l_tag.push_attribute(("description", desc.as_str()));
+            }
+            if let Some(dn) = &level.display_name {
+                l_tag.push_attribute(("display_name", dn.as_str()));
             }
             self.writer.write_event(Event::Empty(l_tag))?;
         }
@@ -266,6 +272,12 @@ impl<W: Write> SupportInfoXmlWriter<W> {
             o_tag.push_attribute(("vendor", origin.vendor.as_str()));
             if let Some(key) = &origin.signing_key {
                 o_tag.push_attribute(("signing_key", key.as_str()));
+            }
+            if let Some(dn) = &origin.display_name {
+                o_tag.push_attribute(("display_name", dn.as_str()));
+            }
+            if let Some(desc) = &origin.description {
+                o_tag.push_attribute(("description", desc.as_str()));
             }
             self.writer.write_event(Event::Empty(o_tag))?;
         }
@@ -475,6 +487,7 @@ fn parse_lifecycle_phases<R: BufRead, V: SupportInfoVisitor>(
                 let mut support_level_cow = None;
                 let mut start_date_cow = None;
                 let mut start_milestone_cow = None;
+                let mut display_name_cow = None;
 
                 for attr_result in e.attributes() {
                     let attr = attr_result?;
@@ -483,6 +496,7 @@ fn parse_lifecycle_phases<R: BufRead, V: SupportInfoVisitor>(
                         b"support_level" => support_level_cow = Some(resolve_attr(&attr)?),
                         b"start_date" => start_date_cow = Some(resolve_attr(&attr)?),
                         b"start_milestone" => start_milestone_cow = Some(resolve_attr(&attr)?),
+                        b"display_name" => display_name_cow = Some(resolve_attr(&attr)?),
                         _ => (),
                     }
                 }
@@ -495,6 +509,7 @@ fn parse_lifecycle_phases<R: BufRead, V: SupportInfoVisitor>(
                     &support_level,
                     start_date_cow.as_deref(),
                     start_milestone_cow.as_deref(),
+                    display_name_cow.as_deref(),
                 );
             }
             Event::Eof => return Ok(()),
@@ -559,6 +574,7 @@ fn parse_support_levels<R: BufRead, V: SupportInfoVisitor>(
                 let mut name_cow = None;
                 let mut severities_cow = None;
                 let mut description_cow = None;
+                let mut display_name_cow = None;
 
                 for attr_result in e.attributes() {
                     let attr = attr_result?;
@@ -566,6 +582,7 @@ fn parse_support_levels<R: BufRead, V: SupportInfoVisitor>(
                         b"name" => name_cow = Some(resolve_attr(&attr)?),
                         b"severities" => severities_cow = Some(resolve_attr(&attr)?),
                         b"description" => description_cow = Some(resolve_attr(&attr)?),
+                        b"display_name" => display_name_cow = Some(resolve_attr(&attr)?),
                         _ => (),
                     }
                 }
@@ -573,7 +590,12 @@ fn parse_support_levels<R: BufRead, V: SupportInfoVisitor>(
                 let name = name_cow.ok_or(MetadataError::MissingAttributeError("name"))?;
                 let severities =
                     severities_cow.ok_or(MetadataError::MissingAttributeError("severities"))?;
-                visitor.add_support_level(&name, &severities, description_cow.as_deref());
+                visitor.add_support_level(
+                    &name,
+                    &severities,
+                    description_cow.as_deref(),
+                    display_name_cow.as_deref(),
+                );
             }
             Event::Eof => return Ok(()),
             _ => (),
@@ -695,6 +717,8 @@ fn parse_package_origins<R: BufRead, V: SupportInfoVisitor>(
                 let mut dist_cow = None;
                 let mut vendor_cow = None;
                 let mut signing_key_cow = None;
+                let mut display_name_cow = None;
+                let mut description_cow = None;
 
                 for attr_result in e.attributes() {
                     let attr = attr_result?;
@@ -704,6 +728,8 @@ fn parse_package_origins<R: BufRead, V: SupportInfoVisitor>(
                         b"dist" => dist_cow = Some(resolve_attr(&attr)?),
                         b"vendor" => vendor_cow = Some(resolve_attr(&attr)?),
                         b"signing_key" => signing_key_cow = Some(resolve_attr(&attr)?),
+                        b"display_name" => display_name_cow = Some(resolve_attr(&attr)?),
+                        b"description" => description_cow = Some(resolve_attr(&attr)?),
                         _ => (),
                     }
                 }
@@ -718,6 +744,8 @@ fn parse_package_origins<R: BufRead, V: SupportInfoVisitor>(
                     &dist,
                     &vendor,
                     signing_key_cow.as_deref(),
+                    display_name_cow.as_deref(),
+                    description_cow.as_deref(),
                 );
             }
             Event::Eof => return Ok(()),
@@ -803,6 +831,7 @@ impl SupportInfoVisitor for SupportInfoV1Materializer {
         support_level: &str,
         start_date: Option<&str>,
         start_milestone: Option<&str>,
+        display_name: Option<&str>,
     ) {
         if let Some(lc) = self.current_lifecycle.as_mut() {
             lc.phases.push(SupportInfoPhase {
@@ -810,6 +839,7 @@ impl SupportInfoVisitor for SupportInfoV1Materializer {
                 support_level: support_level.to_owned(),
                 start_date: start_date.map(|s| s.to_owned()),
                 start_milestone: start_milestone.map(|s| s.to_owned()),
+                display_name: display_name.map(|s| s.to_owned()),
             });
         }
     }
@@ -835,11 +865,18 @@ impl SupportInfoVisitor for SupportInfoV1Materializer {
         });
     }
 
-    fn add_support_level(&mut self, name: &str, severities: &str, description: Option<&str>) {
+    fn add_support_level(
+        &mut self,
+        name: &str,
+        severities: &str,
+        description: Option<&str>,
+        display_name: Option<&str>,
+    ) {
         self.data.support_levels.push(SupportInfoLevel {
             name: name.to_owned(),
             severities: severities.to_owned(),
             description: description.map(|s| s.to_owned()),
+            display_name: display_name.map(|s| s.to_owned()),
         });
     }
 
@@ -890,6 +927,8 @@ impl SupportInfoVisitor for SupportInfoV1Materializer {
         dist: &str,
         vendor: &str,
         signing_key: Option<&str>,
+        display_name: Option<&str>,
+        description: Option<&str>,
     ) {
         self.data.package_origins.push(SupportInfoPackageOrigin {
             name: name.to_owned(),
@@ -897,6 +936,8 @@ impl SupportInfoVisitor for SupportInfoV1Materializer {
             dist: dist.to_owned(),
             vendor: vendor.to_owned(),
             signing_key: signing_key.map(|s| s.to_owned()),
+            display_name: display_name.map(|s| s.to_owned()),
+            description: description.map(|s| s.to_owned()),
         });
     }
 
