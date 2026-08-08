@@ -392,6 +392,7 @@ mod rpmrepo_metadata {
                 .map_err(|e| pyo3::exceptions::PyUnicodeDecodeError::new_err(e.to_string()))
         }
 
+        /// Package groups defined in the comps data.
         #[getter]
         fn groups(&self) -> Vec<CompsGroup> {
             self.inner
@@ -401,6 +402,7 @@ mod rpmrepo_metadata {
                 .collect()
         }
 
+        /// Categories that organize groups into higher-level groupings.
         #[getter]
         fn categories(&self) -> Vec<CompsCategory> {
             self.inner
@@ -410,6 +412,7 @@ mod rpmrepo_metadata {
                 .collect()
         }
 
+        /// Environments defining complete installation profiles.
         #[getter]
         fn environments(&self) -> Vec<CompsEnvironment> {
             self.inner
@@ -419,6 +422,7 @@ mod rpmrepo_metadata {
                 .collect()
         }
 
+        /// Langpack mappings associating packages with language pack patterns.
         #[getter]
         fn langpacks(&self) -> Vec<CompsLangpack> {
             self.inner
@@ -1182,76 +1186,91 @@ mod rpmrepo_metadata {
             }
         }
 
+        /// Set the author or source of the advisory.
         #[setter(fromstr)]
         fn set_from(&mut self, val: String) {
             self.inner.from = val;
         }
 
+        /// Set the advisory type.
         #[setter]
         fn set_update_type(&mut self, val: String) {
             self.inner.update_type = val;
         }
 
+        /// Set the release status.
         #[setter]
         fn set_status(&mut self, val: String) {
             self.inner.status = val;
         }
 
+        /// Set the advisory metadata version.
         #[setter(version)]
         fn set_version(&mut self, val: String) {
             self.inner.version = val;
         }
 
+        /// Set the advisory identifier.
         #[setter]
         fn set_id(&mut self, val: String) {
             self.inner.id = val;
         }
 
+        /// Set the advisory title.
         #[setter]
         fn set_title(&mut self, val: String) {
             self.inner.title = val;
         }
 
+        /// Set the date the advisory was issued.
         #[setter]
         fn set_issued_date(&mut self, val: Option<String>) {
             self.inner.issued_date = val;
         }
 
+        /// Set the date the advisory was last updated.
         #[setter]
         fn set_updated_date(&mut self, val: Option<String>) {
             self.inner.updated_date = val;
         }
 
+        /// Set the copyright or legal rights statement.
         #[setter]
         fn set_rights(&mut self, val: Option<String>) {
             self.inner.rights = val;
         }
 
+        /// Set the distribution release.
         #[setter(release)]
         fn set_release(&mut self, val: Option<String>) {
             self.inner.release = val;
         }
 
+        /// Set the push count (deprecated).
         #[setter]
         fn set_pushcount(&mut self, val: Option<String>) {
             self.inner.pushcount = val;
         }
 
+        /// Set the severity level.
         #[setter]
         fn set_severity(&mut self, val: Option<String>) {
             self.inner.severity = val;
         }
 
+        /// Set the advisory summary.
         #[setter]
         fn set_summary(&mut self, val: Option<String>) {
             self.inner.summary = val;
         }
 
+        /// Set the advisory description.
         #[setter(description)]
         fn set_description(&mut self, val: Option<String>) {
             self.inner.description = val;
         }
 
+        /// Set the recommended solution.
         #[setter]
         fn set_solution(&mut self, val: Option<String>) {
             self.inner.solution = val;
@@ -1262,81 +1281,97 @@ mod rpmrepo_metadata {
             self.inner.references = refs.iter().map(|r| r.borrow(py).inner.clone()).collect();
         }
 
+        /// Set the package collections for this advisory.
         #[setter]
         fn set_pkglist(&mut self, py: Python<'_>, pkglist: Vec<Py<UpdateCollection>>) {
             self.inner.pkglist = pkglist.iter().map(|c| c.borrow(py).inner.clone()).collect();
         }
 
+        /// The author or source of the advisory.
         #[getter(fromstr)]
         fn fromstr(&self) -> &str {
             &self.inner.from
         }
 
+        /// The type of advisory (e.g. security, bugfix, enhancement).
         #[getter]
         fn update_type(&self) -> &str {
             &self.inner.update_type
         }
 
+        /// The release status of the advisory.
         #[getter]
         fn status(&self) -> &str {
             &self.inner.status
         }
 
+        /// The version of the advisory metadata.
         #[getter]
         fn version(&self) -> &str {
             &self.inner.version
         }
 
+        /// The unique advisory identifier.
         #[getter]
         fn id(&self) -> &str {
             &self.inner.id
         }
 
+        /// The human-readable title of the advisory.
         #[getter]
         fn title(&self) -> &str {
             &self.inner.title
         }
 
+        /// The date the advisory was originally issued.
         #[getter]
         fn issued_date(&self) -> Option<&str> {
             self.inner.issued_date.as_deref()
         }
 
+        /// The date the advisory was last updated.
         #[getter]
         fn updated_date(&self) -> Option<&str> {
             self.inner.updated_date.as_deref()
         }
 
+        /// Copyright or legal rights statement.
         #[getter]
         fn rights(&self) -> Option<&str> {
             self.inner.rights.as_deref()
         }
 
+        /// The distribution release this advisory targets.
         #[getter]
         fn release(&self) -> Option<&str> {
             self.inner.release.as_deref()
         }
 
+        /// The number of times the advisory has been pushed (deprecated).
         #[getter]
         fn pushcount(&self) -> Option<&str> {
             self.inner.pushcount.as_deref()
         }
 
+        /// The severity level of the advisory.
         #[getter]
         fn severity(&self) -> Option<&str> {
             self.inner.severity.as_deref()
         }
 
+        /// A brief summary of the advisory.
         #[getter]
         fn summary(&self) -> Option<&str> {
             self.inner.summary.as_deref()
         }
 
+        /// A detailed description of the advisory.
         #[getter]
         fn description(&self) -> Option<&str> {
             self.inner.description.as_deref()
         }
 
+        /// Recommended solution or remediation steps.
         #[getter]
         fn solution(&self) -> Option<&str> {
             self.inner.solution.as_deref()
@@ -1351,6 +1386,7 @@ mod rpmrepo_metadata {
                 .collect()
         }
 
+        /// Collections of packages affected by this advisory.
         #[getter]
         fn pkglist(&self) -> Vec<UpdateCollection> {
             self.inner
@@ -1394,21 +1430,25 @@ mod rpmrepo_metadata {
             }
         }
 
+        /// The URL of the external reference.
         #[getter]
         fn href(&self) -> &str {
             &self.inner.href
         }
 
+        /// The identifier of the reference (e.g. bug number, CVE ID).
         #[getter]
         fn id(&self) -> Option<&str> {
             self.inner.id.as_deref()
         }
 
+        /// The human-readable title of the reference.
         #[getter]
         fn title(&self) -> &str {
             &self.inner.title
         }
 
+        /// The type of reference (e.g. bugzilla, cve, self).
         #[getter]
         fn reftype(&self) -> &str {
             &self.inner.reftype
@@ -1440,26 +1480,31 @@ mod rpmrepo_metadata {
             }
         }
 
+        /// Set the packages in this collection.
         #[setter]
         fn set_packages(&mut self, py: Python<'_>, pkgs: Vec<Py<UpdateCollectionPackage>>) {
             self.inner.packages = pkgs.iter().map(|p| p.borrow(py).inner.clone()).collect();
         }
 
+        /// Set the module stream information.
         #[setter]
         fn set_module(&mut self, module: Option<UpdateCollectionModule>) {
             self.inner.module = module.map(|m| m.inner);
         }
 
+        /// The full name of the package collection.
         #[getter]
         fn name(&self) -> &str {
             &self.inner.name
         }
 
+        /// The short name of the collection.
         #[getter]
         fn shortname(&self) -> &str {
             &self.inner.shortname
         }
 
+        /// The packages included in this collection.
         #[getter]
         fn packages(&self) -> Vec<UpdateCollectionPackage> {
             self.inner
@@ -1469,6 +1514,7 @@ mod rpmrepo_metadata {
                 .collect()
         }
 
+        /// Optional module stream information for modular updates.
         #[getter]
         fn module(&self) -> Option<UpdateCollectionModule> {
             self.inner
@@ -1522,51 +1568,61 @@ mod rpmrepo_metadata {
             }
         }
 
+        /// The epoch of the package version.
         #[getter]
         fn epoch(&self) -> &str {
             &self.inner.epoch
         }
 
+        /// The filename of the package RPM.
         #[getter]
         fn filename(&self) -> &str {
             &self.inner.filename
         }
 
+        /// The name of the package.
         #[getter]
         fn name(&self) -> &str {
             &self.inner.name
         }
 
+        /// Whether a system reboot is suggested after installing this update.
         #[getter]
         fn reboot_suggested(&self) -> bool {
             self.inner.reboot_suggested
         }
 
+        /// Whether a service restart is suggested after installing this update.
         #[getter]
         fn restart_suggested(&self) -> bool {
             self.inner.restart_suggested
         }
 
+        /// Whether a user re-login is suggested after installing this update.
         #[getter]
         fn relogin_suggested(&self) -> bool {
             self.inner.relogin_suggested
         }
 
+        /// The release string of the package version.
         #[getter]
         fn release(&self) -> &str {
             &self.inner.release
         }
 
+        /// The source RPM filename, if available.
         #[getter]
         fn src(&self) -> Option<&str> {
             self.inner.src.as_deref()
         }
 
+        /// The architecture of the package.
         #[getter]
         fn arch(&self) -> &str {
             &self.inner.arch
         }
 
+        /// The checksum of the package as a (type, value) tuple.
         #[getter]
         fn checksum(&self) -> Option<(&str, &str)> {
             self.inner
@@ -1575,6 +1631,7 @@ mod rpmrepo_metadata {
                 .and_then(|c| c.to_values().ok())
         }
 
+        /// The version string of the package.
         #[getter]
         fn version(&self) -> &str {
             &self.inner.version
@@ -1607,26 +1664,31 @@ mod rpmrepo_metadata {
             }
         }
 
+        /// The module name.
         #[getter]
         fn name(&self) -> &str {
             &self.inner.name
         }
 
+        /// The module stream name.
         #[getter]
         fn stream(&self) -> &str {
             &self.inner.stream
         }
 
+        /// The module version number.
         #[getter]
         fn version(&self) -> u64 {
             self.inner.version
         }
 
+        /// The module context hash.
         #[getter]
         fn context(&self) -> &str {
             &self.inner.context
         }
 
+        /// The module architecture.
         #[getter]
         fn arch(&self) -> &str {
             &self.inner.arch
@@ -1702,71 +1764,85 @@ mod rpmrepo_metadata {
             }
         }
 
+        /// Set the package requirements for this group.
         #[setter]
         fn set_packages(&mut self, py: Python<'_>, pkgs: Vec<Py<CompsPackageReq>>) {
             self.inner.packages = pkgs.iter().map(|p| p.borrow(py).inner.clone()).collect();
         }
 
+        /// Set the localized group names.
         #[setter]
         fn set_name_by_lang(&mut self, val: Vec<(String, String)>) {
             self.inner.name_by_lang = val;
         }
 
+        /// Set the localized group descriptions.
         #[setter]
         fn set_desc_by_lang(&mut self, val: Vec<(String, String)>) {
             self.inner.desc_by_lang = val;
         }
 
+        /// The unique identifier of the group.
         #[getter]
         fn id(&self) -> &str {
             &self.inner.id
         }
 
+        /// The display name of the group.
         #[getter]
         fn name(&self) -> &str {
             &self.inner.name
         }
 
+        /// Localized group names as (lang, name) pairs.
         #[getter]
         fn name_by_lang(&self) -> Vec<(String, String)> {
             self.inner.name_by_lang.clone()
         }
 
+        /// The description of the group.
         #[getter]
         fn description(&self) -> &str {
             &self.inner.description
         }
 
+        /// Localized group descriptions as (lang, description) pairs.
         #[getter]
         fn desc_by_lang(&self) -> Vec<(String, String)> {
             self.inner.desc_by_lang.clone()
         }
 
+        /// Whether the group is selected by default.
         #[getter]
         fn default(&self) -> bool {
             self.inner.default
         }
 
+        /// Whether the group is visible to users in installation UIs.
         #[getter]
         fn uservisible(&self) -> bool {
             self.inner.uservisible
         }
 
+        /// Whether the group is only available on biarch platforms.
         #[getter]
         fn biarchonly(&self) -> bool {
             self.inner.biarchonly
         }
 
+        /// Language restriction for this group.
         #[getter]
         fn langonly(&self) -> Option<&str> {
             self.inner.langonly.as_deref()
         }
 
+        /// The display order for sorting in UIs.
         #[getter]
         fn display_order(&self) -> Option<u32> {
             self.inner.display_order
         }
 
+        /// The package requirements belonging to this group.
         #[getter]
         fn packages(&self) -> Vec<CompsPackageReq> {
             self.inner
@@ -1815,21 +1891,25 @@ mod rpmrepo_metadata {
             }
         }
 
+        /// The name of the required package.
         #[getter]
         fn name(&self) -> &str {
             &self.inner.name
         }
 
+        /// The requirement type (e.g. default, mandatory, optional, conditional).
         #[getter]
         fn reqtype(&self) -> &str {
             &self.inner.reqtype
         }
 
+        /// A conditional requirement expression.
         #[getter]
         fn requires(&self) -> Option<&str> {
             self.inner.requires.as_deref()
         }
 
+        /// Whether this package is only for the base architecture.
         #[getter]
         fn basearchonly(&self) -> bool {
             self.inner.basearchonly
@@ -1864,51 +1944,61 @@ mod rpmrepo_metadata {
             }
         }
 
+        /// Set the group IDs for this category.
         #[setter]
         fn set_group_ids(&mut self, val: Vec<String>) {
             self.inner.group_ids = val;
         }
 
+        /// Set the localized category names.
         #[setter]
         fn set_name_by_lang(&mut self, val: Vec<(String, String)>) {
             self.inner.name_by_lang = val;
         }
 
+        /// Set the localized category descriptions.
         #[setter]
         fn set_desc_by_lang(&mut self, val: Vec<(String, String)>) {
             self.inner.desc_by_lang = val;
         }
 
+        /// The unique identifier of the category.
         #[getter]
         fn id(&self) -> &str {
             &self.inner.id
         }
 
+        /// The display name of the category.
         #[getter]
         fn name(&self) -> &str {
             &self.inner.name
         }
 
+        /// Localized category names as (lang, name) pairs.
         #[getter]
         fn name_by_lang(&self) -> Vec<(String, String)> {
             self.inner.name_by_lang.clone()
         }
 
+        /// The description of the category.
         #[getter]
         fn description(&self) -> &str {
             &self.inner.description
         }
 
+        /// Localized category descriptions as (lang, description) pairs.
         #[getter]
         fn desc_by_lang(&self) -> Vec<(String, String)> {
             self.inner.desc_by_lang.clone()
         }
 
+        /// The display order for sorting in UIs.
         #[getter]
         fn display_order(&self) -> Option<u32> {
             self.inner.display_order
         }
 
+        /// The IDs of groups belonging to this category.
         #[getter]
         fn group_ids(&self) -> Vec<String> {
             self.inner.group_ids.clone()
@@ -1952,61 +2042,73 @@ mod rpmrepo_metadata {
             }
         }
 
+        /// Set the mandatory group IDs.
         #[setter]
         fn set_group_ids(&mut self, val: Vec<String>) {
             self.inner.group_ids = val;
         }
 
+        /// Set the optional groups.
         #[setter]
         fn set_option_ids(&mut self, py: Python<'_>, opts: Vec<Py<CompsEnvironmentOption>>) {
             self.inner.option_ids = opts.iter().map(|o| o.borrow(py).inner.clone()).collect();
         }
 
+        /// Set the localized environment names.
         #[setter]
         fn set_name_by_lang(&mut self, val: Vec<(String, String)>) {
             self.inner.name_by_lang = val;
         }
 
+        /// Set the localized environment descriptions.
         #[setter]
         fn set_desc_by_lang(&mut self, val: Vec<(String, String)>) {
             self.inner.desc_by_lang = val;
         }
 
+        /// The unique identifier of the environment.
         #[getter]
         fn id(&self) -> &str {
             &self.inner.id
         }
 
+        /// The display name of the environment.
         #[getter]
         fn name(&self) -> &str {
             &self.inner.name
         }
 
+        /// Localized environment names as (lang, name) pairs.
         #[getter]
         fn name_by_lang(&self) -> Vec<(String, String)> {
             self.inner.name_by_lang.clone()
         }
 
+        /// The description of the environment.
         #[getter]
         fn description(&self) -> &str {
             &self.inner.description
         }
 
+        /// Localized environment descriptions as (lang, description) pairs.
         #[getter]
         fn desc_by_lang(&self) -> Vec<(String, String)> {
             self.inner.desc_by_lang.clone()
         }
 
+        /// The display order for sorting in UIs.
         #[getter]
         fn display_order(&self) -> Option<u32> {
             self.inner.display_order
         }
 
+        /// The IDs of mandatory groups in this environment.
         #[getter]
         fn group_ids(&self) -> Vec<String> {
             self.inner.group_ids.clone()
         }
 
+        /// Optional groups that may be selected within this environment.
         #[getter]
         fn option_ids(&self) -> Vec<CompsEnvironmentOption> {
             self.inner
@@ -2045,11 +2147,13 @@ mod rpmrepo_metadata {
             }
         }
 
+        /// The group ID of the optional group.
         #[getter]
         fn group_id(&self) -> &str {
             &self.inner.group_id
         }
 
+        /// Whether this optional group is selected by default.
         #[getter]
         fn default(&self) -> bool {
             self.inner.default
@@ -2075,11 +2179,13 @@ mod rpmrepo_metadata {
             }
         }
 
+        /// The base package name that triggers langpack installation.
         #[getter]
         fn name(&self) -> &str {
             &self.inner.name
         }
 
+        /// The langpack package name pattern to install.
         #[getter]
         fn install(&self) -> &str {
             &self.inner.install

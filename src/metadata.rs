@@ -1488,141 +1488,222 @@ impl RepomdRecord {
 /// An advisory (errata) entry from updateinfo.xml.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct UpdateRecord {
+    /// The author or source of the advisory (e.g. an email address).
     pub from: String,
+    /// The type of advisory (e.g. `security`, `bugfix`, `enhancement`).
     pub update_type: String,
+    /// The release status of the advisory (e.g. `final`, `stable`).
     pub status: String,
+    /// The version of the advisory metadata.
     pub version: String,
+    /// The unique advisory identifier (e.g. `RHSA-2024:1234`).
     pub id: String,
+    /// The human-readable title of the advisory.
     pub title: String,
+    /// The date the advisory was originally issued (ISO 8601 or timestamp).
     pub issued_date: Option<String>,
+    /// The date the advisory was last updated.
     pub updated_date: Option<String>,
+    /// Copyright or legal rights statement.
     pub rights: Option<String>,
+    /// The distribution release this advisory targets.
     pub release: Option<String>,
-    pub pushcount: Option<String>, // deprecated?
+    /// The number of times the advisory has been pushed (deprecated).
+    pub pushcount: Option<String>,
+    /// The severity level of the advisory (e.g. `Critical`, `Important`).
     pub severity: Option<String>,
+    /// A brief summary of the advisory.
     pub summary: Option<String>,
+    /// A detailed description of the advisory.
     pub description: Option<String>,
+    /// Recommended solution or remediation steps.
     pub solution: Option<String>,
-    // It's not clear that any metadata actually uses this
-    // pub reboot_suggested: bool,
+    /// Informative message (e.g. reboot instructions).
+    pub message: Option<String>,
+    /// Whether a reboot is suggested for the advisory as a whole.
+    pub reboot_suggested: bool,
+    /// External references (bugzilla, CVE, errata URLs) associated with this advisory.
     pub references: Vec<UpdateReference>,
+    /// Collections of packages affected by this advisory.
     pub pkglist: Vec<UpdateCollection>,
 }
 
 /// A collection of packages affected by an advisory update.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct UpdateCollection {
+    /// The full name of the package collection (e.g. distribution name).
     pub name: String,
+    /// The short name or abbreviation of the collection.
     pub shortname: String,
+    /// The packages included in this collection.
     pub packages: Vec<UpdateCollectionPackage>,
+    /// Optional module stream information, if this is a modular update.
     pub module: Option<UpdateCollectionModule>,
 }
 
 /// A reference (bugzilla, CVE, etc.) associated with an advisory.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct UpdateReference {
+    /// The URL of the external reference.
     pub href: String,
+    /// The identifier of the reference (e.g. bug number, CVE ID).
     pub id: Option<String>,
+    /// The human-readable title of the reference.
     pub title: String,
+    /// The type of reference (e.g. `bugzilla`, `cve`, `self`).
     pub reftype: String,
 }
 
 /// A package within an advisory update collection.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct UpdateCollectionPackage {
+    /// The epoch of the package version.
     pub epoch: String,
+    /// The filename of the package RPM.
     pub filename: String,
+    /// The name of the package.
     pub name: String,
+    /// Whether a system reboot is suggested after installing this update.
     pub reboot_suggested: bool,
+    /// Whether a service restart is suggested after installing this update.
     pub restart_suggested: bool,
+    /// Whether a user re-login is suggested after installing this update.
     pub relogin_suggested: bool,
+    /// The release string of the package version.
     pub release: String,
+    /// The source RPM filename, if available.
     pub src: Option<String>,
+    /// The architecture of the package (e.g. `x86_64`, `noarch`).
     pub arch: String,
+    /// The checksum of the package file.
     pub checksum: Option<Checksum>,
+    /// The version string of the package.
     pub version: String,
 }
 
 /// Module stream information for a modular advisory update.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct UpdateCollectionModule {
+    /// The module name.
     pub name: String,
+    /// The module stream name.
     pub stream: String,
+    /// The module version number.
     pub version: u64,
+    /// The module context hash.
     pub context: String,
+    /// The module architecture.
     pub arch: String,
 }
 
 /// A package group from comps.xml, grouping related packages for installation.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct CompsGroup {
+    /// The unique identifier of the group.
     pub id: String,
+    /// The display name of the group.
     pub name: String,
+    /// Localized group names as `(lang, name)` pairs.
     pub name_by_lang: Vec<(String, String)>,
+    /// The description of the group.
     pub description: String,
+    /// Localized group descriptions as `(lang, description)` pairs.
     pub desc_by_lang: Vec<(String, String)>,
+    /// Whether the group is selected by default.
     pub default: bool,
+    /// Whether the group is visible to users in installation UIs.
     pub uservisible: bool,
+    /// Whether the group is only available on biarch platforms.
     pub biarchonly: bool,
+    /// Language restriction for this group (e.g. only install for a specific locale).
     pub langonly: Option<String>,
+    /// The display order for sorting in UIs.
     pub display_order: Option<u32>,
+    /// The package requirements belonging to this group.
     pub packages: Vec<CompsPackageReq>,
 }
 
 /// A package requirement within a comps group.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct CompsPackageReq {
+    /// The name of the required package.
     pub name: String,
+    /// The requirement type (e.g. `default`, `mandatory`, `optional`, `conditional`).
     pub reqtype: String,
+    /// A conditional requirement expression (used with `conditional` type packages).
     pub requires: Option<String>,
+    /// Whether this package is only for the base architecture.
     pub basearchonly: bool,
 }
 
 /// A category from comps.xml, organizing groups into higher-level groupings.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct CompsCategory {
+    /// The unique identifier of the category.
     pub id: String,
+    /// The display name of the category.
     pub name: String,
+    /// Localized category names as `(lang, name)` pairs.
     pub name_by_lang: Vec<(String, String)>,
+    /// The description of the category.
     pub description: String,
+    /// Localized category descriptions as `(lang, description)` pairs.
     pub desc_by_lang: Vec<(String, String)>,
+    /// The display order for sorting in UIs.
     pub display_order: Option<u32>,
+    /// The IDs of groups belonging to this category.
     pub group_ids: Vec<String>,
 }
 
 /// An environment from comps.xml, defining a complete installation profile.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct CompsEnvironment {
+    /// The unique identifier of the environment.
     pub id: String,
+    /// The display name of the environment.
     pub name: String,
+    /// Localized environment names as `(lang, name)` pairs.
     pub name_by_lang: Vec<(String, String)>,
+    /// The description of the environment.
     pub description: String,
+    /// Localized environment descriptions as `(lang, description)` pairs.
     pub desc_by_lang: Vec<(String, String)>,
+    /// The display order for sorting in UIs.
     pub display_order: Option<u32>,
+    /// The IDs of mandatory groups in this environment.
     pub group_ids: Vec<String>,
+    /// Optional groups that may be selected within this environment.
     pub option_ids: Vec<CompsEnvironmentOption>,
 }
 
 /// An optional group within a comps environment, with a default selection state.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct CompsEnvironmentOption {
+    /// The group ID of the optional group.
     pub group_id: String,
+    /// Whether this optional group is selected by default.
     pub default: bool,
 }
 
 /// A langpack mapping from comps.xml, associating packages with language pack patterns.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct CompsLangpack {
+    /// The base package name that triggers langpack installation.
     pub name: String,
+    /// The langpack package name pattern to install (e.g. `%s-langpack-%s`).
     pub install: String,
 }
 
 /// Parsed comps.xml data containing all group, category, environment, and langpack entries.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct CompsData {
+    /// Package groups defined in the comps data.
     pub groups: Vec<CompsGroup>,
+    /// Categories that organize groups into higher-level groupings.
     pub categories: Vec<CompsCategory>,
+    /// Environments defining complete installation profiles.
     pub environments: Vec<CompsEnvironment>,
+    /// Langpack mappings associating packages with language pack patterns.
     pub langpacks: Vec<CompsLangpack>,
 }
 
