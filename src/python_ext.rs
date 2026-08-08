@@ -912,8 +912,7 @@ mod rpmrepo_metadata {
                     Some("ghost") => crate::metadata::FileType::Ghost,
                     Some(bad_val) => {
                         return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                            "{} is not a permitted file type",
-                            bad_val
+                            "{bad_val} is not a permitted file type"
                         )));
                     }
                 };
@@ -946,8 +945,7 @@ mod rpmrepo_metadata {
                     Some("ghost") => crate::metadata::FileType::Ghost,
                     Some(bad_val) => {
                         return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                            "{} is not a permitted file type",
-                            bad_val
+                            "{bad_val} is not a permitted file type"
                         )));
                     }
                 };

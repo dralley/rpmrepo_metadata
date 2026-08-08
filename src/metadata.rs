@@ -707,12 +707,12 @@ pub enum Checksum {
 impl Hash for Checksum {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            Self::Md5(hash) => format!("md5:{}", hash).hash(state),
-            Self::Sha1(hash) => format!("sha1:{}", hash).hash(state),
-            Self::Sha224(hash) => format!("sha224:{}", hash).hash(state),
-            Self::Sha256(hash) => format!("sha256:{}", hash).hash(state),
-            Self::Sha384(hash) => format!("sha384:{}", hash).hash(state),
-            Self::Sha512(hash) => format!("sha512:{}", hash).hash(state),
+            Self::Md5(hash) => format!("md5:{hash}").hash(state),
+            Self::Sha1(hash) => format!("sha1:{hash}").hash(state),
+            Self::Sha224(hash) => format!("sha224:{hash}").hash(state),
+            Self::Sha256(hash) => format!("sha256:{hash}").hash(state),
+            Self::Sha384(hash) => format!("sha384:{hash}").hash(state),
+            Self::Sha512(hash) => format!("sha512:{hash}").hash(state),
             // TODO: adjust this representation. Currently these exist because of reuse of these enums
             // to represent intermediate parsing states, but those probably ought to be pulled out somehow
             Self::Unknown(_hash) => unimplemented!(),
