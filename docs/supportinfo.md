@@ -35,6 +35,44 @@ The legacy format is not supported by this library.
 
 # V1.0 Format
 
+## Hierarchy summary
+
+```text
+supportinfo.xml (V1.0)
+└── <package_support> ──── schema_version="1.0", current_as
+    ├── <lifecycles>
+    │   └── <lifecycle>* ──── name, note?, display_name?, description?
+    │       └── <phase>* ──── name, support_level, (start_date | start_milestone), display_name?
+    ├── <support_milestones>
+    │   └── <milestone>* ──── name, date, display_name?, description?
+    ├── <support_levels>
+    │   └── <support_level>* ──── name, severities, description?, display_name?
+    ├── <packages>
+    │   └── <package>* ──── name, lifecycle, origin, package_class?
+    ├── <package_classes>
+    │   └── <package_class>* ──── name
+    │       ├── <summary>
+    │       └── <text>
+    ├── <package_origins>
+    │   └── <package_origin>* ──── name, repo_id, dist, vendor, signing_key?, display_name?, description?
+    └── <notes>
+        └── <note>* ──── name
+```
+
+**Legend:**
+
+- `*` = zero or more
+- `?` = optional
+- `(a | b)` = exactly one of a or b required
+
+**Key constraints:**
+
+- All container elements (`<lifecycles>`, `<support_milestones>`, etc.) are required
+- Each `<lifecycle>` must have at least one `<phase>`
+- Each `<support_level>` must have at least one entry (but zero milestones allowed)
+- The pair `(name, origin)` must be unique across all `<package>` elements
+- All references must be valid (lifecycles, milestones, support_levels, package_classes, package_origins, notes)
+
 ## Root Element: `<package_support>`
 
 ```xml
