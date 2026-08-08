@@ -84,6 +84,7 @@ pub(crate) mod tag {
     pub const TAG_MODULE: &str = "module";
     pub const TAG_FILENAME: &str = "filename";
     pub const TAG_SUM: &str = "sum";
+    pub const TAG_MESSAGE: &str = "message";
     pub const TAG_REBOOT_SUGGESTED: &str = "reboot_suggested";
     pub const TAG_RESTART_SUGGESTED: &str = "restart_suggested";
     pub const TAG_RELOGIN_SUGGESTED: &str = "relogin_suggested";

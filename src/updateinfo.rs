@@ -243,6 +243,18 @@ impl UpdateinfoVisitor for UpdateRecordMaterializer {
         }
     }
 
+    fn set_message(&mut self, message: &str) {
+        if let Some(record) = self.record.as_mut() {
+            record.message = Some(message.to_owned());
+        }
+    }
+
+    fn set_reboot_suggested(&mut self) {
+        if let Some(record) = self.record.as_mut() {
+            record.reboot_suggested = true;
+        }
+    }
+
     fn add_reference(&mut self, href: &str, id: Option<&str>, reftype: &str, title: &str) {
         if let Some(record) = self.record.as_mut() {
             record.references.push(UpdateReference {
@@ -494,6 +506,21 @@ pub fn parse_updateinfo_update<R: BufRead, V: UpdateinfoVisitor>(
                     let text = resolve_text(&bytes_text)?;
                     if !text.is_empty() {
                         visitor.set_solution(&text);
+                    }
+                }
+                TAG_MESSAGE => {
+                    let bytes_text =
+                        reader.read_text_into(QName(TAG_MESSAGE.as_bytes()), &mut text_buf)?;
+                    let text = resolve_text(&bytes_text)?;
+                    if !text.is_empty() {
+                        visitor.set_message(&text);
+                    }
+                }
+                TAG_REBOOT_SUGGESTED => {
+                    let val = reader
+                        .read_text_into(QName(TAG_REBOOT_SUGGESTED.as_bytes()), &mut text_buf)?;
+                    if parse_suggested_flag(val.as_ref()) {
+                        visitor.set_reboot_suggested();
                     }
                 }
                 TAG_REFERENCES => {
@@ -770,13 +797,17 @@ fn write_updaterecord<W: Write>(
             .write_text_content(BytesText::new(pushcount.as_str()))?;
     }
 
-    // It's not clear that any metadata actually uses this
-    // // <reboot_suggested>True</reboot_suggestion> (optional)
-    // if record.reboot_suggested {
-    //     writer
-    //         .create_element(TAG_REBOOT_SUGGESTED)
-    //         .write_text_content(BytesText::new("True"))?;
-    // }
+    if let Some(message) = &record.message {
+        writer
+            .create_element(TAG_MESSAGE)
+            .write_text_content(BytesText::new(message.as_str()))?;
+    }
+
+    if record.reboot_suggested {
+        writer
+            .create_element(TAG_REBOOT_SUGGESTED)
+            .write_text_content(BytesText::new("True"))?;
+    }
 
     let tag_references = BytesStart::new(TAG_REFERENCES);
     if !record.references.is_empty() {
