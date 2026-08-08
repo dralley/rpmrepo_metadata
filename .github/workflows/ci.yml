@@ -66,6 +66,12 @@ jobs:
           - "ubuntu-latest"
           - "macos-latest"
           - "windows-latest"
+        exclude:
+          # PyO3's extension-module feature (pulled in by --all-features via
+          # python_ext) breaks cargo test on macOS — the linker skips libpython,
+          # which only works when loaded by the Python interpreter.
+          - flags: "--all-features"
+            os: "macos-latest"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
