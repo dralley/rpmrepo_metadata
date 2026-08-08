@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  RELAX NG XML schema for comps.xml — machine-readable equivalent of comps.rnc.
+  Use with: xmllint - -relaxng comps.rng somefile.xml - -noout
+  The .rnc file is the human-readable primary; this .rng is generated for
+  tooling compatibility (xmllint does not accept compact syntax).
+-->
+<grammar xmlns="http://relaxng.org/ns/structure/1.0"
+         datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+
+  <start>
+    <element name="comps">
+      <zeroOrMore>
+        <choice>
+          <ref name="group"/>
+          <ref name="category"/>
+          <ref name="environment"/>
+          <ref name="langpacks"/>
+          <ref name="blacklist"/>
+          <ref name="whiteout"/>
+        </choice>
+      </zeroOrMore>
+    </element>
+  </start>
+
+  <!-- Package group -->
+  <define name="group">
+    <element name="group">
+      <interleave>
+        <element name="id"><text/></element>
+        <oneOrMore>
+          <element name="name"><ref name="localizableString"/></element>
+        </oneOrMore>
+        <zeroOrMore>
+          <element name="description"><ref name="localizableString"/></element>
+        </zeroOrMore>
+        <optional>
+          <element name="default"><ref name="booleanString"/></element>
+        </optional>
+        <optional>
+          <element name="uservisible"><ref name="booleanString"/></element>
+        </optional>
+        <optional>
+          <element name="biarchonly"><ref name="booleanString"/></element>
+        </optional>
+        <optional>
+          <element name="langonly"><text/></element>
+        </optional>
+        <optional>
+          <element name="display_order"><data type="unsignedInt"/></element>
+        </optional>
+        <optional>
+          <element name="packagelist">
+            <zeroOrMore><ref name="packagereq"/></zeroOrMore>
+          </element>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+
+  <!-- Package requirement -->
+  <define name="packagereq">
+    <element name="packagereq">
+      <optional><attribute name="type"><text/></attribute></optional>
+      <optional><attribute name="requires"><text/></attribute></optional>
+      <optional><attribute name="basearchonly"><data type="boolean"/></attribute></optional>
+      <optional><attribute name="arch"><text/></attribute></optional>
+      <text/>
+    </element>
+  </define>
+
+  <!-- Category -->
+  <define name="category">
+    <element name="category">
+      <interleave>
+        <element name="id"><text/></element>
+        <oneOrMore>
+          <element name="name"><ref name="localizableString"/></element>
+        </oneOrMore>
+        <zeroOrMore>
+          <element name="description"><ref name="localizableString"/></element>
+        </zeroOrMore>
+        <optional>
+          <element name="display_order"><data type="unsignedInt"/></element>
+        </optional>
+        <optional>
+          <element name="grouplist">
+            <zeroOrMore><element name="groupid"><text/></element></zeroOrMore>
+          </element>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+
+  <!-- Environment -->
+  <define name="environment">
+    <element name="environment">
+      <interleave>
+        <element name="id"><text/></element>
+        <oneOrMore>
+          <element name="name"><ref name="localizableString"/></element>
+        </oneOrMore>
+        <zeroOrMore>
+          <element name="description"><ref name="localizableString"/></element>
+        </zeroOrMore>
+        <optional>
+          <element name="display_order"><data type="unsignedInt"/></element>
+        </optional>
+        <optional>
+          <element name="grouplist">
+            <zeroOrMore><element name="groupid"><text/></element></zeroOrMore>
+          </element>
+        </optional>
+        <optional>
+          <element name="optionlist">
+            <zeroOrMore><ref name="optionGroupid"/></zeroOrMore>
+          </element>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+
+  <!-- Optional group reference -->
+  <define name="optionGroupid">
+    <element name="groupid">
+      <optional><attribute name="default"><data type="boolean"/></attribute></optional>
+      <text/>
+    </element>
+  </define>
+
+  <!-- Langpacks -->
+  <define name="langpacks">
+    <element name="langpacks">
+      <zeroOrMore>
+        <element name="match">
+          <attribute name="name"><text/></attribute>
+          <attribute name="install"><text/></attribute>
+        </element>
+      </zeroOrMore>
+    </element>
+  </define>
+
+  <!-- Legacy: blacklist (defunct) -->
+  <define name="blacklist">
+    <element name="blacklist">
+      <zeroOrMore>
+        <element name="package">
+          <attribute name="name"><text/></attribute>
+          <optional><attribute name="arch"><text/></attribute></optional>
+        </element>
+      </zeroOrMore>
+    </element>
+  </define>
+
+  <!-- Legacy: whiteout (defunct) -->
+  <define name="whiteout">
+    <element name="whiteout">
+      <zeroOrMore>
+        <element name="ignoredep">
+          <attribute name="package"><text/></attribute>
+          <attribute name="requires"><text/></attribute>
+        </element>
+      </zeroOrMore>
+    </element>
+  </define>
+
+  <!-- Localizable string: text with optional xml:lang attribute -->
+  <define name="localizableString">
+    <optional>
+      <attribute name="xml:lang"><text/></attribute>
+    </optional>
+    <text/>
+  </define>
+
+  <!-- Boolean as "true"/"false" text content -->
+  <define name="booleanString">
+    <choice>
+      <value>true</value>
+      <value>false</value>
+    </choice>
+  </define>
+
+</grammar>

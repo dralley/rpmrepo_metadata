@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  RELAX NG XML schema for updateinfo.xml — machine-readable equivalent of
+  updateinfo.rnc. Use with: xmllint - -relaxng updateinfo.rng somefile.xml - -noout
+  The .rnc file is the human-readable primary; this .rng is generated for
+  tooling compatibility (xmllint does not accept compact syntax).
+-->
+<grammar xmlns="http://relaxng.org/ns/structure/1.0"
+         datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+
+  <start>
+    <element name="updates">
+      <zeroOrMore><ref name="update"/></zeroOrMore>
+    </element>
+  </start>
+
+  <!-- A single advisory record -->
+  <define name="update">
+    <element name="update">
+      <attribute name="from"><text/></attribute>
+      <attribute name="status"><text/></attribute>
+      <attribute name="type"><text/></attribute>
+      <attribute name="version"><text/></attribute>
+
+      <interleave>
+        <element name="id"><text/></element>
+        <element name="title"><text/></element>
+        <!-- Usually a self-closing element with a date attribute, but has been
+             seen in the wild with the timestamp as text content instead
+             (per libzypp). -->
+        <optional>
+          <element name="issued">
+            <choice>
+              <attribute name="date"><text/></attribute>
+              <text/>
+            </choice>
+          </element>
+        </optional>
+        <optional>
+          <element name="updated">
+            <choice>
+              <attribute name="date"><text/></attribute>
+              <text/>
+            </choice>
+          </element>
+        </optional>
+        <optional><element name="rights"><text/></element></optional>
+        <optional><element name="release"><text/></element></optional>
+        <optional><element name="pushcount"><text/></element></optional>
+        <optional><element name="severity"><text/></element></optional>
+        <optional><element name="summary"><text/></element></optional>
+        <optional><element name="description"><text/></element></optional>
+        <optional><element name="solution"><text/></element></optional>
+        <optional><element name="message"><text/></element></optional>
+        <optional><element name="reboot_suggested"><text/></element></optional>
+        <optional>
+          <element name="references">
+            <zeroOrMore><ref name="reference"/></zeroOrMore>
+          </element>
+        </optional>
+        <optional>
+          <element name="pkglist">
+            <zeroOrMore><ref name="collection"/></zeroOrMore>
+          </element>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+
+  <!-- Reference (bugzilla, CVE, errata link) -->
+  <define name="reference">
+    <element name="reference">
+      <attribute name="href"><data type="anyURI"/></attribute>
+      <optional><attribute name="id"><text/></attribute></optional>
+      <attribute name="type"><text/></attribute>
+      <attribute name="title"><text/></attribute>
+    </element>
+  </define>
+
+  <!-- Package collection -->
+  <define name="collection">
+    <element name="collection">
+      <optional><attribute name="short"><text/></attribute></optional>
+      <interleave>
+        <optional><element name="name"><text/></element></optional>
+        <optional><ref name="module"/></optional>
+        <zeroOrMore><ref name="package"/></zeroOrMore>
+      </interleave>
+    </element>
+  </define>
+
+  <!-- Module stream metadata (NSVCA) -->
+  <define name="module">
+    <element name="module">
+      <attribute name="name"><text/></attribute>
+      <attribute name="stream"><text/></attribute>
+      <attribute name="version"><data type="unsignedLong"/></attribute>
+      <attribute name="context"><text/></attribute>
+      <attribute name="arch"><text/></attribute>
+    </element>
+  </define>
+
+  <!-- A package affected by the advisory -->
+  <define name="package">
+    <element name="package">
+      <attribute name="name"><text/></attribute>
+      <attribute name="epoch"><text/></attribute>
+      <attribute name="version"><text/></attribute>
+      <attribute name="release"><text/></attribute>
+      <attribute name="arch"><text/></attribute>
+      <optional><attribute name="src"><text/></attribute></optional>
+      <interleave>
+        <optional><element name="filename"><text/></element></optional>
+        <optional>
+          <element name="sum">
+            <attribute name="type"><text/></attribute>
+            <text/>
+          </element>
+        </optional>
+        <optional><element name="reboot_suggested"><text/></element></optional>
+        <optional><element name="restart_suggested"><text/></element></optional>
+        <optional><element name="relogin_suggested"><text/></element></optional>
+      </interleave>
+    </element>
+  </define>
+
+</grammar>

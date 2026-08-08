@@ -1,0 +1,194 @@
+# RELAX NG Compact schema for comps.xml (RPM repository package group metadata).
+#
+# This schema is descriptive, documenting the format as produced by
+# comps-editing tools and consumed by libcomps, libsolv, and DNF5. It is not
+# normative — no official schema exists for this format, and the shipped DTD
+# (comps.dtd) is incomplete.
+#
+# Notable: comps.xml uses no XML namespace. The DTD declaration
+# commonly found at the top of comps files is:
+#   <!DOCTYPE comps PUBLIC '-//Red Hat, Inc.//DTD Comps info//EN' 'comps.dtd'>
+#
+# Element ordering within groups, categories, and environments is not fixed
+# in practice — real-world comps files place child elements in varying order.
+# This schema uses interleave (&) to accommodate that.
+
+# ======================================================================
+# Root element
+# ======================================================================
+
+## Root element containing all group, category, environment, and langpack
+## definitions. May also contain legacy blacklist and whiteout elements,
+## which are defunct and ignored by modern tools.
+start = element comps {
+  (group | category | environment | langpacks | blacklist | whiteout)*
+}
+
+# ======================================================================
+# Package group
+# ======================================================================
+
+## A package group — a named collection of packages. Groups are the
+## fundamental building block; environments and categories reference
+## groups by id. Example ids: "core", "base-x", "firefox".
+##
+## Real-world comps files place child elements in arbitrary order (e.g.
+## default before name, display_order before description). The name and
+## description elements may appear multiple times (once per locale).
+group = element group {
+  ## Machine-readable identifier, referenced from environments and
+  ## categories.
+  element id { text }
+  & ## Human-readable name. The first occurrence has no xml:lang
+    ## attribute (the default/English name); subsequent occurrences
+    ## carry xml:lang for translations.
+    element name { localizableString }+
+  & ## Human-readable description, with optional xml:lang variants.
+    element description { localizableString }*
+  & ## Whether the group is pre-selected in graphical installers.
+    ## Default: false. Does not affect "dnf group install".
+    element default { booleanString }?
+  & ## Whether the group is shown in UI listings. Default: true.
+    ## Groups with "false" are hidden unless --hidden is passed.
+    element uservisible { booleanString }?
+  & ## If true, only biarch packages from this group are installed on
+    ## multilib systems.
+    element biarchonly { booleanString }?
+  & ## Language code restricting this group to systems configured for
+    ## that locale. Also accepted as "lang_only" by some parsers
+    ## (e.g. libsolv).
+    element langonly { text }?
+  & ## Integer controlling sort order in UI listings (lower = earlier).
+    ## Not in the DTD, but supported by libcomps and libsolv.
+    element display_order { xsd:unsignedInt }?
+  & ## List of package requirements belonging to this group.
+    element packagelist { packagereq* }?
+}
+
+# ======================================================================
+# Package requirement
+# ======================================================================
+
+## A package requirement within a group. The element text content is
+## the package name.
+packagereq = element packagereq {
+  ## The requirement type. Standard values: "mandatory" (always
+  ## installed), "default" (installed by default, excludable), "optional"
+  ## (not installed by default), "conditional" (installed only if the
+  ## "requires" package is also being installed). Some comps files omit
+  ## this attribute; parsers typically default to "default".
+  attribute type { text }?,
+  ## The package name that triggers installation of this conditional
+  ## package. Only meaningful when type="conditional".
+  attribute requires { text }?,
+  ## If true, the package is only installed for the system's base
+  ## architecture, suppressing multilib variants.
+  attribute basearchonly { xsd:boolean }?,
+  ## Comma or space-separated list of architectures this package
+  ## applies to. Parsed by libcomps, rarely used in practice.
+  attribute arch { text }?,
+  text
+}
+
+# ======================================================================
+# Category
+# ======================================================================
+
+## A category that organizes groups for display in graphical package
+## managers (e.g. "Development", "Servers"). Categories have no effect
+## on what gets installed — they are purely organizational.
+category = element category {
+  element id { text }
+  & element name { localizableString }+
+  & element description { localizableString }*
+  & element display_order { xsd:unsignedInt }?
+  & ## The groups belonging to this category, referenced by id.
+    element grouplist { element groupid { text }* }?
+}
+
+# ======================================================================
+# Environment
+# ======================================================================
+
+## An environment defines a complete installation profile — a
+## higher-level grouping of groups. These are the choices presented
+## during OS installation (e.g. "Minimal Install", "Server",
+## "Workstation").
+environment = element environment {
+  element id { text }
+  & element name { localizableString }+
+  & element description { localizableString }*
+  & element display_order { xsd:unsignedInt }?
+  & ## Mandatory groups — always installed when this environment is
+    ## selected.
+    element grouplist { element groupid { text }* }?
+  & ## Optional groups that the user may choose to include. Each
+    ## groupid may carry a default attribute.
+    element optionlist { optionGroupid* }?
+}
+
+## A group reference within an optionlist. The element text is the
+## group id. The optional default attribute controls whether this
+## optional group is pre-selected.
+optionGroupid = element groupid {
+  ## If true, this optional group is selected by default when the
+  ## environment is installed. Entries without this attribute (or with
+  ## default="false") are not selected by default.
+  attribute default { xsd:boolean }?,
+  text
+}
+
+# ======================================================================
+# Langpacks
+# ======================================================================
+
+## Langpack mappings that tell the package manager how to automatically
+## install language-specific subpackages. There is at most one langpacks
+## element per comps.xml.
+langpacks = element langpacks {
+  ## A single langpack mapping. Maps a base package name to an install
+  ## pattern where %{lang} is expanded to the system's configured
+  ## language code(s).
+  element match {
+    ## The base package name that triggers langpack installation
+    ## (e.g. "firefox", "libreoffice-core").
+    attribute name { text },
+    ## The langpack package name pattern to install, containing %{lang}
+    ## as a placeholder (e.g. "firefox-langpacks-%{lang}").
+    attribute install { text }
+  }*
+}
+
+# ======================================================================
+# Legacy elements (defunct)
+# ======================================================================
+
+## Legacy element listing packages to exclude from installation.
+## Defunct — libcomps parses but does not process it, libsolv ignores
+## it, and no modern comps.xml files include it.
+blacklist = element blacklist {
+  element package {
+    attribute name { text },
+    attribute arch { text }?
+  }*
+}
+
+## Legacy element listing dependency requirements to ignore during
+## resolution. Defunct — not processed by any modern tool.
+whiteout = element whiteout {
+  element ignoredep {
+    attribute package { text },
+    attribute requires { text }
+  }*
+}
+
+# ======================================================================
+# Shared types
+# ======================================================================
+
+## A string that may carry an xml:lang attribute for localization.
+localizableString = attribute xml:lang { text }?, text
+
+## Boolean as text content — comps uses "true"/"false" strings rather
+## than XML Schema booleans.
+booleanString = "true" | "false"

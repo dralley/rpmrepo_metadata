@@ -1,0 +1,120 @@
+# RELAX NG Compact schema for updateinfo.xml (RPM repository advisory metadata).
+#
+# This schema is descriptive, documenting the format as produced by createrepo_c
+# and consumed by libsolv and DNF5. It is not normative — no official schema
+# exists for this format, and parsers in the wild are lenient about missing
+# elements and attributes.
+#
+# Notable: updateinfo.xml uses no XML namespace (unlike primary.xml,
+# filelists.xml, and other.xml which use http://linux.duke.edu/metadata/*).
+
+# ======================================================================
+# Root element
+# ======================================================================
+
+start = element updates {
+  update*
+}
+
+# ======================================================================
+# A single advisory record
+# ======================================================================
+
+update = element update {
+  ## The issuing authority, typically an email address
+  ## (e.g. "security@redhat.com", "updates@fedoraproject.org").
+  ## Has been seen missing in the wild (per libzypp).
+  attribute from { text },
+  ## Release status. Common values: "final", "stable", "testing",
+  ## "pending", "retracted".
+  attribute status { text },
+  ## Advisory type. Red Hat/Fedora values: "security", "bugfix",
+  ## "enhancement", "newpackage". SUSE values: "security",
+  ## "recommended", "optional", "feature".
+  attribute type { text },
+  ## Version of the advisory metadata itself (integer string,
+  ## incremented when the advisory is revised).
+  attribute version { text },
+
+  element id { text }
+  & element title { text }
+  & ## Usually a self-closing element with a date attribute, but has been
+    ## seen in the wild with the timestamp as element text content instead
+    ## (per libzypp). Common date formats: "YYYY-MM-DD HH:MM:SS",
+    ## "YYYY-MM-DD HH:MM:SS UTC", or a Unix epoch timestamp.
+    element issued { attribute date { text } | text }?
+  & ## Same format as issued.
+    element updated { attribute date { text } | text }?
+  & element rights { text }?
+  & element release { text }?
+  & element pushcount { text }?
+  & element severity { text }?
+  & element summary { text }?
+  & element description { text }?
+  & element solution { text }?
+  & element message { text }?
+  & element reboot_suggested { text }?
+  & element references { reference* }?
+  & element pkglist { collection* }?
+}
+
+# ======================================================================
+# Reference (bugzilla, CVE, errata link)
+# ======================================================================
+
+reference = element reference {
+  ## URL to the external resource.
+  attribute href { xsd:anyURI },
+  ## Identifier within the external system (bug number, CVE ID,
+  ## errata ID). May be absent for type="self" references.
+  attribute id { text }?,
+  ## Reference type. Common values: "bugzilla", "cve", "self", "vendor".
+  attribute type { text },
+  ## Human-readable title or description.
+  attribute title { text }
+}
+
+# ======================================================================
+# Package collection
+# ======================================================================
+
+## A collection of packages, optionally associated with a module stream.
+collection = element collection {
+  ## Short identifier for the collection (e.g. "rhel-9-baseos", "F40").
+  attribute short { text }?,
+
+  element name { text }?
+  & module?
+  & package*
+}
+
+## Module stream metadata (NSVCA).
+module = element module {
+  attribute name { text },
+  attribute stream { text },
+  attribute version { xsd:unsignedLong },
+  attribute context { text },
+  attribute arch { text }
+}
+
+## A package affected by the advisory.
+package = element package {
+  attribute name { text },
+  attribute epoch { text },
+  attribute version { text },
+  attribute release { text },
+  attribute arch { text },
+  ## Source RPM filename.
+  attribute src { text }?,
+
+  element filename { text }?
+  & ## Package checksum as element text, with algorithm in the type attribute.
+    element sum {
+      ## Checksum algorithm (e.g. "sha256", "sha1", "md5").
+      attribute type { text },
+      text
+    }?
+  & element reboot_suggested { text }?
+  & element restart_suggested { text }?
+  & element relogin_suggested { text }?
+}
