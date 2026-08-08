@@ -469,7 +469,10 @@ fn test_supportinfo_fixtures_al2023() -> Result<(), MetadataError> {
 
             // display_name and description on package origin
             let origin = &data.package_origins[0];
-            assert_eq!(origin.display_name.as_deref(), Some("Amazon Linux 2023 Core"));
+            assert_eq!(
+                origin.display_name.as_deref(),
+                Some("Amazon Linux 2023 Core")
+            );
             assert_eq!(
                 origin.description.as_deref(),
                 Some("Core Amazon Linux 2023 repository containing base OS packages")
