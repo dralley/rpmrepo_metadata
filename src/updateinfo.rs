@@ -20,6 +20,15 @@ use crate::visitor::UpdateinfoVisitor;
 use super::metadata::{RpmMetadata, UpdateRecord, UpdateinfoXml};
 use super::{MetadataError, Repository};
 
+/// Parse a boolean value from a `*_suggested` element.
+///
+/// Matches libsolv's behavior: content starting with `T`, `t`, or `1` is true,
+/// everything else (including empty content) is false. This accepts `True`,
+/// `true`, `TRUE`, and `1` while rejecting `False`, `false`, `0`, and empty.
+fn parse_suggested_flag(val: &[u8]) -> bool {
+    matches!(val.first(), Some(b'T' | b't' | b'1'))
+}
+
 impl RpmMetadata for UpdateinfoXml {
     fn filename() -> &'static str {
         "updateinfo.xml"
@@ -688,21 +697,21 @@ fn parse_updateinfo_pkglist<R: BufRead, V: UpdateinfoVisitor>(
                 TAG_REBOOT_SUGGESTED => {
                     let val =
                         reader.read_text_into(QName(TAG_REBOOT_SUGGESTED.as_bytes()), text_buf)?;
-                    if val.as_ref() == b"1" || val.as_ref() == b"True" {
+                    if parse_suggested_flag(val.as_ref()) {
                         visitor.set_package_reboot_suggested();
                     }
                 }
                 TAG_RESTART_SUGGESTED => {
                     let val =
                         reader.read_text_into(QName(TAG_RESTART_SUGGESTED.as_bytes()), text_buf)?;
-                    if val.as_ref() == b"1" || val.as_ref() == b"True" {
+                    if parse_suggested_flag(val.as_ref()) {
                         visitor.set_package_restart_suggested();
                     }
                 }
                 TAG_RELOGIN_SUGGESTED => {
                     let val =
                         reader.read_text_into(QName(TAG_RELOGIN_SUGGESTED.as_bytes()), text_buf)?;
-                    if val.as_ref() == b"1" || val.as_ref() == b"True" {
+                    if parse_suggested_flag(val.as_ref()) {
                         visitor.set_package_relogin_suggested();
                     }
                 }
