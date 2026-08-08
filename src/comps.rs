@@ -206,7 +206,7 @@ impl<W: Write> CompsXmlWriter<W> {
                 if let Some(requires) = &pkg.requires {
                     req_tag.push_attribute(("requires", requires.as_str()));
                 }
-                if pkg.basearchonly {
+                if pkg.basearchonly == Some(true) {
                     req_tag.push_attribute(("basearchonly", "true"));
                 }
                 self.writer.write_event(Event::Start(req_tag.borrow()))?;
@@ -522,7 +522,7 @@ impl CompsVisitor for CompsMaterializer {
         name: &str,
         reqtype: &str,
         requires: Option<&str>,
-        basearchonly: bool,
+        basearchonly: Option<bool>,
     ) {
         if let Some(g) = self.current_group.as_mut() {
             g.packages.push(CompsPackageReq {
@@ -788,7 +788,7 @@ fn parse_comps_packagelist<R: BufRead, V: CompsVisitor>(
             Event::Start(e) if e.name().as_ref() == TAG_PACKAGEREQ.as_bytes() => {
                 let mut type_cow = None;
                 let mut requires_cow = None;
-                let mut basearchonly = false;
+                let mut basearchonly = None;
 
                 for attr_result in e.attributes() {
                     let attr = attr_result?;
@@ -797,7 +797,7 @@ fn parse_comps_packagelist<R: BufRead, V: CompsVisitor>(
                         b"requires" => requires_cow = Some(resolve_attr(&attr)?),
                         b"basearchonly" => {
                             if let Ok(v) = resolve_attr(&attr) {
-                                basearchonly = parse_bool(&v);
+                                basearchonly = Some(parse_bool(&v));
                             }
                         }
                         _ => (),

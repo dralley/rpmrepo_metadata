@@ -1904,12 +1904,12 @@ mod rpmrepo_metadata {
     #[pymethods]
     impl CompsPackageReq {
         #[new]
-        #[pyo3(signature = (name="".to_string(), reqtype="default".to_string(), requires=None, basearchonly=false))]
+        #[pyo3(signature = (name="".to_string(), reqtype="default".to_string(), requires=None, basearchonly=None))]
         fn new(
             name: String,
             reqtype: String,
             requires: Option<String>,
-            basearchonly: bool,
+            basearchonly: Option<bool>,
         ) -> Self {
             Self {
                 inner: crate::CompsPackageReq {
@@ -1941,7 +1941,7 @@ mod rpmrepo_metadata {
 
         /// Whether this package is only for the base architecture.
         #[getter]
-        fn basearchonly(&self) -> bool {
+        fn basearchonly(&self) -> Option<bool> {
             self.inner.basearchonly
         }
 
@@ -3010,6 +3010,33 @@ mod rpmrepo_metadata {
         fn __eq__(&self, other: &SupportInfoNote) -> bool {
             self.inner == other.inner
         }
+    }
+
+    /// String constants for the known comps package requirement types.
+    ///
+    /// Compare directly against `CompsPackageReq.reqtype`:
+    ///
+    /// ```text
+    /// if pkg.reqtype == PackageReqType.MANDATORY:
+    ///     ...
+    /// ```
+    #[pyclass(frozen)]
+    struct PackageReqType;
+
+    #[pymethods]
+    impl PackageReqType {
+        /// Installed by default but can be deselected.
+        #[classattr]
+        const DEFAULT: &'static str = "default";
+        /// Always installed, cannot be deselected.
+        #[classattr]
+        const MANDATORY: &'static str = "mandatory";
+        /// Available but not installed by default.
+        #[classattr]
+        const OPTIONAL: &'static str = "optional";
+        /// Installed only when a specific language package is present.
+        #[classattr]
+        const CONDITIONAL: &'static str = "conditional";
     }
 
     /// Checksum algorithm used for package and metadata file verification.

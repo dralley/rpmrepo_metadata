@@ -41,7 +41,7 @@ pub use metadata::{
 };
 pub use metadata::{
     CompsCategory, CompsData, CompsEnvironment, CompsEnvironmentOption, CompsGroup, CompsLangpack,
-    CompsPackageReq, CompsXml,
+    CompsPackageReq, CompsXml, PackageReqType,
 };
 #[cfg(feature = "supportinfo")]
 pub use metadata::{
