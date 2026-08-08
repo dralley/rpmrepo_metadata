@@ -375,6 +375,14 @@ mod rpmrepo_metadata {
 
     #[pymethods]
     impl CompsData {
+        /// Create a new empty CompsData.
+        #[new]
+        fn new() -> Self {
+            CompsData {
+                inner: crate::CompsData::default(),
+            }
+        }
+
         /// Parse comps metadata from an XML string.
         #[staticmethod]
         fn from_xml(xml: &str) -> PyResult<CompsData> {
@@ -402,6 +410,12 @@ mod rpmrepo_metadata {
                 .collect()
         }
 
+        /// Set the package groups.
+        #[setter]
+        fn set_groups(&mut self, py: Python<'_>, groups: Vec<Py<CompsGroup>>) {
+            self.inner.groups = groups.iter().map(|g| g.borrow(py).inner.clone()).collect();
+        }
+
         /// Categories that organize groups into higher-level groupings.
         #[getter]
         fn categories(&self) -> Vec<CompsCategory> {
@@ -410,6 +424,15 @@ mod rpmrepo_metadata {
                 .iter()
                 .map(|c| CompsCategory { inner: c.clone() })
                 .collect()
+        }
+
+        /// Set the categories.
+        #[setter]
+        fn set_categories(&mut self, py: Python<'_>, categories: Vec<Py<CompsCategory>>) {
+            self.inner.categories = categories
+                .iter()
+                .map(|c| c.borrow(py).inner.clone())
+                .collect();
         }
 
         /// Environments defining complete installation profiles.
@@ -422,6 +445,15 @@ mod rpmrepo_metadata {
                 .collect()
         }
 
+        /// Set the environments.
+        #[setter]
+        fn set_environments(&mut self, py: Python<'_>, environments: Vec<Py<CompsEnvironment>>) {
+            self.inner.environments = environments
+                .iter()
+                .map(|e| e.borrow(py).inner.clone())
+                .collect();
+        }
+
         /// Langpack mappings associating packages with language pack patterns.
         #[getter]
         fn langpacks(&self) -> Vec<CompsLangpack> {
@@ -430,6 +462,15 @@ mod rpmrepo_metadata {
                 .iter()
                 .map(|l| CompsLangpack { inner: l.clone() })
                 .collect()
+        }
+
+        /// Set the langpack mappings.
+        #[setter]
+        fn set_langpacks(&mut self, py: Python<'_>, langpacks: Vec<Py<CompsLangpack>>) {
+            self.inner.langpacks = langpacks
+                .iter()
+                .map(|l| l.borrow(py).inner.clone())
+                .collect();
         }
 
         fn __eq__(&self, other: &CompsData) -> bool {

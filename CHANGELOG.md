@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 0.6.1
+
+- Add some additional functions to the Python bindings necessary for authoring of comps metadata.
+
 ## 0.6.0
 
 ### Added
