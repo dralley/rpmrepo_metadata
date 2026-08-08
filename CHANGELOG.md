@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 0.6.0
+
 ### Added
 
 - Parsing and writing support for `supportinfo.xml` (DNF plugin package support information), via `SupportInfoXmlReader`, `SupportInfoXmlWriter`, and the `SupportInfoVisitor` trait. Support is gated by the "supportinfo" feature flag, which is disabled by default.
+
+### Fixed
+
+- A number of inconsistencies related to comps and updateinfo parsing.
 
 ## 0.5.0
 
