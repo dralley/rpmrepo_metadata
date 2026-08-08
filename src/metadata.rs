@@ -1623,6 +1623,36 @@ pub struct CompsGroup {
     pub packages: Vec<CompsPackageReq>,
 }
 
+/// Known package requirement types within a comps group.
+///
+/// The `reqtype` field on [`CompsPackageReq`] is stored as a string to
+/// preserve unrecognized values. This enum provides named constants for
+/// the four standard types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PackageReqType {
+    Default,
+    Mandatory,
+    Optional,
+    Conditional,
+}
+
+impl PackageReqType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            PackageReqType::Default => "default",
+            PackageReqType::Mandatory => "mandatory",
+            PackageReqType::Optional => "optional",
+            PackageReqType::Conditional => "conditional",
+        }
+    }
+}
+
+impl std::fmt::Display for PackageReqType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// A package requirement within a comps group.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct CompsPackageReq {
@@ -1633,7 +1663,7 @@ pub struct CompsPackageReq {
     /// A conditional requirement expression (used with `conditional` type packages).
     pub requires: Option<String>,
     /// Whether this package is only for the base architecture.
-    pub basearchonly: bool,
+    pub basearchonly: Option<bool>,
 }
 
 /// A category from comps.xml, organizing groups into higher-level groupings.

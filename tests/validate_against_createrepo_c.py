@@ -58,6 +58,7 @@ def compare_updaterecord(rpmrepo_updaterec, cr_updaterec):
     assert rpmrepo_updaterec.summary == cr_updaterec.summary, "summary"
     assert rpmrepo_updaterec.description == cr_updaterec.description, "description"
     assert rpmrepo_updaterec.solution == cr_updaterec.solution, "solution"
+    assert rpmrepo_updaterec.reboot_suggested == cr_updaterec.reboot_suggested, "reboot_suggested"
 
     for rpmrepo_updateref, cr_updateref in zip(rpmrepo_updaterec.references, cr_updaterec.references):
         assert rpmrepo_updateref.href == cr_updateref.href, "href"

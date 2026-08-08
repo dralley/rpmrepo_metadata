@@ -66,8 +66,8 @@ fn test_comps_xml_read_fixture() -> Result<(), MetadataError> {
 
     // Verify basearchonly
     let g = &groups[4]; // d-development
-    assert_eq!(g.packages[0].basearchonly, true);
-    assert_eq!(g.packages[4].basearchonly, false);
+    assert_eq!(g.packages[0].basearchonly, Some(true));
+    assert_eq!(g.packages[4].basearchonly, None);
 
     // Verify empty packagelist
     let g = &groups[5];

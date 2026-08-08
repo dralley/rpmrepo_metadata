@@ -203,7 +203,7 @@ pub trait CompsVisitor {
         name: &str,
         reqtype: &str,
         requires: Option<&str>,
-        basearchonly: bool,
+        basearchonly: Option<bool>,
     ) {
     }
     fn end_group(&mut self) {}
