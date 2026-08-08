@@ -66,6 +66,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .to_string(),
         ),
         solution: Some("Update to the latest version.".to_string()),
+        message: None,
+        reboot_suggested: false,
         references: vec![
             UpdateReference {
                 href: "https://cve.example.com/CVE-2025-0001".to_string(),

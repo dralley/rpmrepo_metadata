@@ -1145,7 +1145,7 @@ mod rpmrepo_metadata {
     impl UpdateRecord {
         #[allow(clippy::too_many_arguments)]
         #[new]
-        #[pyo3(signature = (id="".to_string(), title="".to_string(), update_type="".to_string(), fromstr="".to_string(), status="".to_string(), version="".to_string(), severity=None, summary=None, description=None, solution=None, rights=None, release=None, issued_date=None, updated_date=None, pushcount=None))]
+        #[pyo3(signature = (id="".to_string(), title="".to_string(), update_type="".to_string(), fromstr="".to_string(), status="".to_string(), version="".to_string(), severity=None, summary=None, description=None, solution=None, message=None, rights=None, release=None, issued_date=None, updated_date=None, pushcount=None, reboot_suggested=false))]
         fn new(
             id: String,
             title: String,
@@ -1157,11 +1157,13 @@ mod rpmrepo_metadata {
             summary: Option<String>,
             description: Option<String>,
             solution: Option<String>,
+            message: Option<String>,
             rights: Option<String>,
             release: Option<String>,
             issued_date: Option<String>,
             updated_date: Option<String>,
             pushcount: Option<String>,
+            reboot_suggested: bool,
         ) -> Self {
             Self {
                 inner: crate::UpdateRecord {
@@ -1175,6 +1177,8 @@ mod rpmrepo_metadata {
                     summary,
                     description,
                     solution,
+                    message,
+                    reboot_suggested,
                     rights,
                     release,
                     issued_date,
@@ -1276,6 +1280,19 @@ mod rpmrepo_metadata {
             self.inner.solution = val;
         }
 
+        /// Set the informative message.
+        #[setter]
+        fn set_message(&mut self, val: Option<String>) {
+            self.inner.message = val;
+        }
+
+        /// Set whether a reboot is suggested for the advisory as a whole.
+        #[setter]
+        fn set_reboot_suggested(&mut self, val: bool) {
+            self.inner.reboot_suggested = val;
+        }
+
+        /// Set the external references for this advisory.
         #[setter]
         fn set_references(&mut self, py: Python<'_>, refs: Vec<Py<UpdateReference>>) {
             self.inner.references = refs.iter().map(|r| r.borrow(py).inner.clone()).collect();
@@ -1377,6 +1394,19 @@ mod rpmrepo_metadata {
             self.inner.solution.as_deref()
         }
 
+        /// Informative message (e.g. reboot instructions).
+        #[getter]
+        fn message(&self) -> Option<&str> {
+            self.inner.message.as_deref()
+        }
+
+        /// Whether a reboot is suggested for the advisory as a whole.
+        #[getter]
+        fn reboot_suggested(&self) -> bool {
+            self.inner.reboot_suggested
+        }
+
+        /// External references (bugzilla, CVE, etc.) associated with this advisory.
         #[getter]
         fn references(&self) -> Vec<UpdateReference> {
             self.inner
