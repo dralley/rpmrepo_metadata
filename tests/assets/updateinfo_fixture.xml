@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<updates>
+<update from="security@redhat.com" status="final" type="security" version="3">
+  <id>RHSA-2024:1234</id>
+  <title>Important: kernel security update</title>
+  <issued date="2024-03-15 00:00:00"/>
+  <updated date="2024-03-16 12:00:00"/>
+  <rights>Copyright 2024 Red Hat, Inc.</rights>
+  <release>Red Hat Enterprise Linux 9</release>
+  <pushcount>2</pushcount>
+  <severity>Important</severity>
+  <summary>An update for kernel is now available.</summary>
+  <description>The kernel packages contain the Linux kernel.
+
+Security Fix(es):
+* kernel: use-after-free in net/sched (CVE-2024-0001)</description>
+  <solution>Before applying this update, make sure all previously released
+errata relevant to your system have been applied.</solution>
+  <message>A reboot is required to apply this update to the running kernel.</message>
+  <reboot_suggested>True</reboot_suggested>
+  <references>
+    <reference href="https://access.redhat.com/errata/RHSA-2024:1234" id="RHSA-2024:1234" type="self" title="RHSA-2024:1234"/>
+    <reference href="https://bugzilla.redhat.com/show_bug.cgi?id=2261234" id="2261234" type="bugzilla" title="kernel: use-after-free in net/sched"/>
+    <reference href="https://access.redhat.com/security/cve/CVE-2024-0001" id="CVE-2024-0001" type="cve" title="CVE-2024-0001"/>
+  </references>
+  <pkglist>
+    <collection short="rhel-9-baseos">
+      <name>Red Hat Enterprise Linux 9 BaseOS</name>
+      <package name="kernel" version="5.14.0" release="362.24.1.el9_3" epoch="0" arch="x86_64" src="kernel-5.14.0-362.24.1.el9_3.src.rpm">
+        <filename>kernel-5.14.0-362.24.1.el9_3.x86_64.rpm</filename>
+        <sum type="sha256">8e214681104e4ba73726e0ce11d21b963ec0390fd70458d439ddc72372082034</sum>
+        <reboot_suggested>True</reboot_suggested>
+      </package>
+      <package name="kernel-core" version="5.14.0" release="362.24.1.el9_3" epoch="0" arch="x86_64" src="kernel-5.14.0-362.24.1.el9_3.src.rpm">
+        <filename>kernel-core-5.14.0-362.24.1.el9_3.x86_64.rpm</filename>
+        <sum type="sha256">abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890</sum>
+        <reboot_suggested>True</reboot_suggested>
+      </package>
+    </collection>
+  </pkglist>
+</update>
+<update from="updates@fedoraproject.org" status="stable" type="enhancement" version="2">
+  <id>FEDORA-2024-abc123def4</id>
+  <title>nano-7.2-3.fc40</title>
+  <issued date="2024-01-15 04:10:31"/>
+  <updated date="2024-01-16 01:23:45"/>
+  <severity>None</severity>
+  <summary>Update to nano 7.2 with improvements.</summary>
+  <description>This update provides nano 7.2.</description>
+  <references>
+    <reference href="https://bugzilla.redhat.com/show_bug.cgi?id=2261235" id="2261235" type="bugzilla" title="nano-7.2 is available"/>
+  </references>
+  <pkglist>
+    <collection short="F40">
+      <name>Fedora 40</name>
+      <package name="nano" version="7.2" release="3.fc40" epoch="0" arch="x86_64" src="nano-7.2-3.fc40.src.rpm">
+        <filename>nano-7.2-3.fc40.x86_64.rpm</filename>
+        <sum type="sha256">29be985e1f652cd0a29ceed6a1c49964d3618bddd22f0be3292421c8777d26c8</sum>
+      </package>
+      <package name="nano" version="7.2" release="3.fc40" epoch="0" arch="aarch64" src="nano-7.2-3.fc40.src.rpm">
+        <filename>nano-7.2-3.fc40.aarch64.rpm</filename>
+      </package>
+    </collection>
+  </pkglist>
+</update>
+<update from="updates@fedoraproject.org" status="stable" type="bugfix" version="1">
+  <id>FEDORA-2024-modular001</id>
+  <title>perl-DBI-1.643-1.module update</title>
+  <issued date="2024-02-01 10:00:00"/>
+  <severity>Low</severity>
+  <description>Module update for perl-DBI.</description>
+  <references/>
+  <pkglist>
+    <collection short="F40-modular">
+      <name>Fedora 40 Modular</name>
+      <module name="perl-DBI" stream="1.643" version="8010020190322130042" context="16b3ab4d" arch="x86_64"/>
+      <package name="perl-DBI" version="1.643" release="1.module_f40" epoch="0" arch="x86_64">
+        <filename>perl-DBI-1.643-1.module_f40.x86_64.rpm</filename>
+        <restart_suggested>True</restart_suggested>
+      </package>
+    </collection>
+  </pkglist>
+</update>
+<update from="updates@fedoraproject.org" status="stable" type="bugfix" version="1">
+  <id>FEDORA-2024-minimal001</id>
+  <title>Minimal advisory</title>
+  <issued date="2024-06-01 00:00:00"/>
+  <references/>
+  <pkglist/>
+</update>
+</updates>
