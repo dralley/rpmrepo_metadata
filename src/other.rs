@@ -198,11 +198,11 @@ pub fn parse_other_package<R: BufRead, V: OtherVisitor>(
 
     loop {
         match reader.read_event_into(&mut buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_PACKAGE.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_PACKAGE => {
                 visitor.end_package();
                 return Ok(true);
             }
-            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
+            Event::Start(e) => match e.name().as_ref() {
                 TAG_PACKAGE => {
                     let mut pkgid_cow = None;
                     let mut name_cow = None;
@@ -211,9 +211,9 @@ pub fn parse_other_package<R: BufRead, V: OtherVisitor>(
                     for attr_result in e.attributes() {
                         let attr = attr_result?;
                         match attr.key.as_ref() {
-                            b"pkgid" => pkgid_cow = Some(resolve_attr(&attr)?),
-                            b"name" => name_cow = Some(resolve_attr(&attr)?),
-                            b"arch" => arch_cow = Some(resolve_attr(&attr)?),
+                            "pkgid" => pkgid_cow = Some(resolve_attr(&attr)?),
+                            "name" => name_cow = Some(resolve_attr(&attr)?),
+                            "arch" => arch_cow = Some(resolve_attr(&attr)?),
                             _ => (),
                         }
                     }
@@ -234,8 +234,8 @@ pub fn parse_other_package<R: BufRead, V: OtherVisitor>(
                     for attr_result in e.attributes() {
                         let attr = attr_result?;
                         match attr.key.as_ref() {
-                            b"author" => author_cow = Some(resolve_attr(&attr)?),
-                            b"date" => date_cow = Some(resolve_attr(&attr)?),
+                            "author" => author_cow = Some(resolve_attr(&attr)?),
+                            "date" => date_cow = Some(resolve_attr(&attr)?),
                             _ => (),
                         }
                     }

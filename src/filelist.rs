@@ -160,7 +160,7 @@ pub(crate) fn write_file_entry<W: Write>(
 ) -> Result<(), MetadataError> {
     let mut file_tag = BytesStart::new(TAG_FILE);
     if filetype != FileType::File {
-        file_tag.push_attribute(("type".as_bytes(), filetype.to_values()));
+        file_tag.push_attribute(("type", filetype.to_values()));
     }
     writer.write_event(Event::Start(file_tag.borrow()))?;
     writer.write_event(Event::Text(BytesText::new(path)))?;
@@ -213,11 +213,11 @@ pub fn parse_filelists_package<R: BufRead, V: FilelistsVisitor>(
 
     loop {
         match reader.read_event_into(&mut buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_PACKAGE.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_PACKAGE => {
                 visitor.end_package();
                 return Ok(true);
             }
-            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
+            Event::Start(e) => match e.name().as_ref() {
                 TAG_PACKAGE => {
                     let mut pkgid_cow = None;
                     let mut name_cow = None;
@@ -226,9 +226,9 @@ pub fn parse_filelists_package<R: BufRead, V: FilelistsVisitor>(
                     for attr_result in e.attributes() {
                         let attr = attr_result?;
                         match attr.key.as_ref() {
-                            b"pkgid" => pkgid_cow = Some(resolve_attr(&attr)?),
-                            b"name" => name_cow = Some(resolve_attr(&attr)?),
-                            b"arch" => arch_cow = Some(resolve_attr(&attr)?),
+                            "pkgid" => pkgid_cow = Some(resolve_attr(&attr)?),
+                            "name" => name_cow = Some(resolve_attr(&attr)?),
+                            "arch" => arch_cow = Some(resolve_attr(&attr)?),
                             _ => (),
                         }
                     }
