@@ -71,13 +71,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         references: vec![
             UpdateReference {
                 href: "https://cve.example.com/CVE-2025-0001".to_string(),
-                id: Some("CVE-2025-0001".to_string()),
+                id: "CVE-2025-0001".to_string(),
                 reftype: "cve".to_string(),
                 title: "CVE-2025-0001".to_string(),
             },
             UpdateReference {
                 href: "https://bugzilla.example.com/12345".to_string(),
-                id: Some("12345".to_string()),
+                id: "12345".to_string(),
                 reftype: "bugzilla".to_string(),
                 title: "Example package crashes on startup".to_string(),
             },

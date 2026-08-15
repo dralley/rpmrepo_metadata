@@ -1545,12 +1545,23 @@ pub struct UpdateCollection {
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct UpdateReference {
     /// The URL of the external reference.
+    ///
+    /// May be empty in rare cases. When writing, empty strings are omitted.
     pub href: String,
     /// The identifier of the reference (e.g. bug number, CVE ID).
-    pub id: Option<String>,
+    ///
+    /// May be empty for `type="self"` references or documentation links.
+    /// When writing, empty strings are omitted.
+    pub id: String,
     /// The human-readable title of the reference.
+    ///
+    /// May be empty for `type="other"` documentation references. RHEL 6 and
+    /// AlmaLinux 8 have thousands of references with `title=""` pointing to
+    /// release notes pages. When writing, empty strings are omitted.
     pub title: String,
-    /// The type of reference (e.g. `bugzilla`, `cve`, `self`).
+    /// The type of reference (e.g. `bugzilla`, `cve`, `self`, `other`).
+    ///
+    /// May be empty in rare cases. When writing, empty strings are omitted.
     pub reftype: String,
 }
 
