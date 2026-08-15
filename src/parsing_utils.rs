@@ -40,7 +40,7 @@ pub(crate) fn resolve_attr<'a>(
 pub(crate) fn resolve_text<'a>(
     text: &quick_xml::events::BytesText<'a>,
 ) -> Result<Cow<'a, str>, MetadataError> {
-    match text.xml_content(XML_VERSION)? {
+    match text.xml_content(XML_VERSION) {
         Cow::Borrowed(s) => {
             // s borrows from the buffer with lifetime 'a — unescape preserves it
             Ok(quick_xml::escape::unescape(s)?)
@@ -74,9 +74,9 @@ pub fn parse_header_tag<R: BufRead>(
     loop {
         match reader.read_event_into(&mut buf)? {
             Event::Decl(_) => (),
-            Event::Start(e) if e.name().as_ref() == expected_tag.as_bytes() => {
+            Event::Start(e) if e.name().as_ref() == expected_tag => {
                 let count = e.try_get_attribute("packages")?.unwrap().value;
-                return Ok(std::str::from_utf8(&count)?.parse()?);
+                return Ok(count.parse()?);
             }
             _ => return Err(MetadataError::MissingHeaderError),
         }
@@ -95,9 +95,9 @@ pub fn parse_evr_from_tag<'a>(
     for attr_result in tag.attributes() {
         let attr = attr_result?;
         match attr.key.as_ref() {
-            b"epoch" => epoch = resolve_attr(&attr)?,
-            b"ver" => version_cow = Some(resolve_attr(&attr)?),
-            b"rel" => release_cow = Some(resolve_attr(&attr)?),
+            "epoch" => epoch = resolve_attr(&attr)?,
+            "ver" => version_cow = Some(resolve_attr(&attr)?),
+            "rel" => release_cow = Some(resolve_attr(&attr)?),
             _ => (),
         }
     }

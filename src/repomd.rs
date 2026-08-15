@@ -139,7 +139,7 @@ fn read_repomd_xml<R: BufRead>(
 
     loop {
         match reader.read_event_into(&mut event_buf)? {
-            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
+            Event::Start(e) => match e.name().as_ref() {
                 TAG_REPOMD => {
                     found_metadata_tag = true;
                 }
@@ -162,42 +162,37 @@ fn read_repomd_xml<R: BufRead>(
                     //   </tags>
                     loop {
                         match reader.read_event_into(&mut event_buf)? {
-                            Event::Start(e) => {
-                                match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
-                                    TAG_DISTRO => {
-                                        let cpeid = e
-                                            .try_get_attribute("cpeid")?
-                                            .map(|a| resolve_attr(&a))
-                                            .transpose()?
-                                            .map(|a| a.to_string());
-                                        let name = reader
-                                            .read_text_into(
-                                                QName(TAG_DISTRO.as_bytes()),
-                                                &mut text_buf,
-                                            )?
-                                            .xml_text()?
-                                            .to_string();
-                                        repomd_data.add_distro_tag(name, cpeid);
-                                    }
-                                    TAG_REPO => {
-                                        let repo = reader
-                                            .read_text_into(e.name(), &mut text_buf)?
-                                            .xml_text()?
-                                            .to_string();
-                                        repomd_data.add_repo_tag(repo);
-                                    }
-                                    TAG_CONTENT => {
-                                        let content = reader
-                                            .read_text_into(e.name(), &mut text_buf)?
-                                            .xml_text()?
-                                            .to_string();
-                                        repomd_data.add_content_tag(content);
-                                    }
-                                    _ => (),
+                            Event::Start(e) => match e.name().as_ref() {
+                                TAG_DISTRO => {
+                                    let cpeid = e
+                                        .try_get_attribute("cpeid")?
+                                        .map(|a| resolve_attr(&a))
+                                        .transpose()?
+                                        .map(|a| a.to_string());
+                                    let name = reader
+                                        .read_text_into(QName(TAG_DISTRO), &mut text_buf)?
+                                        .xml_text()?
+                                        .to_string();
+                                    repomd_data.add_distro_tag(name, cpeid);
                                 }
-                            }
+                                TAG_REPO => {
+                                    let repo = reader
+                                        .read_text_into(e.name(), &mut text_buf)?
+                                        .xml_text()?
+                                        .to_string();
+                                    repomd_data.add_repo_tag(repo);
+                                }
+                                TAG_CONTENT => {
+                                    let content = reader
+                                        .read_text_into(e.name(), &mut text_buf)?
+                                        .xml_text()?
+                                        .to_string();
+                                    repomd_data.add_content_tag(content);
+                                }
+                                _ => (),
+                            },
 
-                            Event::End(e) if e.name().as_ref() == TAG_TAGS.as_bytes() => break,
+                            Event::End(e) if e.name().as_ref() == TAG_TAGS => break,
                             _ => (),
                         }
                         text_buf.clear();
@@ -230,23 +225,23 @@ pub fn parse_repomdrecord<R: BufRead>(
     reader: &mut Reader<R>,
     open_tag: &BytesStart,
 ) -> Result<RepomdRecord, MetadataError> {
-    let mut record_builder = RepomdRecordBuilder::default();
-
-    let record_type = open_tag
+    let metadata_name = open_tag
         .try_get_attribute("type")?
         .ok_or(MetadataError::MissingAttributeError("type"))?
         .value
-        .iter()
-        .cloned()
-        .collect();
-    record_builder.metadata_name = String::from_utf8(record_type).map_err(|e| e.utf8_error())?; // TODO weird conversion
+        .into_owned();
+
+    let mut record_builder = RepomdRecordBuilder {
+        metadata_name,
+        ..RepomdRecordBuilder::default()
+    };
 
     let mut buf = Vec::new();
     let mut record_buf = Vec::new();
 
     loop {
         match reader.read_event_into(&mut buf)? {
-            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
+            Event::Start(e) => match e.name().as_ref() {
                 TAG_CHECKSUM => {
                     let checksum_type = e
                         .try_get_attribute("type")?
@@ -257,7 +252,7 @@ pub fn parse_repomdrecord<R: BufRead>(
                         .to_string();
                     let checksum = Checksum::try_create(
                         checksum_type.value.as_ref(),
-                        checksum_value.as_bytes(),
+                        checksum_value.as_str(),
                     )?;
                     record_builder.checksum = Some(checksum);
                 }
@@ -271,7 +266,7 @@ pub fn parse_repomdrecord<R: BufRead>(
                         .to_string();
                     let checksum = Checksum::try_create(
                         checksum_type.value.as_ref(),
-                        checksum_value.as_bytes(),
+                        checksum_value.as_str(),
                     )?;
                     record_builder.open_checksum = Some(checksum);
                 }
@@ -285,7 +280,7 @@ pub fn parse_repomdrecord<R: BufRead>(
                         .to_string();
                     let checksum = Checksum::try_create(
                         checksum_type.value.as_ref(),
-                        checksum_value.as_bytes(),
+                        checksum_value.as_str(),
                     )?;
                     record_builder.header_checksum = Some(checksum);
                 }
@@ -337,7 +332,7 @@ pub fn parse_repomdrecord<R: BufRead>(
                 }
                 _ => (),
             },
-            Event::End(e) if e.name().as_ref() == TAG_DATA.as_bytes() => break,
+            Event::End(e) if e.name().as_ref() == TAG_DATA => break,
             _ => (),
         }
         record_buf.clear();
@@ -447,7 +442,7 @@ fn write_tags<W: Write>(
 fn write_data<W: Write>(data: &RepomdRecord, writer: &mut Writer<W>) -> Result<(), MetadataError> {
     // <data>
     let mut data_tag = BytesStart::new(TAG_DATA);
-    data_tag.push_attribute(("type".as_bytes(), data.metadata_name.as_bytes()));
+    data_tag.push_attribute(("type", data.metadata_name.as_str()));
     writer.write_event(Event::Start(data_tag.borrow()))?;
 
     // <checksum type="sha256">afdc6dc379e58d097ed0b350536812bc6a604bbce50c5c109d8d98e28301dc4b</checksum>
@@ -478,10 +473,7 @@ fn write_data<W: Write>(data: &RepomdRecord, writer: &mut Writer<W>) -> Result<(
     // <location href="repodata/primary.xml.gz">
     writer
         .create_element(TAG_LOCATION)
-        .with_attribute((
-            "href".as_bytes(),
-            data.location_href.as_os_str().as_encoded_bytes(),
-        ))
+        .with_attribute(("href", data.location_href.to_string_lossy().as_ref()))
         .write_empty()?;
 
     // <timestamp>1602869947</timestamp>

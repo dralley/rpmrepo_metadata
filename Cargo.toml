@@ -18,7 +18,7 @@ supportinfo = []
 default = ["read_rpm"]
 
 [dependencies]
-quick-xml = { version = "0.41", default-features = false }
+quick-xml = {  git = "https://github.com/tafia/quick-xml.git", default-features = false }
 # rayon = "1.5.1"
 thiserror = "2"
 niffler = { version = "3", features = ["bz2", "lzma", "gz", "zstd"], default-features = false }

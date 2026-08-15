@@ -109,7 +109,7 @@ fn parse_requirement_list_visitor(
 
     loop {
         match reader.read_event_into(&mut buf)? {
-            Event::Start(e) if e.name().as_ref() == TAG_RPM_ENTRY.as_bytes() => {
+            Event::Start(e) if e.name().as_ref() == TAG_RPM_ENTRY => {
                 let mut name_cow = None;
                 let mut flags = None;
                 let mut epoch_cow = None;
@@ -120,15 +120,15 @@ fn parse_requirement_list_visitor(
                 for attr_result in e.attributes() {
                     let attr = attr_result?;
                     match attr.key.as_ref() {
-                        b"name" => name_cow = Some(resolve_attr(&attr)?),
-                        b"flags" => {
+                        "name" => name_cow = Some(resolve_attr(&attr)?),
+                        "flags" => {
                             let val = resolve_attr(&attr)?;
                             flags = Some(RequirementType::try_from(val.as_ref())?);
                         }
-                        b"epoch" => epoch_cow = Some(resolve_attr(&attr)?),
-                        b"ver" => ver_cow = Some(resolve_attr(&attr)?),
-                        b"rel" => rel_cow = Some(resolve_attr(&attr)?),
-                        b"pre" => {
+                        "epoch" => epoch_cow = Some(resolve_attr(&attr)?),
+                        "ver" => ver_cow = Some(resolve_attr(&attr)?),
+                        "rel" => rel_cow = Some(resolve_attr(&attr)?),
+                        "pre" => {
                             let val = resolve_attr(&attr)?;
                             preinstall =
                                 val.as_ref() != "0" && !val.as_ref().eq_ignore_ascii_case("false");
@@ -183,22 +183,20 @@ pub fn parse_primary_package<R: BufRead, V: PrimaryVisitor>(
 
     loop {
         match reader.read_event_into(&mut buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_PACKAGE.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_PACKAGE => {
                 visitor.end_package();
                 return Ok(true);
             }
-            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
+            Event::Start(e) => match e.name().as_ref() {
                 TAG_PACKAGE => {}
                 TAG_NAME => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_NAME.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_NAME), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     pkg_name.clear();
                     pkg_name.push_str(&text);
                 }
                 TAG_ARCH => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_ARCH.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_ARCH), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     pkg_arch.clear();
                     pkg_arch.push_str(&text);
@@ -208,8 +206,7 @@ pub fn parse_primary_package<R: BufRead, V: PrimaryVisitor>(
                         .try_get_attribute("type")?
                         .ok_or(MetadataError::MissingAttributeError("type"))?;
                     let ctype = resolve_attr(&ctype_attr)?;
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_CHECKSUM.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_CHECKSUM), &mut text_buf)?;
                     let value = resolve_text(&bytes_text)?;
                     checksum_type.clear();
                     checksum_type.push_str(&ctype);
@@ -229,26 +226,23 @@ pub fn parse_primary_package<R: BufRead, V: PrimaryVisitor>(
                     pkg_release.push_str(&release);
                 }
                 TAG_SUMMARY => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_SUMMARY.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_SUMMARY), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_summary(&text);
                 }
                 TAG_DESCRIPTION => {
                     let bytes_text =
-                        reader.read_text_into(QName(TAG_DESCRIPTION.as_bytes()), &mut text_buf)?;
+                        reader.read_text_into(QName(TAG_DESCRIPTION), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_description(&text);
                 }
                 TAG_PACKAGER => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_PACKAGER.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_PACKAGER), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_packager(&text);
                 }
                 TAG_URL => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_URL.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_URL), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_url(&text);
                 }
@@ -259,8 +253,8 @@ pub fn parse_primary_package<R: BufRead, V: PrimaryVisitor>(
                     for attr_result in e.attributes() {
                         let attr = attr_result?;
                         match attr.key.as_ref() {
-                            b"file" => file = Some(resolve_attr(&attr)?.parse()?),
-                            b"build" => build = Some(resolve_attr(&attr)?.parse()?),
+                            "file" => file = Some(resolve_attr(&attr)?.parse()?),
+                            "build" => build = Some(resolve_attr(&attr)?.parse()?),
                             _ => (),
                         }
                     }
@@ -278,9 +272,9 @@ pub fn parse_primary_package<R: BufRead, V: PrimaryVisitor>(
                     for attr_result in e.attributes() {
                         let attr = attr_result?;
                         match attr.key.as_ref() {
-                            b"package" => package = Some(resolve_attr(&attr)?.parse()?),
-                            b"installed" => installed = Some(resolve_attr(&attr)?.parse()?),
-                            b"archive" => archive = Some(resolve_attr(&attr)?.parse()?),
+                            "package" => package = Some(resolve_attr(&attr)?.parse()?),
+                            "installed" => installed = Some(resolve_attr(&attr)?.parse()?),
+                            "archive" => archive = Some(resolve_attr(&attr)?.parse()?),
                             _ => (),
                         }
                     }
@@ -298,8 +292,8 @@ pub fn parse_primary_package<R: BufRead, V: PrimaryVisitor>(
                     for attr_result in e.attributes() {
                         let attr = attr_result?;
                         match attr.key.as_ref() {
-                            b"href" => href_cow = Some(resolve_attr(&attr)?),
-                            b"xml:base" => base_cow = Some(resolve_attr(&attr)?),
+                            "href" => href_cow = Some(resolve_attr(&attr)?),
+                            "xml:base" => base_cow = Some(resolve_attr(&attr)?),
                             _ => (),
                         }
                     }
@@ -331,35 +325,30 @@ fn parse_format_block<R: BufRead, V: PrimaryVisitor>(
 
     loop {
         match reader.read_event_into(buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_FORMAT.as_bytes() => break,
-            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
+            Event::End(e) if e.name().as_ref() == TAG_FORMAT => break,
+            Event::Start(e) => match e.name().as_ref() {
                 TAG_RPM_LICENSE => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_RPM_LICENSE.as_bytes()), text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_RPM_LICENSE), text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_rpm_license(&text);
                 }
                 TAG_RPM_VENDOR => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_RPM_VENDOR.as_bytes()), text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_RPM_VENDOR), text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_rpm_vendor(&text);
                 }
                 TAG_RPM_GROUP => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_RPM_GROUP.as_bytes()), text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_RPM_GROUP), text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_rpm_group(&text);
                 }
                 TAG_RPM_BUILDHOST => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_RPM_BUILDHOST.as_bytes()), text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_RPM_BUILDHOST), text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_rpm_buildhost(&text);
                 }
                 TAG_RPM_SOURCERPM => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_RPM_SOURCERPM.as_bytes()), text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_RPM_SOURCERPM), text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_rpm_sourcerpm(&text);
                 }
@@ -370,8 +359,8 @@ fn parse_format_block<R: BufRead, V: PrimaryVisitor>(
                     for attr_result in e.attributes() {
                         let attr = attr_result?;
                         match attr.key.as_ref() {
-                            b"start" => start = Some(resolve_attr(&attr)?.parse()?),
-                            b"end" => end = Some(resolve_attr(&attr)?.parse()?),
+                            "start" => start = Some(resolve_attr(&attr)?.parse()?),
+                            "end" => end = Some(resolve_attr(&attr)?.parse()?),
                             _ => (),
                         }
                     }

@@ -1004,23 +1004,23 @@ pub enum FileType {
 
 // TODO: this is unnecessary / not the best way
 impl FileType {
-    /// Parse a file type from its XML byte representation (`b"file"`, `b"dir"`, `b"ghost"`).
-    pub fn try_create<N: AsRef<[u8]> + Sized>(val: N) -> Result<Self, MetadataError> {
-        let ftype = match val.as_ref() {
-            b"dir" => FileType::Dir,
-            b"ghost" => FileType::Ghost,
-            b"file" => FileType::File,
+    /// Parse a file type from its XML string representation (`"file"`, `"dir"`, `"ghost"`).
+    pub fn try_create(val: &str) -> Result<Self, MetadataError> {
+        let ftype = match val {
+            "dir" => FileType::Dir,
+            "ghost" => FileType::Ghost,
+            "file" => FileType::File,
             _ => panic!(),
         };
         Ok(ftype)
     }
 
-    /// Return the XML byte representation of this file type.
-    pub fn to_values(&self) -> &[u8] {
+    /// Return the XML string representation of this file type.
+    pub fn to_values(&self) -> &str {
         match self {
-            FileType::File => b"file",
-            FileType::Dir => b"dir",
-            FileType::Ghost => b"ghost",
+            FileType::File => "file",
+            FileType::Dir => "dir",
+            FileType::Ghost => "ghost",
         }
     }
 }

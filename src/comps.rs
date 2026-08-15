@@ -652,7 +652,7 @@ pub fn parse_comps_item<R: BufRead, V: CompsVisitor>(
 
     loop {
         match reader.read_event_into(&mut buf)? {
-            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
+            Event::Start(e) => match e.name().as_ref() {
                 TAG_GROUP => {
                     parse_comps_group(reader, visitor)?;
                     return Ok(true);
@@ -689,20 +689,18 @@ fn parse_comps_group<R: BufRead, V: CompsVisitor>(
 
     loop {
         match reader.read_event_into(&mut buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_GROUP.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_GROUP => {
                 visitor.end_group();
                 return Ok(());
             }
-            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
+            Event::Start(e) => match e.name().as_ref() {
                 TAG_ID => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_ID.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_ID), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_group_id(&text);
                 }
                 TAG_NAME => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_NAME.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_NAME), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     let lang_attr = e.try_get_attribute("xml:lang")?;
                     let lang_cow = match &lang_attr {
@@ -713,7 +711,7 @@ fn parse_comps_group<R: BufRead, V: CompsVisitor>(
                 }
                 TAG_DESCRIPTION => {
                     let bytes_text =
-                        reader.read_text_into(QName(TAG_DESCRIPTION.as_bytes()), &mut text_buf)?;
+                        reader.read_text_into(QName(TAG_DESCRIPTION), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     let lang_attr = e.try_get_attribute("xml:lang")?;
                     let lang_cow = match &lang_attr {
@@ -723,32 +721,29 @@ fn parse_comps_group<R: BufRead, V: CompsVisitor>(
                     visitor.set_group_description(&text, lang_cow.as_deref());
                 }
                 TAG_DEFAULT => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_DEFAULT.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_DEFAULT), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_group_default(parse_bool(&text));
                 }
                 TAG_USERVISIBLE => {
                     let bytes_text =
-                        reader.read_text_into(QName(TAG_USERVISIBLE.as_bytes()), &mut text_buf)?;
+                        reader.read_text_into(QName(TAG_USERVISIBLE), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_group_uservisible(parse_bool(&text));
                 }
                 TAG_BIARCHONLY => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_BIARCHONLY.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_BIARCHONLY), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_group_biarchonly(parse_bool(&text));
                 }
                 TAG_LANGONLY => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_LANGONLY.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_LANGONLY), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_group_langonly(&text);
                 }
                 TAG_DISPLAY_ORDER => {
-                    let bytes_text = reader
-                        .read_text_into(QName(TAG_DISPLAY_ORDER.as_bytes()), &mut text_buf)?;
+                    let bytes_text =
+                        reader.read_text_into(QName(TAG_DISPLAY_ORDER), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_group_display_order(text.parse()?);
                 }
@@ -757,7 +752,7 @@ fn parse_comps_group<R: BufRead, V: CompsVisitor>(
                 }
                 _ => (),
             },
-            Event::Empty(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
+            Event::Empty(e) => match e.name().as_ref() {
                 TAG_PACKAGELIST => (),
                 TAG_DESCRIPTION => {
                     let lang_attr = e.try_get_attribute("xml:lang")?;
@@ -784,8 +779,8 @@ fn parse_comps_packagelist<R: BufRead, V: CompsVisitor>(
 ) -> Result<(), MetadataError> {
     loop {
         match reader.read_event_into(buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_PACKAGELIST.as_bytes() => break,
-            Event::Start(e) if e.name().as_ref() == TAG_PACKAGEREQ.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_PACKAGELIST => break,
+            Event::Start(e) if e.name().as_ref() == TAG_PACKAGEREQ => {
                 let mut type_cow = None;
                 let mut requires_cow = None;
                 let mut basearchonly = None;
@@ -793,9 +788,9 @@ fn parse_comps_packagelist<R: BufRead, V: CompsVisitor>(
                 for attr_result in e.attributes() {
                     let attr = attr_result?;
                     match attr.key.as_ref() {
-                        b"type" => type_cow = Some(resolve_attr(&attr)?),
-                        b"requires" => requires_cow = Some(resolve_attr(&attr)?),
-                        b"basearchonly" => {
+                        "type" => type_cow = Some(resolve_attr(&attr)?),
+                        "requires" => requires_cow = Some(resolve_attr(&attr)?),
+                        "basearchonly" => {
                             if let Ok(v) = resolve_attr(&attr) {
                                 basearchonly = Some(parse_bool(&v));
                             }
@@ -806,8 +801,7 @@ fn parse_comps_packagelist<R: BufRead, V: CompsVisitor>(
 
                 // libcomps defaults to "mandatory" when the type attribute is absent
                 let reqtype = type_cow.unwrap_or("mandatory".into());
-                let bytes_text =
-                    reader.read_text_into(QName(TAG_PACKAGEREQ.as_bytes()), text_buf)?;
+                let bytes_text = reader.read_text_into(QName(TAG_PACKAGEREQ), text_buf)?;
                 let name = resolve_text(&bytes_text)?;
                 visitor.add_group_package(&name, &reqtype, requires_cow.as_deref(), basearchonly);
             }
@@ -830,20 +824,18 @@ fn parse_comps_category<R: BufRead, V: CompsVisitor>(
 
     loop {
         match reader.read_event_into(&mut buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_CATEGORY.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_CATEGORY => {
                 visitor.end_category();
                 return Ok(());
             }
-            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
+            Event::Start(e) => match e.name().as_ref() {
                 TAG_ID => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_ID.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_ID), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_category_id(&text);
                 }
                 TAG_NAME => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_NAME.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_NAME), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     let lang_attr = e.try_get_attribute("xml:lang")?;
                     let lang_cow = match &lang_attr {
@@ -854,7 +846,7 @@ fn parse_comps_category<R: BufRead, V: CompsVisitor>(
                 }
                 TAG_DESCRIPTION => {
                     let bytes_text =
-                        reader.read_text_into(QName(TAG_DESCRIPTION.as_bytes()), &mut text_buf)?;
+                        reader.read_text_into(QName(TAG_DESCRIPTION), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     let lang_attr = e.try_get_attribute("xml:lang")?;
                     let lang_cow = match &lang_attr {
@@ -864,8 +856,8 @@ fn parse_comps_category<R: BufRead, V: CompsVisitor>(
                     visitor.set_category_description(&text, lang_cow.as_deref());
                 }
                 TAG_DISPLAY_ORDER => {
-                    let bytes_text = reader
-                        .read_text_into(QName(TAG_DISPLAY_ORDER.as_bytes()), &mut text_buf)?;
+                    let bytes_text =
+                        reader.read_text_into(QName(TAG_DISPLAY_ORDER), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_category_display_order(text.parse()?);
                 }
@@ -874,7 +866,7 @@ fn parse_comps_category<R: BufRead, V: CompsVisitor>(
                 }
                 _ => (),
             },
-            Event::Empty(e) if e.name().as_ref() == TAG_DESCRIPTION.as_bytes() => {
+            Event::Empty(e) if e.name().as_ref() == TAG_DESCRIPTION => {
                 let lang_attr = e.try_get_attribute("xml:lang")?;
                 let lang_cow = match &lang_attr {
                     Some(attr) => Some(resolve_attr(attr)?),
@@ -897,9 +889,9 @@ fn parse_comps_grouplist_category<R: BufRead, V: CompsVisitor>(
 ) -> Result<(), MetadataError> {
     loop {
         match reader.read_event_into(buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_GROUPLIST.as_bytes() => break,
-            Event::Start(e) if e.name().as_ref() == TAG_GROUPID.as_bytes() => {
-                let bytes_text = reader.read_text_into(QName(TAG_GROUPID.as_bytes()), text_buf)?;
+            Event::End(e) if e.name().as_ref() == TAG_GROUPLIST => break,
+            Event::Start(e) if e.name().as_ref() == TAG_GROUPID => {
+                let bytes_text = reader.read_text_into(QName(TAG_GROUPID), text_buf)?;
                 let text = resolve_text(&bytes_text)?;
                 visitor.add_category_group_id(&text);
             }
@@ -922,20 +914,18 @@ fn parse_comps_environment<R: BufRead, V: CompsVisitor>(
 
     loop {
         match reader.read_event_into(&mut buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_ENVIRONMENT.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_ENVIRONMENT => {
                 visitor.end_environment();
                 return Ok(());
             }
-            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
+            Event::Start(e) => match e.name().as_ref() {
                 TAG_ID => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_ID.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_ID), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_environment_id(&text);
                 }
                 TAG_NAME => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_NAME.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_NAME), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     let lang_attr = e.try_get_attribute("xml:lang")?;
                     let lang_cow = match &lang_attr {
@@ -946,7 +936,7 @@ fn parse_comps_environment<R: BufRead, V: CompsVisitor>(
                 }
                 TAG_DESCRIPTION => {
                     let bytes_text =
-                        reader.read_text_into(QName(TAG_DESCRIPTION.as_bytes()), &mut text_buf)?;
+                        reader.read_text_into(QName(TAG_DESCRIPTION), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     let lang_attr = e.try_get_attribute("xml:lang")?;
                     let lang_cow = match &lang_attr {
@@ -956,8 +946,8 @@ fn parse_comps_environment<R: BufRead, V: CompsVisitor>(
                     visitor.set_environment_description(&text, lang_cow.as_deref());
                 }
                 TAG_DISPLAY_ORDER => {
-                    let bytes_text = reader
-                        .read_text_into(QName(TAG_DISPLAY_ORDER.as_bytes()), &mut text_buf)?;
+                    let bytes_text =
+                        reader.read_text_into(QName(TAG_DISPLAY_ORDER), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_environment_display_order(text.parse()?);
                 }
@@ -969,7 +959,7 @@ fn parse_comps_environment<R: BufRead, V: CompsVisitor>(
                 }
                 _ => (),
             },
-            Event::Empty(e) if e.name().as_ref() == TAG_DESCRIPTION.as_bytes() => {
+            Event::Empty(e) if e.name().as_ref() == TAG_DESCRIPTION => {
                 let lang_attr = e.try_get_attribute("xml:lang")?;
                 let lang_cow = match &lang_attr {
                     Some(attr) => Some(resolve_attr(attr)?),
@@ -992,9 +982,9 @@ fn parse_comps_grouplist_environment<R: BufRead, V: CompsVisitor>(
 ) -> Result<(), MetadataError> {
     loop {
         match reader.read_event_into(buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_GROUPLIST.as_bytes() => break,
-            Event::Start(e) if e.name().as_ref() == TAG_GROUPID.as_bytes() => {
-                let bytes_text = reader.read_text_into(QName(TAG_GROUPID.as_bytes()), text_buf)?;
+            Event::End(e) if e.name().as_ref() == TAG_GROUPLIST => break,
+            Event::Start(e) if e.name().as_ref() == TAG_GROUPID => {
+                let bytes_text = reader.read_text_into(QName(TAG_GROUPID), text_buf)?;
                 let text = resolve_text(&bytes_text)?;
                 visitor.add_environment_group_id(&text);
             }
@@ -1014,14 +1004,14 @@ fn parse_comps_optionlist<R: BufRead, V: CompsVisitor>(
 ) -> Result<(), MetadataError> {
     loop {
         match reader.read_event_into(buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_OPTIONLIST.as_bytes() => break,
-            Event::Start(e) if e.name().as_ref() == TAG_GROUPID.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_OPTIONLIST => break,
+            Event::Start(e) if e.name().as_ref() == TAG_GROUPID => {
                 let default = e
                     .try_get_attribute("default")?
                     .map(|a| resolve_attr(&a).map(|v| parse_bool(&v)).unwrap_or(false))
                     .unwrap_or(false);
 
-                let bytes_text = reader.read_text_into(QName(TAG_GROUPID.as_bytes()), text_buf)?;
+                let bytes_text = reader.read_text_into(QName(TAG_GROUPID), text_buf)?;
                 let text = resolve_text(&bytes_text)?;
                 visitor.add_environment_option_id(&text, default);
             }
@@ -1041,16 +1031,16 @@ fn parse_comps_langpacks<R: BufRead, V: CompsVisitor>(
 
     loop {
         match reader.read_event_into(&mut buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_LANGPACKS.as_bytes() => break,
-            Event::Start(e) | Event::Empty(e) if e.name().as_ref() == TAG_MATCH.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_LANGPACKS => break,
+            Event::Start(e) | Event::Empty(e) if e.name().as_ref() == TAG_MATCH => {
                 let mut name_cow: Cow<'_, str> = Cow::Borrowed("");
                 let mut install_cow: Cow<'_, str> = Cow::Borrowed("");
 
                 for attr_result in e.attributes() {
                     let attr = attr_result?;
                     match attr.key.as_ref() {
-                        b"name" => name_cow = resolve_attr(&attr)?,
-                        b"install" => install_cow = resolve_attr(&attr)?,
+                        "name" => name_cow = resolve_attr(&attr)?,
+                        "install" => install_cow = resolve_attr(&attr)?,
                         _ => (),
                     }
                 }

@@ -25,8 +25,8 @@ use super::{MetadataError, Repository};
 /// Matches libsolv's behavior: content starting with `T`, `t`, or `1` is true,
 /// everything else (including empty content) is false. This accepts `True`,
 /// `true`, `TRUE`, and `1` while rejecting `False`, `false`, `0`, and empty.
-fn parse_suggested_flag(val: &[u8]) -> bool {
-    matches!(val.first(), Some(b'T' | b't' | b'1'))
+fn parse_suggested_flag(val: &str) -> bool {
+    matches!(val.as_bytes().first(), Some(b'T' | b't' | b'1'))
 }
 
 impl RpmMetadata for UpdateinfoXml {
@@ -385,7 +385,7 @@ pub fn parse_updateinfo_header<R: BufRead>(reader: &mut Reader<R>) -> Result<(),
     loop {
         match reader.read_event_into(&mut buf)? {
             Event::Decl(_) => (),
-            Event::Start(e) if e.name().as_ref() == TAG_UPDATES.as_bytes() => return Ok(()),
+            Event::Start(e) if e.name().as_ref() == TAG_UPDATES => return Ok(()),
             Event::Eof => return Ok(()),
             _ => return Err(MetadataError::MissingHeaderError),
         }
@@ -404,11 +404,11 @@ pub fn parse_updateinfo_update<R: BufRead, V: UpdateinfoVisitor>(
 
     loop {
         match reader.read_event_into(&mut buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_UPDATE.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_UPDATE => {
                 visitor.end_update();
                 return Ok(true);
             }
-            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
+            Event::Start(e) => match e.name().as_ref() {
                 TAG_UPDATE => {
                     let mut from_cow = None;
                     let mut type_cow = None;
@@ -418,10 +418,10 @@ pub fn parse_updateinfo_update<R: BufRead, V: UpdateinfoVisitor>(
                     for attr_result in e.attributes() {
                         let attr = attr_result?;
                         match attr.key.as_ref() {
-                            b"from" => from_cow = Some(resolve_attr(&attr)?),
-                            b"type" => type_cow = Some(resolve_attr(&attr)?),
-                            b"status" => status_cow = Some(resolve_attr(&attr)?),
-                            b"version" => version_cow = Some(resolve_attr(&attr)?),
+                            "from" => from_cow = Some(resolve_attr(&attr)?),
+                            "type" => type_cow = Some(resolve_attr(&attr)?),
+                            "status" => status_cow = Some(resolve_attr(&attr)?),
+                            "version" => version_cow = Some(resolve_attr(&attr)?),
                             _ => (),
                         }
                     }
@@ -436,14 +436,12 @@ pub fn parse_updateinfo_update<R: BufRead, V: UpdateinfoVisitor>(
                     visitor.begin_update(&from, &update_type, &status, &version);
                 }
                 TAG_ID => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_ID.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_ID), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_id(&text);
                 }
                 TAG_TITLE => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_TITLE.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_TITLE), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_title(&text);
                 }
@@ -452,50 +450,45 @@ pub fn parse_updateinfo_update<R: BufRead, V: UpdateinfoVisitor>(
                         let date = resolve_attr(&attr)?;
                         visitor.set_issued_date(&date);
                     }
-                    reader.read_to_end_into(QName(TAG_ISSUED.as_bytes()), &mut buf)?;
+                    reader.read_to_end_into(QName(TAG_ISSUED), &mut buf)?;
                 }
                 TAG_UPDATED => {
                     if let Some(attr) = e.try_get_attribute("date")? {
                         let date = resolve_attr(&attr)?;
                         visitor.set_updated_date(&date);
                     }
-                    reader.read_to_end_into(QName(TAG_UPDATED.as_bytes()), &mut buf)?;
+                    reader.read_to_end_into(QName(TAG_UPDATED), &mut buf)?;
                 }
                 TAG_RIGHTS => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_RIGHTS.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_RIGHTS), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     if !text.is_empty() {
                         visitor.set_rights(&text);
                     }
                 }
                 TAG_RELEASE => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_RELEASE.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_RELEASE), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     if !text.is_empty() {
                         visitor.set_release(&text);
                     }
                 }
                 TAG_SEVERITY => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_SEVERITY.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_SEVERITY), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     if !text.is_empty() {
                         visitor.set_severity(&text);
                     }
                 }
                 TAG_PUSHCOUNT => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_PUSHCOUNT.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_PUSHCOUNT), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     if !text.is_empty() {
                         visitor.set_pushcount(&text);
                     }
                 }
                 TAG_SUMMARY => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_SUMMARY.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_SUMMARY), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     if !text.is_empty() {
                         visitor.set_summary(&text);
@@ -503,31 +496,28 @@ pub fn parse_updateinfo_update<R: BufRead, V: UpdateinfoVisitor>(
                 }
                 TAG_DESCRIPTION => {
                     let bytes_text =
-                        reader.read_text_into(QName(TAG_DESCRIPTION.as_bytes()), &mut text_buf)?;
+                        reader.read_text_into(QName(TAG_DESCRIPTION), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     if !text.is_empty() {
                         visitor.set_description(&text);
                     }
                 }
                 TAG_SOLUTION => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_SOLUTION.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_SOLUTION), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     if !text.is_empty() {
                         visitor.set_solution(&text);
                     }
                 }
                 TAG_MESSAGE => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_MESSAGE.as_bytes()), &mut text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_MESSAGE), &mut text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     if !text.is_empty() {
                         visitor.set_message(&text);
                     }
                 }
                 TAG_REBOOT_SUGGESTED => {
-                    let val = reader
-                        .read_text_into(QName(TAG_REBOOT_SUGGESTED.as_bytes()), &mut text_buf)?;
+                    let val = reader.read_text_into(QName(TAG_REBOOT_SUGGESTED), &mut text_buf)?;
                     if parse_suggested_flag(val.as_ref()) {
                         visitor.set_reboot_suggested();
                     }
@@ -555,7 +545,7 @@ fn parse_updateinfo_references<R: BufRead, V: UpdateinfoVisitor>(
 ) -> Result<(), MetadataError> {
     loop {
         match reader.read_event_into(buf)? {
-            Event::Start(e) if e.name().as_ref() == TAG_REFERENCE.as_bytes() => {
+            Event::Start(e) if e.name().as_ref() == TAG_REFERENCE => {
                 let mut href_cow = None;
                 let mut id_cow = None;
                 let mut type_cow = None;
@@ -564,10 +554,10 @@ fn parse_updateinfo_references<R: BufRead, V: UpdateinfoVisitor>(
                 for attr_result in e.attributes() {
                     let attr = attr_result?;
                     match attr.key.as_ref() {
-                        b"href" => href_cow = Some(resolve_attr(&attr)?),
-                        b"id" => id_cow = Some(resolve_attr(&attr)?),
-                        b"type" => type_cow = Some(resolve_attr(&attr)?),
-                        b"title" => title_cow = Some(resolve_attr(&attr)?),
+                        "href" => href_cow = Some(resolve_attr(&attr)?),
+                        "id" => id_cow = Some(resolve_attr(&attr)?),
+                        "type" => type_cow = Some(resolve_attr(&attr)?),
+                        "title" => title_cow = Some(resolve_attr(&attr)?),
                         _ => (),
                     }
                 }
@@ -580,7 +570,7 @@ fn parse_updateinfo_references<R: BufRead, V: UpdateinfoVisitor>(
 
                 visitor.add_reference(href, id, reftype, title);
             }
-            Event::End(e) if e.name().as_ref() == TAG_REFERENCES.as_bytes() => break,
+            Event::End(e) if e.name().as_ref() == TAG_REFERENCES => break,
             _ => (),
         }
     }
@@ -595,23 +585,23 @@ fn parse_updateinfo_pkglist<R: BufRead, V: UpdateinfoVisitor>(
 ) -> Result<(), MetadataError> {
     loop {
         match reader.read_event_into(buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_PKGLIST.as_bytes() => break,
-            Event::Start(e) if e.name().as_ref() == TAG_COLLECTION.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_PKGLIST => break,
+            Event::Start(e) if e.name().as_ref() == TAG_COLLECTION => {
                 let shortname = match e.try_get_attribute("short")? {
                     Some(attr) => resolve_attr(&attr)?,
                     None => Cow::Borrowed(""),
                 };
                 visitor.begin_collection(&shortname);
             }
-            Event::End(e) if e.name().as_ref() == TAG_PACKAGE.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_PACKAGE => {
                 visitor.end_collection_package();
             }
-            Event::End(e) if e.name().as_ref() == TAG_COLLECTION.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_COLLECTION => {
                 visitor.end_collection();
             }
-            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
+            Event::Start(e) => match e.name().as_ref() {
                 TAG_NAME => {
-                    let bytes_text = reader.read_text_into(QName(TAG_NAME.as_bytes()), text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_NAME), text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_collection_name(&text);
                 }
@@ -625,11 +615,11 @@ fn parse_updateinfo_pkglist<R: BufRead, V: UpdateinfoVisitor>(
                     for attr_result in e.attributes() {
                         let attr = attr_result?;
                         match attr.key.as_ref() {
-                            b"name" => name_cow = Some(resolve_attr(&attr)?),
-                            b"stream" => stream_cow = Some(resolve_attr(&attr)?),
-                            b"version" => version_cow = Some(resolve_attr(&attr)?),
-                            b"context" => context_cow = Some(resolve_attr(&attr)?),
-                            b"arch" => arch_cow = Some(resolve_attr(&attr)?),
+                            "name" => name_cow = Some(resolve_attr(&attr)?),
+                            "stream" => stream_cow = Some(resolve_attr(&attr)?),
+                            "version" => version_cow = Some(resolve_attr(&attr)?),
+                            "context" => context_cow = Some(resolve_attr(&attr)?),
+                            "arch" => arch_cow = Some(resolve_attr(&attr)?),
                             _ => (),
                         }
                     }
@@ -656,12 +646,12 @@ fn parse_updateinfo_pkglist<R: BufRead, V: UpdateinfoVisitor>(
                     for attr_result in e.attributes() {
                         let attr = attr_result?;
                         match attr.key.as_ref() {
-                            b"name" => name_cow = Some(resolve_attr(&attr)?),
-                            b"epoch" => epoch_cow = Some(resolve_attr(&attr)?),
-                            b"version" => version_cow = Some(resolve_attr(&attr)?),
-                            b"release" => release_cow = Some(resolve_attr(&attr)?),
-                            b"arch" => arch_cow = Some(resolve_attr(&attr)?),
-                            b"src" => src_cow = Some(resolve_attr(&attr)?),
+                            "name" => name_cow = Some(resolve_attr(&attr)?),
+                            "epoch" => epoch_cow = Some(resolve_attr(&attr)?),
+                            "version" => version_cow = Some(resolve_attr(&attr)?),
+                            "release" => release_cow = Some(resolve_attr(&attr)?),
+                            "arch" => arch_cow = Some(resolve_attr(&attr)?),
+                            "src" => src_cow = Some(resolve_attr(&attr)?),
                             _ => (),
                         }
                     }
@@ -683,8 +673,7 @@ fn parse_updateinfo_pkglist<R: BufRead, V: UpdateinfoVisitor>(
                     );
                 }
                 TAG_FILENAME => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_FILENAME.as_bytes()), text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_FILENAME), text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_package_filename(&text);
                 }
@@ -693,27 +682,24 @@ fn parse_updateinfo_pkglist<R: BufRead, V: UpdateinfoVisitor>(
                         .try_get_attribute("type")?
                         .ok_or(MetadataError::MissingAttributeError("type"))?;
                     let checksum_type = resolve_attr(&type_attr)?;
-                    let bytes_text = reader.read_text_into(QName(TAG_SUM.as_bytes()), text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_SUM), text_buf)?;
                     let value = resolve_text(&bytes_text)?;
                     visitor.set_package_checksum(&checksum_type, &value);
                 }
                 TAG_REBOOT_SUGGESTED => {
-                    let val =
-                        reader.read_text_into(QName(TAG_REBOOT_SUGGESTED.as_bytes()), text_buf)?;
+                    let val = reader.read_text_into(QName(TAG_REBOOT_SUGGESTED), text_buf)?;
                     if parse_suggested_flag(val.as_ref()) {
                         visitor.set_package_reboot_suggested();
                     }
                 }
                 TAG_RESTART_SUGGESTED => {
-                    let val =
-                        reader.read_text_into(QName(TAG_RESTART_SUGGESTED.as_bytes()), text_buf)?;
+                    let val = reader.read_text_into(QName(TAG_RESTART_SUGGESTED), text_buf)?;
                     if parse_suggested_flag(val.as_ref()) {
                         visitor.set_package_restart_suggested();
                     }
                 }
                 TAG_RELOGIN_SUGGESTED => {
-                    let val =
-                        reader.read_text_into(QName(TAG_RELOGIN_SUGGESTED.as_bytes()), text_buf)?;
+                    let val = reader.read_text_into(QName(TAG_RELOGIN_SUGGESTED), text_buf)?;
                     if parse_suggested_flag(val.as_ref()) {
                         visitor.set_package_relogin_suggested();
                     }

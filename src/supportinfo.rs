@@ -357,15 +357,15 @@ pub fn parse_supportinfo_header<R: BufRead>(
     loop {
         match reader.read_event_into(&mut buf)? {
             Event::Decl(_) => (),
-            Event::Start(e) if e.name().as_ref() == TAG_PACKAGE_SUPPORT.as_bytes() => {
+            Event::Start(e) if e.name().as_ref() == TAG_PACKAGE_SUPPORT => {
                 let mut current_as_cow = None;
                 let mut schema_version_cow = None;
 
                 for attr_result in e.attributes() {
                     let attr = attr_result?;
                     match attr.key.as_ref() {
-                        b"current_as" => current_as_cow = Some(resolve_attr(&attr)?),
-                        b"schema_version" => schema_version_cow = Some(resolve_attr(&attr)?),
+                        "current_as" => current_as_cow = Some(resolve_attr(&attr)?),
+                        "schema_version" => schema_version_cow = Some(resolve_attr(&attr)?),
                         _ => (),
                     }
                 }
@@ -396,10 +396,10 @@ pub fn parse_supportinfo_v1_body<R: BufRead, V: SupportInfoVisitor>(
 
     loop {
         match reader.read_event_into(&mut buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_PACKAGE_SUPPORT.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_PACKAGE_SUPPORT => {
                 return Ok(());
             }
-            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
+            Event::Start(e) => match e.name().as_ref() {
                 TAG_LIFECYCLES => {
                     parse_lifecycles(reader, visitor, &mut buf)?;
                 }
@@ -438,8 +438,8 @@ fn parse_lifecycles<R: BufRead, V: SupportInfoVisitor>(
 ) -> Result<(), MetadataError> {
     loop {
         match reader.read_event_into(buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_LIFECYCLES.as_bytes() => return Ok(()),
-            Event::Start(e) if e.name().as_ref() == TAG_LIFECYCLE.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_LIFECYCLES => return Ok(()),
+            Event::Start(e) if e.name().as_ref() == TAG_LIFECYCLE => {
                 let mut name_cow = None;
                 let mut note_cow = None;
                 let mut display_name_cow = None;
@@ -448,10 +448,10 @@ fn parse_lifecycles<R: BufRead, V: SupportInfoVisitor>(
                 for attr_result in e.attributes() {
                     let attr = attr_result?;
                     match attr.key.as_ref() {
-                        b"name" => name_cow = Some(resolve_attr(&attr)?),
-                        b"note" => note_cow = Some(resolve_attr(&attr)?),
-                        b"display_name" => display_name_cow = Some(resolve_attr(&attr)?),
-                        b"description" => description_cow = Some(resolve_attr(&attr)?),
+                        "name" => name_cow = Some(resolve_attr(&attr)?),
+                        "note" => note_cow = Some(resolve_attr(&attr)?),
+                        "display_name" => display_name_cow = Some(resolve_attr(&attr)?),
+                        "description" => description_cow = Some(resolve_attr(&attr)?),
                         _ => (),
                     }
                 }
@@ -481,8 +481,8 @@ fn parse_lifecycle_phases<R: BufRead, V: SupportInfoVisitor>(
 ) -> Result<(), MetadataError> {
     loop {
         match reader.read_event_into(buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_LIFECYCLE.as_bytes() => return Ok(()),
-            Event::Start(e) if e.name().as_ref() == TAG_PHASE.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_LIFECYCLE => return Ok(()),
+            Event::Start(e) if e.name().as_ref() == TAG_PHASE => {
                 let mut name_cow = None;
                 let mut support_level_cow = None;
                 let mut start_date_cow = None;
@@ -492,11 +492,11 @@ fn parse_lifecycle_phases<R: BufRead, V: SupportInfoVisitor>(
                 for attr_result in e.attributes() {
                     let attr = attr_result?;
                     match attr.key.as_ref() {
-                        b"name" => name_cow = Some(resolve_attr(&attr)?),
-                        b"support_level" => support_level_cow = Some(resolve_attr(&attr)?),
-                        b"start_date" => start_date_cow = Some(resolve_attr(&attr)?),
-                        b"start_milestone" => start_milestone_cow = Some(resolve_attr(&attr)?),
-                        b"display_name" => display_name_cow = Some(resolve_attr(&attr)?),
+                        "name" => name_cow = Some(resolve_attr(&attr)?),
+                        "support_level" => support_level_cow = Some(resolve_attr(&attr)?),
+                        "start_date" => start_date_cow = Some(resolve_attr(&attr)?),
+                        "start_milestone" => start_milestone_cow = Some(resolve_attr(&attr)?),
+                        "display_name" => display_name_cow = Some(resolve_attr(&attr)?),
                         _ => (),
                     }
                 }
@@ -526,10 +526,10 @@ fn parse_milestones<R: BufRead, V: SupportInfoVisitor>(
 ) -> Result<(), MetadataError> {
     loop {
         match reader.read_event_into(buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_SUPPORT_MILESTONES.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_SUPPORT_MILESTONES => {
                 return Ok(());
             }
-            Event::Start(e) if e.name().as_ref() == TAG_MILESTONE.as_bytes() => {
+            Event::Start(e) if e.name().as_ref() == TAG_MILESTONE => {
                 let mut name_cow = None;
                 let mut date_cow = None;
                 let mut display_name_cow = None;
@@ -538,10 +538,10 @@ fn parse_milestones<R: BufRead, V: SupportInfoVisitor>(
                 for attr_result in e.attributes() {
                     let attr = attr_result?;
                     match attr.key.as_ref() {
-                        b"name" => name_cow = Some(resolve_attr(&attr)?),
-                        b"date" => date_cow = Some(resolve_attr(&attr)?),
-                        b"display_name" => display_name_cow = Some(resolve_attr(&attr)?),
-                        b"description" => description_cow = Some(resolve_attr(&attr)?),
+                        "name" => name_cow = Some(resolve_attr(&attr)?),
+                        "date" => date_cow = Some(resolve_attr(&attr)?),
+                        "display_name" => display_name_cow = Some(resolve_attr(&attr)?),
+                        "description" => description_cow = Some(resolve_attr(&attr)?),
                         _ => (),
                     }
                 }
@@ -569,8 +569,8 @@ fn parse_support_levels<R: BufRead, V: SupportInfoVisitor>(
 ) -> Result<(), MetadataError> {
     loop {
         match reader.read_event_into(buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_SUPPORT_LEVELS.as_bytes() => return Ok(()),
-            Event::Start(e) if e.name().as_ref() == TAG_SUPPORT_LEVEL.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_SUPPORT_LEVELS => return Ok(()),
+            Event::Start(e) if e.name().as_ref() == TAG_SUPPORT_LEVEL => {
                 let mut name_cow = None;
                 let mut severities_cow = None;
                 let mut description_cow = None;
@@ -579,10 +579,10 @@ fn parse_support_levels<R: BufRead, V: SupportInfoVisitor>(
                 for attr_result in e.attributes() {
                     let attr = attr_result?;
                     match attr.key.as_ref() {
-                        b"name" => name_cow = Some(resolve_attr(&attr)?),
-                        b"severities" => severities_cow = Some(resolve_attr(&attr)?),
-                        b"description" => description_cow = Some(resolve_attr(&attr)?),
-                        b"display_name" => display_name_cow = Some(resolve_attr(&attr)?),
+                        "name" => name_cow = Some(resolve_attr(&attr)?),
+                        "severities" => severities_cow = Some(resolve_attr(&attr)?),
+                        "description" => description_cow = Some(resolve_attr(&attr)?),
+                        "display_name" => display_name_cow = Some(resolve_attr(&attr)?),
                         _ => (),
                     }
                 }
@@ -611,8 +611,8 @@ fn parse_v1_packages<R: BufRead, V: SupportInfoVisitor>(
 ) -> Result<(), MetadataError> {
     loop {
         match reader.read_event_into(buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_PACKAGES.as_bytes() => return Ok(()),
-            Event::Start(e) if e.name().as_ref() == TAG_PACKAGE.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_PACKAGES => return Ok(()),
+            Event::Start(e) if e.name().as_ref() == TAG_PACKAGE => {
                 let mut name_cow = None;
                 let mut lifecycle_cow = None;
                 let mut origin_cow = None;
@@ -621,10 +621,10 @@ fn parse_v1_packages<R: BufRead, V: SupportInfoVisitor>(
                 for attr_result in e.attributes() {
                     let attr = attr_result?;
                     match attr.key.as_ref() {
-                        b"name" => name_cow = Some(resolve_attr(&attr)?),
-                        b"lifecycle" => lifecycle_cow = Some(resolve_attr(&attr)?),
-                        b"origin" => origin_cow = Some(resolve_attr(&attr)?),
-                        b"package_class" => package_class_cow = Some(resolve_attr(&attr)?),
+                        "name" => name_cow = Some(resolve_attr(&attr)?),
+                        "lifecycle" => lifecycle_cow = Some(resolve_attr(&attr)?),
+                        "origin" => origin_cow = Some(resolve_attr(&attr)?),
+                        "package_class" => package_class_cow = Some(resolve_attr(&attr)?),
                         _ => (),
                     }
                 }
@@ -650,12 +650,12 @@ fn parse_package_classes<R: BufRead, V: SupportInfoVisitor>(
 ) -> Result<(), MetadataError> {
     loop {
         match reader.read_event_into(buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_PACKAGE_CLASSES.as_bytes() => return Ok(()),
-            Event::Start(e) if e.name().as_ref() == TAG_PACKAGE_CLASS.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_PACKAGE_CLASSES => return Ok(()),
+            Event::Start(e) if e.name().as_ref() == TAG_PACKAGE_CLASS => {
                 let mut name_cow = None;
                 for attr_result in e.attributes() {
                     let attr = attr_result?;
-                    if attr.key.as_ref() == b"name" {
+                    if attr.key.as_ref() == "name" {
                         name_cow = Some(resolve_attr(&attr)?);
                     }
                 }
@@ -680,16 +680,15 @@ fn parse_package_class_body<R: BufRead, V: SupportInfoVisitor>(
 ) -> Result<(), MetadataError> {
     loop {
         match reader.read_event_into(buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_PACKAGE_CLASS.as_bytes() => return Ok(()),
-            Event::Start(e) => match std::str::from_utf8(e.name().as_ref()).unwrap_or("") {
+            Event::End(e) if e.name().as_ref() == TAG_PACKAGE_CLASS => return Ok(()),
+            Event::Start(e) => match e.name().as_ref() {
                 TAG_SUMMARY => {
-                    let bytes_text =
-                        reader.read_text_into(QName(TAG_SUMMARY.as_bytes()), text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_SUMMARY), text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_package_class_summary(&text);
                 }
                 TAG_TEXT => {
-                    let bytes_text = reader.read_text_into(QName(TAG_TEXT.as_bytes()), text_buf)?;
+                    let bytes_text = reader.read_text_into(QName(TAG_TEXT), text_buf)?;
                     let text = resolve_text(&bytes_text)?;
                     visitor.set_package_class_text(&text);
                 }
@@ -710,8 +709,8 @@ fn parse_package_origins<R: BufRead, V: SupportInfoVisitor>(
 ) -> Result<(), MetadataError> {
     loop {
         match reader.read_event_into(buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_PACKAGE_ORIGINS.as_bytes() => return Ok(()),
-            Event::Start(e) if e.name().as_ref() == TAG_PACKAGE_ORIGIN.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_PACKAGE_ORIGINS => return Ok(()),
+            Event::Start(e) if e.name().as_ref() == TAG_PACKAGE_ORIGIN => {
                 let mut name_cow = None;
                 let mut repo_id_cow = None;
                 let mut dist_cow = None;
@@ -723,13 +722,13 @@ fn parse_package_origins<R: BufRead, V: SupportInfoVisitor>(
                 for attr_result in e.attributes() {
                     let attr = attr_result?;
                     match attr.key.as_ref() {
-                        b"name" => name_cow = Some(resolve_attr(&attr)?),
-                        b"repo_id" => repo_id_cow = Some(resolve_attr(&attr)?),
-                        b"dist" => dist_cow = Some(resolve_attr(&attr)?),
-                        b"vendor" => vendor_cow = Some(resolve_attr(&attr)?),
-                        b"signing_key" => signing_key_cow = Some(resolve_attr(&attr)?),
-                        b"display_name" => display_name_cow = Some(resolve_attr(&attr)?),
-                        b"description" => description_cow = Some(resolve_attr(&attr)?),
+                        "name" => name_cow = Some(resolve_attr(&attr)?),
+                        "repo_id" => repo_id_cow = Some(resolve_attr(&attr)?),
+                        "dist" => dist_cow = Some(resolve_attr(&attr)?),
+                        "vendor" => vendor_cow = Some(resolve_attr(&attr)?),
+                        "signing_key" => signing_key_cow = Some(resolve_attr(&attr)?),
+                        "display_name" => display_name_cow = Some(resolve_attr(&attr)?),
+                        "description" => description_cow = Some(resolve_attr(&attr)?),
                         _ => (),
                     }
                 }
@@ -763,17 +762,17 @@ fn parse_v1_notes<R: BufRead, V: SupportInfoVisitor>(
 ) -> Result<(), MetadataError> {
     loop {
         match reader.read_event_into(buf)? {
-            Event::End(e) if e.name().as_ref() == TAG_NOTES.as_bytes() => return Ok(()),
-            Event::Start(e) if e.name().as_ref() == TAG_NOTE.as_bytes() => {
+            Event::End(e) if e.name().as_ref() == TAG_NOTES => return Ok(()),
+            Event::Start(e) if e.name().as_ref() == TAG_NOTE => {
                 let mut name_cow = None;
                 for attr_result in e.attributes() {
                     let attr = attr_result?;
-                    if attr.key.as_ref() == b"name" {
+                    if attr.key.as_ref() == "name" {
                         name_cow = Some(resolve_attr(&attr)?);
                     }
                 }
                 let name = name_cow.ok_or(MetadataError::MissingAttributeError("name"))?;
-                let bytes_text = reader.read_text_into(QName(TAG_NOTE.as_bytes()), text_buf)?;
+                let bytes_text = reader.read_text_into(QName(TAG_NOTE), text_buf)?;
                 let content = resolve_text(&bytes_text)?;
                 visitor.add_note(&name, &content);
             }
