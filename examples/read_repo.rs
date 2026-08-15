@@ -109,9 +109,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 for reference in &advisory.references {
                     println!(
                         "    {} {} {}",
-                        reference.reftype,
-                        reference.id.as_deref().unwrap_or(""),
-                        reference.href
+                        reference.reftype, reference.id, reference.href
                     );
                 }
 

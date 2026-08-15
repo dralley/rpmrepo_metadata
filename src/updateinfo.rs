@@ -264,11 +264,11 @@ impl UpdateinfoVisitor for UpdateRecordMaterializer {
         }
     }
 
-    fn add_reference(&mut self, href: &str, id: Option<&str>, reftype: &str, title: &str) {
+    fn add_reference(&mut self, href: &str, id: &str, reftype: &str, title: &str) {
         if let Some(record) = self.record.as_mut() {
             record.references.push(UpdateReference {
                 href: href.to_owned(),
-                id: id.map(|s| s.to_owned()),
+                id: id.to_owned(),
                 reftype: reftype.to_owned(),
                 title: title.to_owned(),
             });
@@ -572,10 +572,13 @@ fn parse_updateinfo_references<R: BufRead, V: UpdateinfoVisitor>(
                     }
                 }
 
-                let href = href_cow.ok_or(MetadataError::MissingAttributeError("href"))?;
-                let reftype = type_cow.ok_or(MetadataError::MissingAttributeError("type"))?;
-                let title = title_cow.ok_or(MetadataError::MissingAttributeError("title"))?;
-                visitor.add_reference(&href, id_cow.as_deref(), &reftype, &title);
+                // All attributes default to empty if missing
+                let href = href_cow.as_deref().unwrap_or("");
+                let id = id_cow.as_deref().unwrap_or("");
+                let reftype = type_cow.as_deref().unwrap_or("");
+                let title = title_cow.as_deref().unwrap_or("");
+
+                visitor.add_reference(href, id, reftype, title);
             }
             Event::End(e) if e.name().as_ref() == TAG_REFERENCES.as_bytes() => break,
             _ => (),
@@ -731,8 +734,8 @@ fn write_updaterecord<W: Write>(
 ) -> Result<(), MetadataError> {
     // <update from="updates@fedoraproject.org" status="stable" type="bugfix" version="2.0">
     let mut updates_tag = BytesStart::new(TAG_UPDATE);
-    updates_tag.push_attribute(("status", record.status.as_str()));
     updates_tag.push_attribute(("from", record.from.as_str()));
+    updates_tag.push_attribute(("status", record.status.as_str()));
     updates_tag.push_attribute(("type", record.update_type.as_str()));
     updates_tag.push_attribute(("version", record.version.as_str()));
     writer.write_event(Event::Start(updates_tag.borrow()))?;
@@ -775,6 +778,13 @@ fn write_updaterecord<W: Write>(
             .write_text_content(BytesText::new(release.as_str()))?;
     }
 
+    // <pushcount>2</pushcount>
+    if let Some(pushcount) = &record.pushcount {
+        writer
+            .create_element(TAG_PUSHCOUNT)
+            .write_text_content(BytesText::new(pushcount.as_str()))?;
+    }
+
     if let Some(severity) = &record.severity {
         writer
             .create_element(TAG_SEVERITY)
@@ -799,13 +809,6 @@ fn write_updaterecord<W: Write>(
             .write_text_content(BytesText::new(solution.as_str()))?;
     }
 
-    // <pushcount>2</pushcount>
-    if let Some(pushcount) = &record.pushcount {
-        writer
-            .create_element(TAG_PUSHCOUNT)
-            .write_text_content(BytesText::new(pushcount.as_str()))?;
-    }
-
     if let Some(message) = &record.message {
         writer
             .create_element(TAG_MESSAGE)
@@ -826,12 +829,18 @@ fn write_updaterecord<W: Write>(
         for reference in &record.references {
             // <reference href="https://bugzilla.redhat.com/show_bug.cgi?id=1839351" id="1839351" type="bugzilla" title="nano-4.9.3 is available"/>
             let mut elem = writer.create_element(TAG_REFERENCE);
-            elem = elem.with_attribute(("href", reference.href.as_str()));
-            if let Some(id) = &reference.id {
-                elem = elem.with_attribute(("id", id.as_str()));
+            if !reference.href.is_empty() {
+                elem = elem.with_attribute(("href", reference.href.as_str()));
             }
-            elem = elem.with_attribute(("type", reference.reftype.as_str()));
-            elem = elem.with_attribute(("title", reference.title.as_str()));
+            if !reference.id.is_empty() {
+                elem = elem.with_attribute(("id", reference.id.as_str()));
+            }
+            if !reference.reftype.is_empty() {
+                elem = elem.with_attribute(("type", reference.reftype.as_str()));
+            }
+            if !reference.title.is_empty() {
+                elem = elem.with_attribute(("title", reference.title.as_str()));
+            }
             elem.write_empty()?;
         }
 
@@ -899,17 +908,17 @@ fn write_updaterecord<W: Write>(
                 if package.reboot_suggested {
                     writer
                         .create_element("reboot_suggested")
-                        .write_text_content(BytesText::new("1"))?;
+                        .write_text_content(BytesText::new("True"))?;
                 }
                 if package.restart_suggested {
                     writer
                         .create_element("restart_suggested")
-                        .write_text_content(BytesText::new("1"))?;
+                        .write_text_content(BytesText::new("True"))?;
                 }
                 if package.relogin_suggested {
                     writer
                         .create_element("relogin_suggested")
-                        .write_text_content(BytesText::new("1"))?;
+                        .write_text_content(BytesText::new("True"))?;
                 }
 
                 // </package>

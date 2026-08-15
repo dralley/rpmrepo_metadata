@@ -154,7 +154,7 @@ pub trait UpdateinfoVisitor {
     fn set_solution(&mut self, solution: &str) {}
     fn set_message(&mut self, message: &str) {}
     fn set_reboot_suggested(&mut self) {}
-    fn add_reference(&mut self, href: &str, id: Option<&str>, reftype: &str, title: &str) {}
+    fn add_reference(&mut self, href: &str, id: &str, reftype: &str, title: &str) {}
     fn begin_collection(&mut self, shortname: &str) {}
     fn set_collection_name(&mut self, name: &str) {}
     fn set_collection_module(

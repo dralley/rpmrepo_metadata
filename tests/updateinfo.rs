@@ -191,15 +191,15 @@ fn test_updateinfo_xml_read_fixture() -> Result<(), MetadataError> {
     // References
     assert_eq!(rec.references.len(), 3);
     assert_eq!(rec.references[0].reftype, "self");
-    assert_eq!(rec.references[0].id.as_deref(), Some("RHSA-2024:1234"));
+    assert_eq!(rec.references[0].id, "RHSA-2024:1234");
     assert_eq!(rec.references[1].reftype, "bugzilla");
-    assert_eq!(rec.references[1].id.as_deref(), Some("2261234"));
+    assert_eq!(rec.references[1].id, "2261234");
     assert_eq!(
         rec.references[1].href,
         "https://bugzilla.redhat.com/show_bug.cgi?id=2261234"
     );
     assert_eq!(rec.references[2].reftype, "cve");
-    assert_eq!(rec.references[2].id.as_deref(), Some("CVE-2024-0001"));
+    assert_eq!(rec.references[2].id, "CVE-2024-0001");
 
     // Collections and packages
     assert_eq!(rec.pkglist.len(), 1);
@@ -448,6 +448,56 @@ fn test_updateinfo_iterator() -> Result<(), MetadataError> {
     assert_eq!(records[1].id, "FEDORA-2024-abc123def4");
     assert_eq!(records[2].id, "FEDORA-2024-modular001");
     assert_eq!(records[3].id, "FEDORA-2024-minimal001");
+
+    Ok(())
+}
+
+#[test]
+fn test_updateinfo_empty_reference_attributes() -> Result<(), MetadataError> {
+    // Test that empty string attributes are parsed as None
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<updates>
+<update from="test@test.com" status="final" type="bugfix" version="1">
+  <id>TEST-EMPTY</id>
+  <title>Test empty attributes</title>
+  <issued date="2024-01-01 00:00:00"/>
+  <references>
+    <reference href="https://example.com" id="" type="other" title="" />
+    <reference href="" id="123" type="" title="Some title" />
+  </references>
+  <pkglist/>
+</update>
+</updates>
+"#;
+
+    let mut reader = UpdateinfoXml::new_reader(utils::create_xml_reader(xml.as_bytes()));
+    let record = reader.read_update()?.unwrap();
+
+    assert_eq!(record.references.len(), 2);
+
+    // First reference: href populated, id/title empty
+    assert_eq!(record.references[0].href, "https://example.com");
+    assert_eq!(record.references[0].reftype, "other");
+    assert_eq!(
+        record.references[0].id, "",
+        "Empty id should be empty string"
+    );
+    assert_eq!(
+        record.references[0].title, "",
+        "Empty title should be empty string"
+    );
+
+    // Second reference: href empty, others populated
+    assert_eq!(
+        record.references[1].href, "",
+        "Empty href should be empty string"
+    );
+    assert_eq!(record.references[1].id, "123");
+    assert_eq!(
+        record.references[1].reftype, "",
+        "Empty type should be empty string"
+    );
+    assert_eq!(record.references[1].title, "Some title");
 
     Ok(())
 }

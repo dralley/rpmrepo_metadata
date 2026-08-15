@@ -1489,8 +1489,8 @@ mod rpmrepo_metadata {
     #[pymethods]
     impl UpdateReference {
         #[new]
-        #[pyo3(signature = (href="".to_string(), id=None, title="".to_string(), reftype="".to_string()))]
-        fn new(href: String, id: Option<String>, title: String, reftype: String) -> Self {
+        #[pyo3(signature = (href="".to_string(), id="".to_string(), title="".to_string(), reftype="".to_string()))]
+        fn new(href: String, id: String, title: String, reftype: String) -> Self {
             Self {
                 inner: crate::UpdateReference {
                     href,
@@ -1509,8 +1509,8 @@ mod rpmrepo_metadata {
 
         /// The identifier of the reference (e.g. bug number, CVE ID).
         #[getter]
-        fn id(&self) -> Option<&str> {
-            self.inner.id.as_deref()
+        fn id(&self) -> &str {
+            &self.inner.id
         }
 
         /// The human-readable title of the reference.

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- `UpdateReference` fields (`href`, `title`, `reftype`) now preserve empty string values from XML instead of treating them as required.
+  - Real-world metadata like RHEL6 and AmaLinux 8, can contain e.g. thousands of `type="other"` documentation references with empty `id=""` and `title=""` attributes.
+  - When writing: empty string attributes are omitted from the XML output
+- Updateinfo XML writer now matches createrepo_c output order
+- Package-level suggested flags (`reboot_suggested`, `restart_suggested`, `relogin_suggested`) now write `"True"` instead of `"1"` to match createrepo_c
+
 ## 0.6.1
 
 - Add some additional functions to the Python bindings necessary for authoring of comps metadata.
