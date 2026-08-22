@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 0.7.0
+
 ### Added
 
 - Comps Python types (`CompsGroup`, `CompsPackageReq`, `CompsCategory`, `CompsEnvironment`, `CompsEnvironmentOption`, `CompsLangpack`) now expose setters for all of their scalar fields, so every readable attribute is also writable after construction (symmetric with `Package`).
