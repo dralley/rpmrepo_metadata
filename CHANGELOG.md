@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - When writing: empty string attributes are omitted from the XML output
 - Updateinfo XML writer now matches createrepo_c output order
 - Package-level suggested flags (`reboot_suggested`, `restart_suggested`, `relogin_suggested`) now write `"True"` instead of `"1"` to match createrepo_c
+- Made `name_by_lang` and `desc_by_lang` fields map-based (`IndexMap`) rather than a list of tuples of 2-arity strings.
 
 ## 0.6.1
 

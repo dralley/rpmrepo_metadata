@@ -300,17 +300,17 @@ class TestCompsRoundtrip:
                 uservisible=True,
                 display_order=10,
             )
-            group.name_by_lang = [("fr", "Noyau"), ("de", "Kern")]
-            group.desc_by_lang = [("fr", "Paquets systeme de base")]
+            group.name_by_lang = {"fr": "Noyau", "de": "Kern"}
+            group.desc_by_lang = {"fr": "Paquets systeme de base"}
             group.packages = [pkg1, pkg2, pkg3]
 
             cat = r.CompsCategory(id="base-system", name="Base System")
-            cat.name_by_lang = [("fr", "Systeme de base")]
+            cat.name_by_lang = {"fr": "Systeme de base"}
             cat.group_ids = ["core"]
 
             opt = r.CompsEnvironmentOption(group_id="debugging", default=True)
             env = r.CompsEnvironment(id="minimal", name="Minimal Install")
-            env.name_by_lang = [("fr", "Installation minimale")]
+            env.name_by_lang = {"fr": "Installation minimale"}
             env.group_ids = ["core"]
             env.option_ids = [opt]
 

@@ -470,7 +470,7 @@ impl CompsVisitor for CompsMaterializer {
     fn set_group_name(&mut self, name: &str, lang: Option<&str>) {
         if let Some(g) = self.current_group.as_mut() {
             if let Some(lang) = lang {
-                g.name_by_lang.push((lang.to_owned(), name.to_owned()));
+                g.name_by_lang.insert(lang.to_owned(), name.to_owned());
             } else {
                 g.name = name.to_owned();
             }
@@ -480,7 +480,7 @@ impl CompsVisitor for CompsMaterializer {
     fn set_group_description(&mut self, desc: &str, lang: Option<&str>) {
         if let Some(g) = self.current_group.as_mut() {
             if let Some(lang) = lang {
-                g.desc_by_lang.push((lang.to_owned(), desc.to_owned()));
+                g.desc_by_lang.insert(lang.to_owned(), desc.to_owned());
             } else {
                 g.description = desc.to_owned();
             }
@@ -547,7 +547,7 @@ impl CompsVisitor for CompsMaterializer {
     fn set_category_name(&mut self, name: &str, lang: Option<&str>) {
         if let Some(c) = self.current_category.as_mut() {
             if let Some(lang) = lang {
-                c.name_by_lang.push((lang.to_owned(), name.to_owned()));
+                c.name_by_lang.insert(lang.to_owned(), name.to_owned());
             } else {
                 c.name = name.to_owned();
             }
@@ -557,7 +557,7 @@ impl CompsVisitor for CompsMaterializer {
     fn set_category_description(&mut self, desc: &str, lang: Option<&str>) {
         if let Some(c) = self.current_category.as_mut() {
             if let Some(lang) = lang {
-                c.desc_by_lang.push((lang.to_owned(), desc.to_owned()));
+                c.desc_by_lang.insert(lang.to_owned(), desc.to_owned());
             } else {
                 c.description = desc.to_owned();
             }
@@ -589,7 +589,7 @@ impl CompsVisitor for CompsMaterializer {
     fn set_environment_name(&mut self, name: &str, lang: Option<&str>) {
         if let Some(e) = self.current_environment.as_mut() {
             if let Some(lang) = lang {
-                e.name_by_lang.push((lang.to_owned(), name.to_owned()));
+                e.name_by_lang.insert(lang.to_owned(), name.to_owned());
             } else {
                 e.name = name.to_owned();
             }
@@ -599,7 +599,7 @@ impl CompsVisitor for CompsMaterializer {
     fn set_environment_description(&mut self, desc: &str, lang: Option<&str>) {
         if let Some(e) = self.current_environment.as_mut() {
             if let Some(lang) = lang {
-                e.desc_by_lang.push((lang.to_owned(), desc.to_owned()));
+                e.desc_by_lang.insert(lang.to_owned(), desc.to_owned());
             } else {
                 e.description = desc.to_owned();
             }

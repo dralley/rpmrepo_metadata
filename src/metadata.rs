@@ -15,6 +15,7 @@ use std::time::SystemTime;
 
 // use bitflags;
 use compact_str::CompactString;
+use indexmap::IndexMap;
 use quick_xml::{Reader, Writer};
 use thiserror::Error;
 
@@ -1614,12 +1615,12 @@ pub struct CompsGroup {
     pub id: String,
     /// The display name of the group.
     pub name: String,
-    /// Localized group names as `(lang, name)` pairs.
-    pub name_by_lang: Vec<(String, String)>,
+    /// Localized group names, keyed by language code.
+    pub name_by_lang: IndexMap<String, String>,
     /// The description of the group.
     pub description: String,
-    /// Localized group descriptions as `(lang, description)` pairs.
-    pub desc_by_lang: Vec<(String, String)>,
+    /// Localized group descriptions, keyed by language code.
+    pub desc_by_lang: IndexMap<String, String>,
     /// Whether the group is selected by default.
     pub default: bool,
     /// Whether the group is visible to users in installation UIs.
@@ -1684,12 +1685,12 @@ pub struct CompsCategory {
     pub id: String,
     /// The display name of the category.
     pub name: String,
-    /// Localized category names as `(lang, name)` pairs.
-    pub name_by_lang: Vec<(String, String)>,
+    /// Localized category names, keyed by language code.
+    pub name_by_lang: IndexMap<String, String>,
     /// The description of the category.
     pub description: String,
-    /// Localized category descriptions as `(lang, description)` pairs.
-    pub desc_by_lang: Vec<(String, String)>,
+    /// Localized category descriptions, keyed by language code.
+    pub desc_by_lang: IndexMap<String, String>,
     /// The display order for sorting in UIs.
     pub display_order: Option<u32>,
     /// The IDs of groups belonging to this category.
@@ -1703,12 +1704,12 @@ pub struct CompsEnvironment {
     pub id: String,
     /// The display name of the environment.
     pub name: String,
-    /// Localized environment names as `(lang, name)` pairs.
-    pub name_by_lang: Vec<(String, String)>,
+    /// Localized environment names, keyed by language code.
+    pub name_by_lang: IndexMap<String, String>,
     /// The description of the environment.
     pub description: String,
-    /// Localized environment descriptions as `(lang, description)` pairs.
-    pub desc_by_lang: Vec<(String, String)>,
+    /// Localized environment descriptions, keyed by language code.
+    pub desc_by_lang: IndexMap<String, String>,
     /// The display order for sorting in UIs.
     pub display_order: Option<u32>,
     /// The IDs of mandatory groups in this environment.
