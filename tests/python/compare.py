@@ -141,6 +141,8 @@ def _compare_update_records_fields(rec1, rec2):
     assert_eq(rec1.summary, rec2.summary, "advisory.summary")
     assert_eq(rec1.description, rec2.description, "advisory.description")
     assert_eq(rec1.solution, rec2.solution, "advisory.solution")
+    assert_eq(rec1.message, rec2.message, "advisory.message")
+    assert_eq(rec1.reboot_suggested, rec2.reboot_suggested, "advisory.reboot_suggested")
     compare_lists(
         rec1.references,
         rec2.references,

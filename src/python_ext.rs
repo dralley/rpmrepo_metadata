@@ -391,6 +391,14 @@ mod rpmrepo_metadata {
             Ok(CompsData { inner: data })
         }
 
+        /// Parse comps metadata from an XML file.
+        #[staticmethod]
+        fn from_file(path: PathBuf) -> PyResult<CompsData> {
+            let reader = crate::utils::xml_reader_from_file(&path)?;
+            let data = crate::metadata::CompsXml::read_data(reader)?;
+            Ok(CompsData { inner: data })
+        }
+
         /// Serialize comps metadata to an XML string.
         fn to_xml(&self) -> PyResult<String> {
             let mut buf = Vec::new();
@@ -1551,6 +1559,18 @@ mod rpmrepo_metadata {
             }
         }
 
+        /// Set the full name of the package collection.
+        #[setter]
+        fn set_name(&mut self, val: String) {
+            self.inner.name = val;
+        }
+
+        /// Set the short name of the collection.
+        #[setter]
+        fn set_shortname(&mut self, val: String) {
+            self.inner.shortname = val;
+        }
+
         /// Set the packages in this collection.
         #[setter]
         fn set_packages(&mut self, py: Python<'_>, pkgs: Vec<Py<UpdateCollectionPackage>>) {
@@ -1702,6 +1722,16 @@ mod rpmrepo_metadata {
                 .and_then(|c| c.to_values().ok())
         }
 
+        /// Set the checksum from a (type, value) tuple, or `None` to clear it.
+        #[setter]
+        fn set_checksum(&mut self, checksum: Option<(String, String)>) -> PyResult<()> {
+            self.inner.checksum = match checksum {
+                Some((kind, value)) => Some(crate::metadata::Checksum::try_create(kind, value)?),
+                None => None,
+            };
+            Ok(())
+        }
+
         /// The version string of the package.
         #[getter]
         fn version(&self) -> &str {
@@ -1835,6 +1865,54 @@ mod rpmrepo_metadata {
             }
         }
 
+        /// Set the unique identifier of the group.
+        #[setter]
+        fn set_id(&mut self, val: String) {
+            self.inner.id = val;
+        }
+
+        /// Set the display name of the group.
+        #[setter]
+        fn set_name(&mut self, val: String) {
+            self.inner.name = val;
+        }
+
+        /// Set the description of the group.
+        #[setter]
+        fn set_description(&mut self, val: String) {
+            self.inner.description = val;
+        }
+
+        /// Set whether the group is selected by default.
+        #[setter]
+        fn set_default(&mut self, val: bool) {
+            self.inner.default = val;
+        }
+
+        /// Set whether the group is visible to users in installation UIs.
+        #[setter]
+        fn set_uservisible(&mut self, val: bool) {
+            self.inner.uservisible = val;
+        }
+
+        /// Set whether the group is only available on biarch platforms.
+        #[setter]
+        fn set_biarchonly(&mut self, val: bool) {
+            self.inner.biarchonly = val;
+        }
+
+        /// Set the language restriction for this group.
+        #[setter]
+        fn set_langonly(&mut self, val: Option<String>) {
+            self.inner.langonly = val;
+        }
+
+        /// Set the display order for sorting in UIs.
+        #[setter]
+        fn set_display_order(&mut self, val: Option<u32>) {
+            self.inner.display_order = val;
+        }
+
         /// Set the package requirements for this group.
         #[setter]
         fn set_packages(&mut self, py: Python<'_>, pkgs: Vec<Py<CompsPackageReq>>) {
@@ -1962,6 +2040,30 @@ mod rpmrepo_metadata {
             }
         }
 
+        /// Set the name of the required package.
+        #[setter]
+        fn set_name(&mut self, val: String) {
+            self.inner.name = val;
+        }
+
+        /// Set the requirement type (e.g. default, mandatory, optional, conditional).
+        #[setter]
+        fn set_reqtype(&mut self, val: String) {
+            self.inner.reqtype = val;
+        }
+
+        /// Set the conditional requirement expression.
+        #[setter]
+        fn set_requires(&mut self, val: Option<String>) {
+            self.inner.requires = val;
+        }
+
+        /// Set whether this package is only for the base architecture.
+        #[setter]
+        fn set_basearchonly(&mut self, val: Option<bool>) {
+            self.inner.basearchonly = val;
+        }
+
         /// The name of the required package.
         #[getter]
         fn name(&self) -> &str {
@@ -2013,6 +2115,30 @@ mod rpmrepo_metadata {
                     group_ids: Vec::new(),
                 },
             }
+        }
+
+        /// Set the unique identifier of the category.
+        #[setter]
+        fn set_id(&mut self, val: String) {
+            self.inner.id = val;
+        }
+
+        /// Set the display name of the category.
+        #[setter]
+        fn set_name(&mut self, val: String) {
+            self.inner.name = val;
+        }
+
+        /// Set the description of the category.
+        #[setter]
+        fn set_description(&mut self, val: String) {
+            self.inner.description = val;
+        }
+
+        /// Set the display order for sorting in UIs.
+        #[setter]
+        fn set_display_order(&mut self, val: Option<u32>) {
+            self.inner.display_order = val;
         }
 
         /// Set the group IDs for this category.
@@ -2111,6 +2237,30 @@ mod rpmrepo_metadata {
                     option_ids: Vec::new(),
                 },
             }
+        }
+
+        /// Set the unique identifier of the environment.
+        #[setter]
+        fn set_id(&mut self, val: String) {
+            self.inner.id = val;
+        }
+
+        /// Set the display name of the environment.
+        #[setter]
+        fn set_name(&mut self, val: String) {
+            self.inner.name = val;
+        }
+
+        /// Set the description of the environment.
+        #[setter]
+        fn set_description(&mut self, val: String) {
+            self.inner.description = val;
+        }
+
+        /// Set the display order for sorting in UIs.
+        #[setter]
+        fn set_display_order(&mut self, val: Option<u32>) {
+            self.inner.display_order = val;
         }
 
         /// Set the mandatory group IDs.
@@ -2218,6 +2368,18 @@ mod rpmrepo_metadata {
             }
         }
 
+        /// Set the group ID of the optional group.
+        #[setter]
+        fn set_group_id(&mut self, val: String) {
+            self.inner.group_id = val;
+        }
+
+        /// Set whether this optional group is selected by default.
+        #[setter]
+        fn set_default(&mut self, val: bool) {
+            self.inner.default = val;
+        }
+
         /// The group ID of the optional group.
         #[getter]
         fn group_id(&self) -> &str {
@@ -2244,10 +2406,23 @@ mod rpmrepo_metadata {
     #[pymethods]
     impl CompsLangpack {
         #[new]
+        #[pyo3(signature = (name="".to_string(), install="".to_string()))]
         fn new(name: String, install: String) -> Self {
             Self {
                 inner: crate::CompsLangpack { name, install },
             }
+        }
+
+        /// Set the base package name that triggers langpack installation.
+        #[setter]
+        fn set_name(&mut self, val: String) {
+            self.inner.name = val;
+        }
+
+        /// Set the langpack package name pattern to install.
+        #[setter]
+        fn set_install(&mut self, val: String) {
+            self.inner.install = val;
         }
 
         /// The base package name that triggers langpack installation.

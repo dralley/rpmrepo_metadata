@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Comps Python types (`CompsGroup`, `CompsPackageReq`, `CompsCategory`, `CompsEnvironment`, `CompsEnvironmentOption`, `CompsLangpack`) now expose setters for all of their scalar fields, so every readable attribute is also writable after construction (symmetric with `Package`).
+- `CompsLangpack` constructor arguments are now optional (defaulting to empty strings), and the type gained `to_dict()`/`to_json()`, consistent with the other comps types.
+- `UpdateCollection` gained `name`/`shortname` setters and `UpdateCollectionPackage` gained a `checksum` setter, so these fields are now writable after construction (symmetric with their getters).
+
 ### Changed
 
 - `UpdateReference` fields (`href`, `title`, `reftype`) now preserve empty string values from XML instead of treating them as required.
