@@ -12,9 +12,11 @@ homepage = "https://github.com/dralley/rpmrepo_metadata/"
 documentation = "https://docs.rs/rpmrepo_metadata/"
 
 [features]
-python_ext = ["pyo3", "rpm-version/python"]
+python_ext = ["pyo3", "rpm-version/python", "serialize"]
 read_rpm = ["rpm"]
 supportinfo = []
+# Derive serde `Serialize` on the metadata data types and enable JSON/dict output.
+serialize = ["dep:serde", "dep:serde_json"]
 default = ["read_rpm"]
 
 [dependencies]
@@ -34,9 +36,11 @@ md-5 = "0.10.5"
 hex = "0.4.3"
 ahash = "0.8"
 compact_str = "0.10"
-indexmap = "2.14.0"
+indexmap = { version = "2.14.0", features = ["serde"] }
 rpm-version = "0.5.1"
-pyo3 = { version = "0.29.0", features = ["extension-module"], optional = true }
+pyo3 = { version = "0.29.0", features = ["extension-module", "indexmap"], optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
 
 [lib]
 name = "rpmrepo_metadata"
