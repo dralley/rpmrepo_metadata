@@ -172,94 +172,50 @@ def compare_advisory_lists(recs1, recs2):
 # ---------------------------------------------------------------------------
 
 
-def _compare_comps_package_reqs_fields(p1, p2):
-    assert_eq(p1.name, p2.name, "package_req.name")
-    assert_eq(p1.reqtype, p2.reqtype, "package_req.reqtype")
-    assert_eq(p1.requires, p2.requires, "package_req.requires")
-    assert_eq(p1.basearchonly, p2.basearchonly, "package_req.basearchonly")
+# Every comps type exposes canonicalize() (deterministic ordering of nested
+# collections and localized strings) and to_dict() (a plain, comparable form).
+# Comparing canonicalized dicts gives a single readable diff on failure and
+# tracks the field set automatically, with no per-field boilerplate to maintain.
+# Element ordering is not semantically significant and is not preserved across a
+# write/read round-trip, so canonicalizing both sides is exactly the right
+# comparison here. Per-field accessor coverage lives in test_comps.py.
 
 
-def _compare_comps_groups_fields(g1, g2):
-    assert_eq(g1.id, g2.id, "group.id")
-    assert_eq(g1.name, g2.name, "group.name")
-    assert_eq(g1.description, g2.description, "group.description")
-    assert_eq(g1.default, g2.default, "group.default")
-    assert_eq(g1.uservisible, g2.uservisible, "group.uservisible")
-    assert_eq(g1.biarchonly, g2.biarchonly, "group.biarchonly")
-    assert_eq(g1.langonly, g2.langonly, "group.langonly")
-    assert_eq(g1.display_order, g2.display_order, "group.display_order")
-    assert_eq(g1.name_by_lang, g2.name_by_lang, "group.name_by_lang")
-    assert_eq(g1.desc_by_lang, g2.desc_by_lang, "group.desc_by_lang")
-    compare_lists(
-        g1.packages,
-        g2.packages,
-        "group.packages",
-        _compare_comps_package_reqs_fields,
-    )
+def _canon_dict(obj):
+    """Canonicalize a comps object (if supported) and return its dict form."""
+    if hasattr(obj, "canonicalize"):
+        obj.canonicalize()
+    return obj.to_dict()
 
 
-def _compare_comps_categories_fields(c1, c2):
-    assert_eq(c1.id, c2.id, "category.id")
-    assert_eq(c1.name, c2.name, "category.name")
-    assert_eq(c1.description, c2.description, "category.description")
-    assert_eq(c1.display_order, c2.display_order, "category.display_order")
-    assert_eq(c1.name_by_lang, c2.name_by_lang, "category.name_by_lang")
-    assert_eq(c1.desc_by_lang, c2.desc_by_lang, "category.desc_by_lang")
-    assert_eq(c1.group_ids, c2.group_ids, "category.group_ids")
-
-
-def _compare_comps_environment_options_fields(o1, o2):
-    assert_eq(o1.group_id, o2.group_id, "env_option.group_id")
-    assert_eq(o1.default, o2.default, "env_option.default")
-
-
-def _compare_comps_environments_fields(e1, e2):
-    assert_eq(e1.id, e2.id, "environment.id")
-    assert_eq(e1.name, e2.name, "environment.name")
-    assert_eq(e1.description, e2.description, "environment.description")
-    assert_eq(e1.display_order, e2.display_order, "environment.display_order")
-    assert_eq(e1.name_by_lang, e2.name_by_lang, "environment.name_by_lang")
-    assert_eq(e1.desc_by_lang, e2.desc_by_lang, "environment.desc_by_lang")
-    assert_eq(e1.group_ids, e2.group_ids, "environment.group_ids")
-    compare_lists(
-        e1.option_ids,
-        e2.option_ids,
-        "environment.option_ids",
-        _compare_comps_environment_options_fields,
-    )
-
-
-def _compare_comps_langpacks_fields(l1, l2):
-    assert_eq(l1.name, l2.name, "langpack.name")
-    assert_eq(l1.install, l2.install, "langpack.install")
+def _sorted_canon(items, key):
+    """Return canonicalized dicts for a comps collection, sorted by ``key``."""
+    return sorted((_canon_dict(item) for item in items), key=lambda d: d[key])
 
 
 def compare_comps_groups(g1, g2):
-    if g1 == g2:
-        return
-    _compare_comps_groups_fields(g1, g2)
+    assert _canon_dict(g1) == _canon_dict(g2)
 
 
 def compare_comps_categories(c1, c2):
-    if c1 == c2:
-        return
-    _compare_comps_categories_fields(c1, c2)
+    assert _canon_dict(c1) == _canon_dict(c2)
 
 
 def compare_comps_environments(e1, e2):
-    if e1 == e2:
-        return
-    _compare_comps_environments_fields(e1, e2)
+    assert _canon_dict(e1) == _canon_dict(e2)
 
 
 def compare_comps_langpacks(l1, l2):
-    if l1 == l2:
-        return
-    _compare_comps_langpacks_fields(l1, l2)
+    assert _canon_dict(l1) == _canon_dict(l2)
 
 
-def compare_comps(repo1, repo2):
-    compare_lists(repo1.groups, repo2.groups, "groups", _compare_comps_groups_fields)
-    compare_lists(repo1.categories, repo2.categories, "categories", _compare_comps_categories_fields)
-    compare_lists(repo1.environments, repo2.environments, "environments", _compare_comps_environments_fields)
-    compare_lists(repo1.langpacks, repo2.langpacks, "langpacks", _compare_comps_langpacks_fields)
+def compare_comps(comps1, comps2):
+    """Compare the comps content of two Repository or CompsData objects."""
+    assert _sorted_canon(comps1.groups, "id") == _sorted_canon(comps2.groups, "id"), "groups"
+    assert _sorted_canon(comps1.categories, "id") == _sorted_canon(comps2.categories, "id"), "categories"
+    assert (
+        _sorted_canon(comps1.environments, "id") == _sorted_canon(comps2.environments, "id")
+    ), "environments"
+    assert (
+        _sorted_canon(comps1.langpacks, "name") == _sorted_canon(comps2.langpacks, "name")
+    ), "langpacks"

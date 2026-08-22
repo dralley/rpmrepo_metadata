@@ -118,6 +118,11 @@ def validate_comps(comps_xml_path):
     assert len(rpmrepo_comps.groups) == len(lc_comps.groups), "groups length"
     for rpmrepo_group, lc_group in zip(rpmrepo_comps.groups, lc_comps.groups):
         compare_groups(rpmrepo_group, lc_group)
+        group_dict = rpmrepo_group.to_dict()
+        assert group_dict["id"] == rpmrepo_group.id, "group.to_dict()['id']"
+        assert group_dict["name_by_lang"] == rpmrepo_group.name_by_lang, (
+            "group.to_dict()['name_by_lang']"
+        )
 
     assert len(rpmrepo_comps.categories) == len(lc_comps.categories), "categories length"
     for rpmrepo_cat, lc_cat in zip(rpmrepo_comps.categories, lc_comps.categories):

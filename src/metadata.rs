@@ -1610,6 +1610,7 @@ pub struct UpdateCollectionModule {
 
 /// A package group from comps.xml, grouping related packages for installation.
 #[derive(Clone, Debug, PartialEq, Default)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize))]
 pub struct CompsGroup {
     /// The unique identifier of the group.
     pub id: String,
@@ -1667,6 +1668,7 @@ impl std::fmt::Display for PackageReqType {
 
 /// A package requirement within a comps group.
 #[derive(Clone, Debug, PartialEq, Default)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize))]
 pub struct CompsPackageReq {
     /// The name of the required package.
     pub name: String,
@@ -1680,6 +1682,7 @@ pub struct CompsPackageReq {
 
 /// A category from comps.xml, organizing groups into higher-level groupings.
 #[derive(Clone, Debug, PartialEq, Default)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize))]
 pub struct CompsCategory {
     /// The unique identifier of the category.
     pub id: String,
@@ -1699,6 +1702,7 @@ pub struct CompsCategory {
 
 /// An environment from comps.xml, defining a complete installation profile.
 #[derive(Clone, Debug, PartialEq, Default)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize))]
 pub struct CompsEnvironment {
     /// The unique identifier of the environment.
     pub id: String,
@@ -1720,6 +1724,7 @@ pub struct CompsEnvironment {
 
 /// An optional group within a comps environment, with a default selection state.
 #[derive(Clone, Debug, PartialEq, Default)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize))]
 pub struct CompsEnvironmentOption {
     /// The group ID of the optional group.
     pub group_id: String,
@@ -1729,6 +1734,7 @@ pub struct CompsEnvironmentOption {
 
 /// A langpack mapping from comps.xml, associating packages with language pack patterns.
 #[derive(Clone, Debug, PartialEq, Default)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize))]
 pub struct CompsLangpack {
     /// The base package name that triggers langpack installation.
     pub name: String,
@@ -1738,6 +1744,7 @@ pub struct CompsLangpack {
 
 /// Parsed comps.xml data containing all group, category, environment, and langpack entries.
 #[derive(Clone, Debug, PartialEq, Default)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize))]
 pub struct CompsData {
     /// Package groups defined in the comps data.
     pub groups: Vec<CompsGroup>,
@@ -1747,6 +1754,75 @@ pub struct CompsData {
     pub environments: Vec<CompsEnvironment>,
     /// Langpack mappings associating packages with language pack patterns.
     pub langpacks: Vec<CompsLangpack>,
+}
+
+impl CompsGroup {
+    /// Order this group's packages and localized strings deterministically.
+    pub fn canonicalize(&mut self) {
+        self.packages.sort_by(|a, b| {
+            a.name
+                .cmp(&b.name)
+                .then_with(|| a.reqtype.cmp(&b.reqtype))
+                .then_with(|| a.requires.cmp(&b.requires))
+        });
+        self.packages.dedup();
+        self.name_by_lang.sort_keys();
+        self.desc_by_lang.sort_keys();
+    }
+}
+
+impl CompsCategory {
+    /// Order this category's group references and localized strings deterministically.
+    pub fn canonicalize(&mut self) {
+        self.group_ids.sort();
+        self.group_ids.dedup();
+        self.name_by_lang.sort_keys();
+        self.desc_by_lang.sort_keys();
+    }
+}
+
+impl CompsEnvironment {
+    /// Order this environment's group references, options, and localized strings.
+    pub fn canonicalize(&mut self) {
+        self.group_ids.sort();
+        self.group_ids.dedup();
+        self.option_ids.sort_by(|a, b| a.group_id.cmp(&b.group_id));
+        self.option_ids.dedup();
+        self.name_by_lang.sort_keys();
+        self.desc_by_lang.sort_keys();
+    }
+}
+
+impl CompsData {
+    /// Reorder every collection into a deterministic, canonical order in place.
+    ///
+    /// Groups, categories, and environments are sorted by `id` (and each is
+    /// canonicalized internally); langpacks are sorted by `name`. Duplicate
+    /// entries are removed.
+    ///
+    /// Comps element ordering is not semantically significant, but it is not
+    /// preserved across a write/read (publish) round-trip. Canonicalizing both
+    /// sides first lets them be compared directly with `==` (or serialized and
+    /// diffed) without spurious ordering differences.
+    pub fn canonicalize(&mut self) {
+        for group in &mut self.groups {
+            group.canonicalize();
+        }
+        self.groups.sort_by(|a, b| a.id.cmp(&b.id));
+
+        for category in &mut self.categories {
+            category.canonicalize();
+        }
+        self.categories.sort_by(|a, b| a.id.cmp(&b.id));
+
+        for environment in &mut self.environments {
+            environment.canonicalize();
+        }
+        self.environments.sort_by(|a, b| a.id.cmp(&b.id));
+
+        self.langpacks.sort_by(|a, b| a.name.cmp(&b.name));
+        self.langpacks.dedup();
+    }
 }
 
 // ---------------- Support Info types -----------------------------------

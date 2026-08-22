@@ -32,6 +32,43 @@ impl From<crate::MetadataError> for pyo3::PyErr {
     }
 }
 
+/// Recursively convert a `serde_json::Value` into a native Python object
+/// (dict/list/str/int/float/bool/None).
+#[cfg(feature = "serialize")]
+fn json_value_to_py(py: Python<'_>, value: &serde_json::Value) -> PyResult<Py<PyAny>> {
+    use pyo3::types::{PyDict, PyList};
+
+    let obj: Py<PyAny> = match value {
+        serde_json::Value::Null => py.None(),
+        serde_json::Value::Bool(b) => (*b).into_pyobject(py)?.to_owned().into_any().unbind(),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                i.into_pyobject(py)?.into_any().unbind()
+            } else if let Some(u) = n.as_u64() {
+                u.into_pyobject(py)?.into_any().unbind()
+            } else {
+                n.as_f64().unwrap().into_pyobject(py)?.into_any().unbind()
+            }
+        }
+        serde_json::Value::String(s) => s.as_str().into_pyobject(py)?.into_any().unbind(),
+        serde_json::Value::Array(arr) => {
+            let list = PyList::empty(py);
+            for item in arr {
+                list.append(json_value_to_py(py, item)?)?;
+            }
+            list.into_any().unbind()
+        }
+        serde_json::Value::Object(map) => {
+            let dict = PyDict::new(py);
+            for (k, v) in map {
+                dict.set_item(k.as_str(), json_value_to_py(py, v)?)?;
+            }
+            dict.into_any().unbind()
+        }
+    };
+    Ok(obj)
+}
+
 #[pymodule]
 mod rpmrepo_metadata {
     use super::*;
@@ -479,6 +516,32 @@ mod rpmrepo_metadata {
                 .iter()
                 .map(|l| l.borrow(py).inner.clone())
                 .collect();
+        }
+
+        /// Reorder all collections into a deterministic, canonical order in place.
+        ///
+        /// Element ordering in comps is not semantically significant, but it is
+        /// not preserved across a publish round-trip. Canonicalize both sides
+        /// before comparing them with ``==`` or via :meth:`to_dict`.
+        fn canonicalize(&mut self) {
+            self.inner.canonicalize();
+        }
+
+        /// Return a plain ``dict`` representation of this comps data.
+        ///
+        /// Combine with :meth:`canonicalize` for an order-insensitive,
+        /// diff-friendly comparison of two comps documents.
+        #[cfg(feature = "serialize")]
+        fn to_dict(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+            let value = serde_json::to_value(&self.inner)
+                .map_err(|e| MetadataError::new_err(e.to_string()))?;
+            json_value_to_py(py, &value)
+        }
+
+        /// Return a JSON string representation of this comps data.
+        #[cfg(feature = "serialize")]
+        fn to_json(&self) -> PyResult<String> {
+            serde_json::to_string(&self.inner).map_err(|e| MetadataError::new_err(e.to_string()))
         }
 
         fn __eq__(&self, other: &CompsData) -> bool {
@@ -2001,6 +2064,25 @@ mod rpmrepo_metadata {
                 .collect()
         }
 
+        /// Order this group's packages and localized strings deterministically.
+        fn canonicalize(&mut self) {
+            self.inner.canonicalize();
+        }
+
+        /// Return a plain ``dict`` representation of this group.
+        #[cfg(feature = "serialize")]
+        fn to_dict(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+            let value = serde_json::to_value(&self.inner)
+                .map_err(|e| MetadataError::new_err(e.to_string()))?;
+            json_value_to_py(py, &value)
+        }
+
+        /// Return a JSON string representation of this group.
+        #[cfg(feature = "serialize")]
+        fn to_json(&self) -> PyResult<String> {
+            serde_json::to_string(&self.inner).map_err(|e| MetadataError::new_err(e.to_string()))
+        }
+
         fn __eq__(&self, other: &CompsGroup) -> bool {
             self.inner == other.inner
         }
@@ -2201,6 +2283,25 @@ mod rpmrepo_metadata {
             self.inner.group_ids.clone()
         }
 
+        /// Order this category's group references and localized strings deterministically.
+        fn canonicalize(&mut self) {
+            self.inner.canonicalize();
+        }
+
+        /// Return a plain ``dict`` representation of this category.
+        #[cfg(feature = "serialize")]
+        fn to_dict(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+            let value = serde_json::to_value(&self.inner)
+                .map_err(|e| MetadataError::new_err(e.to_string()))?;
+            json_value_to_py(py, &value)
+        }
+
+        /// Return a JSON string representation of this category.
+        #[cfg(feature = "serialize")]
+        fn to_json(&self) -> PyResult<String> {
+            serde_json::to_string(&self.inner).map_err(|e| MetadataError::new_err(e.to_string()))
+        }
+
         fn __eq__(&self, other: &CompsCategory) -> bool {
             self.inner == other.inner
         }
@@ -2339,6 +2440,25 @@ mod rpmrepo_metadata {
                 .collect()
         }
 
+        /// Order this environment's group references, options, and localized strings.
+        fn canonicalize(&mut self) {
+            self.inner.canonicalize();
+        }
+
+        /// Return a plain ``dict`` representation of this environment.
+        #[cfg(feature = "serialize")]
+        fn to_dict(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+            let value = serde_json::to_value(&self.inner)
+                .map_err(|e| MetadataError::new_err(e.to_string()))?;
+            json_value_to_py(py, &value)
+        }
+
+        /// Return a JSON string representation of this environment.
+        #[cfg(feature = "serialize")]
+        fn to_json(&self) -> PyResult<String> {
+            serde_json::to_string(&self.inner).map_err(|e| MetadataError::new_err(e.to_string()))
+        }
+
         fn __eq__(&self, other: &CompsEnvironment) -> bool {
             self.inner == other.inner
         }
@@ -2435,6 +2555,20 @@ mod rpmrepo_metadata {
         #[getter]
         fn install(&self) -> &str {
             &self.inner.install
+        }
+
+        /// Return a plain ``dict`` representation of this langpack.
+        #[cfg(feature = "serialize")]
+        fn to_dict(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+            let value = serde_json::to_value(&self.inner)
+                .map_err(|e| MetadataError::new_err(e.to_string()))?;
+            json_value_to_py(py, &value)
+        }
+
+        /// Return a JSON string representation of this langpack.
+        #[cfg(feature = "serialize")]
+        fn to_json(&self) -> PyResult<String> {
+            serde_json::to_string(&self.inner).map_err(|e| MetadataError::new_err(e.to_string()))
         }
 
         fn __eq__(&self, other: &CompsLangpack) -> bool {

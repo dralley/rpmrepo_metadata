@@ -183,3 +183,113 @@ fn test_comps_xml_read_real_repo() -> Result<(), MetadataError> {
 
     Ok(())
 }
+
+#[test]
+fn test_comps_canonicalize_orders_and_dedups() {
+    let mut data = CompsData {
+        groups: vec![
+            CompsGroup {
+                id: "zzz".to_string(),
+                packages: vec![
+                    CompsPackageReq {
+                        name: "bravo".to_string(),
+                        reqtype: "default".to_string(),
+                        ..Default::default()
+                    },
+                    CompsPackageReq {
+                        name: "alpha".to_string(),
+                        reqtype: "default".to_string(),
+                        ..Default::default()
+                    },
+                    // Exact duplicate should be removed.
+                    CompsPackageReq {
+                        name: "alpha".to_string(),
+                        reqtype: "default".to_string(),
+                        ..Default::default()
+                    },
+                ],
+                name_by_lang: IndexMap::from([
+                    ("fr".to_string(), "Zzz".to_string()),
+                    ("de".to_string(), "Zzz".to_string()),
+                ]),
+                ..Default::default()
+            },
+            CompsGroup {
+                id: "aaa".to_string(),
+                ..Default::default()
+            },
+        ],
+        categories: vec![CompsCategory {
+            id: "cat".to_string(),
+            group_ids: vec!["zzz".to_string(), "aaa".to_string(), "aaa".to_string()],
+            ..Default::default()
+        }],
+        environments: vec![],
+        langpacks: vec![
+            CompsLangpack {
+                name: "zebra".to_string(),
+                install: "zebra-%s".to_string(),
+            },
+            CompsLangpack {
+                name: "ant".to_string(),
+                install: "ant-%s".to_string(),
+            },
+        ],
+    };
+
+    data.canonicalize();
+
+    // Groups sorted by id.
+    assert_eq!(data.groups[0].id, "aaa");
+    assert_eq!(data.groups[1].id, "zzz");
+    // Packages sorted by name and deduplicated.
+    let pkgs = &data.groups[1].packages;
+    assert_eq!(pkgs.len(), 2);
+    assert_eq!(pkgs[0].name, "alpha");
+    assert_eq!(pkgs[1].name, "bravo");
+    // Localized names sorted by language.
+    let keys: Vec<_> = data.groups[1].name_by_lang.keys().collect();
+    assert_eq!(keys[0], "de");
+    assert_eq!(keys[1], "fr");
+    // Category group_ids sorted and deduplicated.
+    assert_eq!(data.categories[0].group_ids, vec!["aaa", "zzz"]);
+    // Langpacks sorted by name.
+    assert_eq!(data.langpacks[0].name, "ant");
+    assert_eq!(data.langpacks[1].name, "zebra");
+
+    // Canonicalize is idempotent.
+    let mut again = data.clone();
+    again.canonicalize();
+    assert_eq!(data, again);
+}
+
+#[test]
+fn test_comps_canonicalize_ignores_ordering_roundtrip() -> Result<(), MetadataError> {
+    let fixture = std::fs::read_to_string(COMPS_FIXTURE_PATH).unwrap();
+
+    // Parse once.
+    let mut reader = CompsXmlReader::new(utils::create_xml_reader(fixture.as_bytes()));
+    let mut groups = Vec::new();
+    let mut categories = Vec::new();
+    let mut environments = Vec::new();
+    let langpacks = reader.read_all(&mut groups, &mut categories, &mut environments)?;
+    let mut original = CompsData {
+        groups,
+        categories,
+        environments,
+        langpacks,
+    };
+
+    // Build a reversed-order copy; canonicalizing both must make them equal.
+    let mut shuffled = original.clone();
+    shuffled.groups.reverse();
+    shuffled.categories.reverse();
+    shuffled.environments.reverse();
+    shuffled.langpacks.reverse();
+
+    original.canonicalize();
+    shuffled.canonicalize();
+    assert_eq!(original, shuffled);
+
+    Ok(())
+}
