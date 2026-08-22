@@ -1794,6 +1794,37 @@ impl CompsEnvironment {
 }
 
 impl CompsData {
+    /// Parse comps metadata from an XML string.
+    pub fn from_xml(xml: &str) -> Result<CompsData, MetadataError> {
+        let reader = crate::utils::create_xml_reader(xml.as_bytes());
+        let data = crate::metadata::CompsXml::read_data(reader)?;
+        Ok(data)
+    }
+
+    /// Parse comps metadata from an XML file.
+    pub fn from_file(path: &Path) -> Result<CompsData, MetadataError> {
+        let reader = crate::utils::xml_reader_from_file(path)?;
+        let data = crate::metadata::CompsXml::read_data(reader)?;
+        Ok(data)
+    }
+
+    /// Serialize comps metadata to an XML string.
+    pub fn to_xml(&self) -> Result<String, MetadataError> {
+        let mut buf = Vec::new();
+        let writer = crate::utils::create_xml_writer(&mut buf);
+        crate::metadata::CompsXml::write_data(self, writer)?;
+        Ok(String::from_utf8(buf).expect("Output contains non-UTF-8 text"))
+    }
+
+    /// Serialize comps metadata to an XML file.
+    pub fn to_file(&self, path: &Path) -> Result<(), MetadataError> {
+        let mut buf = std::fs::File::open(path)?;
+        let writer = crate::utils::create_xml_writer(&mut buf);
+        crate::metadata::CompsXml::write_data(self, writer)
+            .expect("Output contains non-UTF-8 text");
+        Ok(())
+    }
+
     /// Reorder every collection into a deterministic, canonical order in place.
     ///
     /// Groups, categories, and environments are sorted by `id` (and each is

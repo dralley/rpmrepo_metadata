@@ -423,26 +423,27 @@ mod rpmrepo_metadata {
         /// Parse comps metadata from an XML string.
         #[staticmethod]
         fn from_xml(xml: &str) -> PyResult<CompsData> {
-            let reader = crate::utils::create_xml_reader(xml.as_bytes());
-            let data = crate::metadata::CompsXml::read_data(reader)?;
-            Ok(CompsData { inner: data })
+            Ok(CompsData {
+                inner: crate::CompsData::from_xml(xml)?,
+            })
         }
 
         /// Parse comps metadata from an XML file.
         #[staticmethod]
         fn from_file(path: PathBuf) -> PyResult<CompsData> {
-            let reader = crate::utils::xml_reader_from_file(&path)?;
-            let data = crate::metadata::CompsXml::read_data(reader)?;
-            Ok(CompsData { inner: data })
+            Ok(CompsData {
+                inner: crate::CompsData::from_file(&path)?,
+            })
         }
 
         /// Serialize comps metadata to an XML string.
         fn to_xml(&self) -> PyResult<String> {
-            let mut buf = Vec::new();
-            let writer = crate::utils::create_xml_writer(&mut buf);
-            crate::metadata::CompsXml::write_data(&self.inner, writer)?;
-            String::from_utf8(buf)
-                .map_err(|e| pyo3::exceptions::PyUnicodeDecodeError::new_err(e.to_string()))
+            Ok(self.inner.to_xml()?)
+        }
+
+        /// Serialize comps metadata to an XML string.
+        fn to_file(&self, path: PathBuf) -> PyResult<()> {
+            Ok(self.inner.to_file(&path)?)
         }
 
         /// Package groups defined in the comps data.
