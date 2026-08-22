@@ -87,7 +87,7 @@ class TestRepositoryWriterComps:
             pkg2 = r.CompsPackageReq(name="vim", reqtype="default")
             group = r.CompsGroup(id="core", name="Core")
             group.packages = [pkg1, pkg2]
-            group.desc_by_lang = [("en", "Core packages")]
+            group.desc_by_lang = {"en": "Core packages"}
 
             cat = r.CompsCategory(id="base", name="Base System")
             cat.group_ids = ["core"]

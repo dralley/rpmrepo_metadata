@@ -1828,8 +1828,8 @@ mod rpmrepo_metadata {
                     biarchonly,
                     langonly,
                     display_order,
-                    name_by_lang: Vec::new(),
-                    desc_by_lang: Vec::new(),
+                    name_by_lang: indexmap::IndexMap::new(),
+                    desc_by_lang: indexmap::IndexMap::new(),
                     packages: Vec::new(),
                 },
             }
@@ -1843,13 +1843,13 @@ mod rpmrepo_metadata {
 
         /// Set the localized group names.
         #[setter]
-        fn set_name_by_lang(&mut self, val: Vec<(String, String)>) {
+        fn set_name_by_lang(&mut self, val: indexmap::IndexMap<String, String>) {
             self.inner.name_by_lang = val;
         }
 
         /// Set the localized group descriptions.
         #[setter]
-        fn set_desc_by_lang(&mut self, val: Vec<(String, String)>) {
+        fn set_desc_by_lang(&mut self, val: indexmap::IndexMap<String, String>) {
             self.inner.desc_by_lang = val;
         }
 
@@ -1865,9 +1865,9 @@ mod rpmrepo_metadata {
             &self.inner.name
         }
 
-        /// Localized group names as (lang, name) pairs.
+        /// Localized group names as a dict keyed by language code.
         #[getter]
-        fn name_by_lang(&self) -> Vec<(String, String)> {
+        fn name_by_lang(&self) -> indexmap::IndexMap<String, String> {
             self.inner.name_by_lang.clone()
         }
 
@@ -1877,9 +1877,9 @@ mod rpmrepo_metadata {
             &self.inner.description
         }
 
-        /// Localized group descriptions as (lang, description) pairs.
+        /// Localized group descriptions as a dict keyed by language code.
         #[getter]
-        fn desc_by_lang(&self) -> Vec<(String, String)> {
+        fn desc_by_lang(&self) -> indexmap::IndexMap<String, String> {
             self.inner.desc_by_lang.clone()
         }
 
@@ -2008,8 +2008,8 @@ mod rpmrepo_metadata {
                     name,
                     description,
                     display_order,
-                    name_by_lang: Vec::new(),
-                    desc_by_lang: Vec::new(),
+                    name_by_lang: indexmap::IndexMap::new(),
+                    desc_by_lang: indexmap::IndexMap::new(),
                     group_ids: Vec::new(),
                 },
             }
@@ -2023,13 +2023,13 @@ mod rpmrepo_metadata {
 
         /// Set the localized category names.
         #[setter]
-        fn set_name_by_lang(&mut self, val: Vec<(String, String)>) {
+        fn set_name_by_lang(&mut self, val: indexmap::IndexMap<String, String>) {
             self.inner.name_by_lang = val;
         }
 
         /// Set the localized category descriptions.
         #[setter]
-        fn set_desc_by_lang(&mut self, val: Vec<(String, String)>) {
+        fn set_desc_by_lang(&mut self, val: indexmap::IndexMap<String, String>) {
             self.inner.desc_by_lang = val;
         }
 
@@ -2045,9 +2045,9 @@ mod rpmrepo_metadata {
             &self.inner.name
         }
 
-        /// Localized category names as (lang, name) pairs.
+        /// Localized category names as a dict keyed by language code.
         #[getter]
-        fn name_by_lang(&self) -> Vec<(String, String)> {
+        fn name_by_lang(&self) -> indexmap::IndexMap<String, String> {
             self.inner.name_by_lang.clone()
         }
 
@@ -2057,9 +2057,9 @@ mod rpmrepo_metadata {
             &self.inner.description
         }
 
-        /// Localized category descriptions as (lang, description) pairs.
+        /// Localized category descriptions as a dict keyed by language code.
         #[getter]
-        fn desc_by_lang(&self) -> Vec<(String, String)> {
+        fn desc_by_lang(&self) -> indexmap::IndexMap<String, String> {
             self.inner.desc_by_lang.clone()
         }
 
@@ -2105,8 +2105,8 @@ mod rpmrepo_metadata {
                     name,
                     description,
                     display_order,
-                    name_by_lang: Vec::new(),
-                    desc_by_lang: Vec::new(),
+                    name_by_lang: indexmap::IndexMap::new(),
+                    desc_by_lang: indexmap::IndexMap::new(),
                     group_ids: Vec::new(),
                     option_ids: Vec::new(),
                 },
@@ -2127,13 +2127,13 @@ mod rpmrepo_metadata {
 
         /// Set the localized environment names.
         #[setter]
-        fn set_name_by_lang(&mut self, val: Vec<(String, String)>) {
+        fn set_name_by_lang(&mut self, val: indexmap::IndexMap<String, String>) {
             self.inner.name_by_lang = val;
         }
 
         /// Set the localized environment descriptions.
         #[setter]
-        fn set_desc_by_lang(&mut self, val: Vec<(String, String)>) {
+        fn set_desc_by_lang(&mut self, val: indexmap::IndexMap<String, String>) {
             self.inner.desc_by_lang = val;
         }
 
@@ -2149,9 +2149,9 @@ mod rpmrepo_metadata {
             &self.inner.name
         }
 
-        /// Localized environment names as (lang, name) pairs.
+        /// Localized environment names as a dict keyed by language code.
         #[getter]
-        fn name_by_lang(&self) -> Vec<(String, String)> {
+        fn name_by_lang(&self) -> indexmap::IndexMap<String, String> {
             self.inner.name_by_lang.clone()
         }
 
@@ -2161,9 +2161,9 @@ mod rpmrepo_metadata {
             &self.inner.description
         }
 
-        /// Localized environment descriptions as (lang, description) pairs.
+        /// Localized environment descriptions as a dict keyed by language code.
         #[getter]
-        fn desc_by_lang(&self) -> Vec<(String, String)> {
+        fn desc_by_lang(&self) -> indexmap::IndexMap<String, String> {
             self.inner.desc_by_lang.clone()
         }
 

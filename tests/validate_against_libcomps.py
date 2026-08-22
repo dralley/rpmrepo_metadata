@@ -34,7 +34,7 @@ import rpmrepo_metadata as rpmmd
 # * libcomps uses `desc` for descriptions, rpmrepo_metadata uses `description`
 # * libcomps uses `lang_only` for groups, rpmrepo_metadata uses `langonly`
 # * libcomps Package `type` is an integer constant, rpmrepo_metadata uses a string
-# * libcomps uses StrDict for name_by_lang/desc_by_lang, rpmrepo_metadata uses list[tuple[str, str]]
+# * libcomps uses StrDict for name_by_lang/desc_by_lang, rpmrepo_metadata uses dict[str, str]
 # * libcomps uses IdList for group_ids/option_ids, rpmrepo_metadata uses list[str]/list[CompsEnvironmentOption]
 # * libcomps Langpacks is a Dict (name -> install), rpmrepo_metadata uses list[CompsLangpack]
 
@@ -56,13 +56,8 @@ def compare_groups(rpmrepo_group, lc_group):
     assert rpmrepo_group.langonly == lc_group.lang_only, "group.langonly"
     assert rpmrepo_group.display_order == lc_group.display_order, "group.display_order"
 
-    rpmrepo_nbl = dict(rpmrepo_group.name_by_lang)
-    lc_nbl = dict(lc_group.name_by_lang)
-    assert rpmrepo_nbl == lc_nbl, "group.name_by_lang"
-
-    rpmrepo_dbl = dict(rpmrepo_group.desc_by_lang)
-    lc_dbl = dict(lc_group.desc_by_lang)
-    assert rpmrepo_dbl == lc_dbl, "group.desc_by_lang"
+    assert rpmrepo_group.name_by_lang == dict(lc_group.name_by_lang), "group.name_by_lang"
+    assert rpmrepo_group.desc_by_lang == dict(lc_group.desc_by_lang), "group.desc_by_lang"
 
     assert len(rpmrepo_group.packages) == len(lc_group.packages), "group.packages length"
     for rpmrepo_pkg, lc_pkg in zip(rpmrepo_group.packages, lc_group.packages):
@@ -81,13 +76,8 @@ def compare_categories(rpmrepo_cat, lc_cat):
     assert rpmrepo_cat.description == (lc_cat.desc or ""), "category.description"
     assert rpmrepo_cat.display_order == lc_cat.display_order, "category.display_order"
 
-    rpmrepo_nbl = dict(rpmrepo_cat.name_by_lang)
-    lc_nbl = dict(lc_cat.name_by_lang)
-    assert rpmrepo_nbl == lc_nbl, "category.name_by_lang"
-
-    rpmrepo_dbl = dict(rpmrepo_cat.desc_by_lang)
-    lc_dbl = dict(lc_cat.desc_by_lang)
-    assert rpmrepo_dbl == lc_dbl, "category.desc_by_lang"
+    assert rpmrepo_cat.name_by_lang == dict(lc_cat.name_by_lang), "category.name_by_lang"
+    assert rpmrepo_cat.desc_by_lang == dict(lc_cat.desc_by_lang), "category.desc_by_lang"
 
     rpmrepo_gids = rpmrepo_cat.group_ids
     lc_gids = [gid.name for gid in lc_cat.group_ids]
@@ -100,13 +90,8 @@ def compare_environments(rpmrepo_env, lc_env):
     assert rpmrepo_env.description == (lc_env.desc or ""), "environment.description"
     assert rpmrepo_env.display_order == lc_env.display_order, "environment.display_order"
 
-    rpmrepo_nbl = dict(rpmrepo_env.name_by_lang)
-    lc_nbl = dict(lc_env.name_by_lang)
-    assert rpmrepo_nbl == lc_nbl, "environment.name_by_lang"
-
-    rpmrepo_dbl = dict(rpmrepo_env.desc_by_lang)
-    lc_dbl = dict(lc_env.desc_by_lang)
-    assert rpmrepo_dbl == lc_dbl, "environment.desc_by_lang"
+    assert rpmrepo_env.name_by_lang == dict(lc_env.name_by_lang), "environment.name_by_lang"
+    assert rpmrepo_env.desc_by_lang == dict(lc_env.desc_by_lang), "environment.desc_by_lang"
 
     rpmrepo_gids = rpmrepo_env.group_ids
     lc_gids = [gid.name for gid in lc_env.group_ids]

@@ -6,6 +6,7 @@
 
 extern crate rpmrepo_metadata;
 
+use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
 use rpmrepo_metadata::*;
 use std::io::Cursor;
