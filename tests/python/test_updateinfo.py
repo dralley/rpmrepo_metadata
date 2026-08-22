@@ -160,6 +160,22 @@ class TestUpdateRecordConstruction:
         assert len(rec.pkglist[0].packages) == 1
         assert rec.pkglist[0].packages[0].name == "foo"
 
+    def test_collection_name_setters(self):
+        coll = r.UpdateCollection()
+        coll.name = "Base Collection"
+        coll.shortname = "base"
+        assert coll.name == "Base Collection"
+        assert coll.shortname == "base"
+
+    def test_collection_package_checksum_setter(self):
+        cpkg = r.UpdateCollectionPackage(name="foo")
+        assert cpkg.checksum is None
+        cpkg.checksum = ("sha256", "a" * 64)
+        assert cpkg.checksum == ("sha256", "a" * 64)
+        # The checksum can be cleared back to None.
+        cpkg.checksum = None
+        assert cpkg.checksum is None
+
 
 class TestRepositoryWriterAdvisory:
     def test_write_and_reload_advisory(self):
