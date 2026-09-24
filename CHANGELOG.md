@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 0.8.0
+
+### Removed
+
+- `Package.from_file_with_options()` was removed from the Python API and the `Package.from_file()` method was given optional keyword arguments.
+
 ## 0.7.0
 
 ### Added

@@ -569,27 +569,19 @@ mod rpmrepo_metadata {
         /// Read package metadata from an RPM file on disk.
         #[cfg(feature = "read_rpm")]
         #[staticmethod]
-        fn from_file(path: PathBuf) -> PyResult<Self> {
-            let pkg = crate::Package::from_file(&path)?;
-            Ok(Package { inner: pkg })
-        }
-
-        /// Read package metadata from an RPM file with custom options.
-        #[cfg(feature = "read_rpm")]
-        #[staticmethod]
-        #[pyo3(signature = (path, checksum_type=None, location_href=None, location_base=None, changelog_limit=None))]
-        fn from_file_with_options(
+        #[pyo3(signature = (path, checksum_type=ChecksumType::Sha256, location_href=None, location_base=None, changelog_limit=10))]
+        fn from_file(
             path: PathBuf,
-            checksum_type: Option<ChecksumType>,
+            checksum_type: ChecksumType,
             location_href: Option<String>,
             location_base: Option<String>,
-            changelog_limit: Option<usize>,
+            changelog_limit: usize,
         ) -> PyResult<Self> {
             let options = crate::PackageOptions {
-                checksum_type: checksum_type.map(Into::into).unwrap_or_default(),
+                checksum_type: checksum_type.into(),
                 location_href,
                 location_base,
-                changelog_limit: changelog_limit.unwrap_or(10),
+                changelog_limit,
             };
             let pkg = crate::Package::from_file_with_options(&path, options)?;
             Ok(Package { inner: pkg })
