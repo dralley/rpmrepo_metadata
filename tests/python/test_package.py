@@ -222,27 +222,27 @@ class TestPackageFromFile:
         with pytest.raises(OSError):
             r.Package.from_file("/nonexistent/path.rpm")
 
-    def test_from_file_with_options_defaults(self):
-        pkg = r.Package.from_file_with_options(RPM_FIXTURE)
+    def test_from_file_defaults(self):
+        pkg = r.Package.from_file(RPM_FIXTURE)
         assert pkg.name == "complex-package"
         assert pkg.checksum_type == "sha256"
 
-    def test_from_file_with_options_checksum_type(self):
-        pkg = r.Package.from_file_with_options(RPM_FIXTURE, checksum_type=r.ChecksumType.Sha512)
+    def test_from_file_checksum_type(self):
+        pkg = r.Package.from_file(RPM_FIXTURE, checksum_type=r.ChecksumType.Sha512)
         assert pkg.checksum_type == "sha512"
         assert len(pkg.checksum[1]) == 128
 
-    def test_from_file_with_options_location_href(self):
-        pkg = r.Package.from_file_with_options(RPM_FIXTURE, location_href="custom/path.rpm")
+    def test_from_file_location_href(self):
+        pkg = r.Package.from_file(RPM_FIXTURE, location_href="custom/path.rpm")
         assert pkg.location_href == "custom/path.rpm"
 
-    def test_from_file_with_options_location_base(self):
-        pkg = r.Package.from_file_with_options(RPM_FIXTURE, location_base="http://example.com")
+    def test_from_file_location_base(self):
+        pkg = r.Package.from_file(RPM_FIXTURE, location_base="http://example.com")
         assert pkg.location_base == "http://example.com"
 
-    def test_from_file_with_options_changelog_limit(self):
-        pkg_default = r.Package.from_file_with_options(RPM_FIXTURE)
-        pkg_limited = r.Package.from_file_with_options(RPM_FIXTURE, changelog_limit=1)
+    def test_from_file_changelog_limit(self):
+        pkg_default = r.Package.from_file(RPM_FIXTURE)
+        pkg_limited = r.Package.from_file(RPM_FIXTURE, changelog_limit=1)
         assert len(pkg_limited.changelogs) <= 1
         assert len(pkg_limited.changelogs) <= len(pkg_default.changelogs)
 
