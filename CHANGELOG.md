@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Made changelog parsing (from RPM headers) more consistent with createrepo_c and more optimized. Trims trailing whitespace.
+- Improved RPM requirement filtering for scriptlet requirements, duplicate requirements, and libc capabilities.
 
 ## 0.8.0
 

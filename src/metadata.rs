@@ -851,7 +851,7 @@ pub struct HeaderRange {
 }
 
 /// An RPM dependency entry (used for Provides, Requires, Conflicts, Obsoletes, etc.).
-#[derive(Clone, Debug, Default, Hash, PartialEq)]
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
 pub struct Requirement {
     name: String,
     flags: Option<RequirementType>,
