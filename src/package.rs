@@ -215,7 +215,8 @@ pub mod rpm_parsing {
                 continue;
             }
 
-            let requirement: Requirement = dependency.try_into()?;
+            let preinstall = is_preinstall(dependency.flags);
+            let requirement = Requirement::try_from(dependency)?.set_preinstall(preinstall);
             // GLIBC symbol versions are cumulative, so retain only the highest libc capability.
             if requirement.name().starts_with("libc.so.6") {
                 if libc_requirement.as_ref().is_none_or(|(name, _)| {
@@ -235,6 +236,20 @@ pub mod rpm_parsing {
             requires.push(requirement);
         }
         Ok(requires)
+    }
+
+    /// Maps RPM file metadata to the file types supported by repository metadata.
+    ///
+    /// RPM metadata has no representation for device nodes, FIFOs, or sockets, so those entries
+    /// are represented as ordinary files. A directory type takes precedence over a ghost flag.
+    fn repository_file_type(file_type: rpm::FileType, flags: rpm::FileFlags) -> crate::FileType {
+        if matches!(file_type, rpm::FileType::Dir) {
+            crate::FileType::Dir
+        } else if flags.contains(rpm::FileFlags::GHOST) {
+            crate::FileType::Ghost
+        } else {
+            crate::FileType::File
+        }
     }
 
     impl TryFrom<rpm::Dependency> for Requirement {
@@ -269,8 +284,7 @@ pub mod rpm_parsing {
                 .set_flags(flags)
                 .set_epoch(epoch)
                 .set_version(version)
-                .set_release(release)
-                .set_preinstall(is_preinstall(d.flags)))
+                .set_release(release))
         }
     }
 
@@ -358,19 +372,7 @@ pub mod rpm_parsing {
 
             // All files are stored; the primary/filelists split happens at write time
             pkg.for_each_file_entry(|f| {
-                let filetype = if f.flags().contains(rpm::FileFlags::GHOST) {
-                    crate::FileType::Ghost
-                } else {
-                    match f.file_type() {
-                        rpm::FileType::Dir => crate::FileType::Dir,
-                        rpm::FileType::Regular | rpm::FileType::SymbolicLink => {
-                            crate::FileType::File
-                        }
-                        _ => {
-                            unreachable!("Failed to detect file type")
-                        }
-                    }
-                };
+                let filetype = repository_file_type(f.file_type(), f.flags());
                 pkg_metadata.add_file_split(filetype, f.dirname(), f.basename());
                 Ok(())
             })?;
@@ -615,6 +617,59 @@ pub mod rpm_parsing {
             .unwrap();
 
             assert!(requires.iter().all(Requirement::preinstall));
+        }
+
+        /// Does not apply requirement-only ordering flags to weak dependencies.
+        #[test]
+        fn does_not_mark_weak_dependencies_preinstall() {
+            let requirement = Requirement::try_from(dependency(
+                "group(example)",
+                rpm::DependencyFlags::SCRIPT_PRE | rpm::DependencyFlags::SCRIPT_POSTUN,
+                "",
+            ))
+            .unwrap();
+
+            assert!(!requirement.preinstall());
+        }
+
+        /// Matches createrepo_c when an RPM entry is both a directory and ghost.
+        #[test]
+        fn maps_ghost_directories_to_directory_entries() {
+            assert_eq!(
+                repository_file_type(rpm::FileType::Dir, rpm::FileFlags::GHOST),
+                crate::FileType::Dir
+            );
+        }
+
+        /// Preserves the ghost marker for non-directory file entries.
+        #[test]
+        fn maps_ghost_files_to_ghost_entries() {
+            assert_eq!(
+                repository_file_type(rpm::FileType::Regular, rpm::FileFlags::GHOST),
+                crate::FileType::Ghost
+            );
+        }
+
+        /// Represents RPM file types unsupported by RPM-MD without failing parsing.
+        #[test]
+        fn maps_unrepresentable_rpm_file_types_to_files() {
+            assert_eq!(
+                repository_file_type(rpm::FileType::Other, rpm::FileFlags::empty()),
+                crate::FileType::File
+            );
+        }
+
+        /// Keeps normal RPM directory and regular-file metadata unchanged.
+        #[test]
+        fn preserves_directory_and_regular_file_types() {
+            assert_eq!(
+                repository_file_type(rpm::FileType::Dir, rpm::FileFlags::empty()),
+                crate::FileType::Dir
+            );
+            assert_eq!(
+                repository_file_type(rpm::FileType::Regular, rpm::FileFlags::empty()),
+                crate::FileType::File
+            );
         }
     }
 }
