@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Made changelog parsing (from RPM headers) more consistent with createrepo_c and more optimized. Trims trailing whitespace.
+
 ## 0.8.0
 
 ### Removed

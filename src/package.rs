@@ -239,11 +239,15 @@ pub mod rpm_parsing {
 
             // Keep only the N most recent entries, sorted oldest-first
             let mut changelogs: Vec<Changelog> = Vec::new();
-            for f in pkg.get_changelog_entries()?.into_iter() {
-                changelogs.push(f.into())
+            for f in pkg.iter_changelog_entries()?.take(options.changelog_limit) {
+                let mut entry: Changelog = f.into();
+                // trim leading/trailing whitespace
+                let trimmed_author = entry.author.trim();
+                if trimmed_author.len() != entry.author.len() {
+                    entry.author = trimmed_author.to_owned();
+                }
+                changelogs.push(entry);
             }
-            changelogs.sort_by_key(|b| std::cmp::Reverse(b.timestamp));
-            changelogs.truncate(options.changelog_limit);
             changelogs.reverse();
             pkg_metadata.set_changelogs(changelogs);
 
