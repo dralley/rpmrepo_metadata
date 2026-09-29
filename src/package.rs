@@ -40,35 +40,208 @@ impl Default for PackageOptions {
 #[cfg(feature = "read_rpm")]
 pub mod rpm_parsing {
     use std::time::SystemTime;
-    use std::{collections::HashSet, fs::File};
+    use std::{cmp::Ordering, collections::HashSet, fs::File};
+
+    use indexmap::IndexSet;
 
     use crate::{Changelog, Evr, Requirement, RequirementType};
 
     use super::*;
     use rpm;
 
+    /// Raw dependency fields used to recognize requirements satisfied by the package itself.
+    ///
+    /// Keeping the original version avoids treating distinct EVRs as equal after normalization.
+    #[derive(Hash, PartialEq, Eq)]
+    struct DependencyKey {
+        name: String,
+        flags: Option<RequirementType>,
+        version: String,
+    }
+
+    /// Converts RPM's low-nibble comparator into the repository XML representation.
+    ///
+    /// Non-comparison bits must not affect the XML comparator.
+    fn dependency_flags(flags: rpm::DependencyFlags) -> Option<RequirementType> {
+        let comparison = flags
+            & (rpm::DependencyFlags::LESS
+                | rpm::DependencyFlags::GREATER
+                | rpm::DependencyFlags::EQUAL);
+
+        if comparison == rpm::DependencyFlags::LESS {
+            Some(RequirementType::LT)
+        } else if comparison == rpm::DependencyFlags::GREATER {
+            Some(RequirementType::GT)
+        } else if comparison == rpm::DependencyFlags::EQUAL {
+            Some(RequirementType::EQ)
+        } else if comparison == (rpm::DependencyFlags::LESS | rpm::DependencyFlags::EQUAL) {
+            Some(RequirementType::LE)
+        } else if comparison == (rpm::DependencyFlags::GREATER | rpm::DependencyFlags::EQUAL) {
+            Some(RequirementType::GE)
+        } else {
+            None
+        }
+    }
+
+    /// Builds the raw dependency key used for self-provided requirement filtering.
+    fn dependency_key(dependency: &rpm::Dependency) -> DependencyKey {
+        DependencyKey {
+            name: dependency.name.clone(),
+            flags: dependency_flags(dependency.flags),
+            version: dependency.version.clone(),
+        }
+    }
+
+    /// Reports whether RPM marks a requirement as needed before installation.
+    ///
+    /// Repository metadata serializes these scriptlet phases with the `pre` attribute.
+    fn is_preinstall(flags: rpm::DependencyFlags) -> bool {
+        flags.intersects(
+            rpm::DependencyFlags::PREREQ
+                | rpm::DependencyFlags::SCRIPT_PRE
+                | rpm::DependencyFlags::SCRIPT_POST
+                | rpm::DependencyFlags::PRETRANS
+                | rpm::DependencyFlags::POSTTRANS,
+        )
+    }
+
+    /// Reports whether an explicitly supplied dependency epoch is a nonnegative integer.
+    fn has_valid_epoch(version: &str) -> bool {
+        version
+            .split_once(':')
+            .is_none_or(|(epoch, _)| epoch.parse::<u64>().is_ok())
+    }
+
+    /// The first capability form used to reduce `libc.so.6` requirements.
+    enum LibcCapability<'a> {
+        NoParenthesis,
+        Unterminated,
+        Empty,
+        NonNumeric,
+        Version(&'a str),
+    }
+
+    impl LibcCapability<'_> {
+        /// Returns the precedence of a capability form.
+        fn rank(&self) -> u8 {
+            match self {
+                Self::NoParenthesis => 0,
+                Self::Unterminated => 1,
+                Self::Empty => 2,
+                Self::NonNumeric => 3,
+                Self::Version(_) => 4,
+            }
+        }
+    }
+
+    /// Classifies the first parenthesized component of a libc capability.
+    ///
+    /// Accepted forms include bare `libc.so.6`, an empty symbol version such as
+    /// `libc.so.6()(64bit)`, a nonnumeric symbol such as `libc.so.6(GLIBC_ABI_DT_RELR)(64bit)`,
+    /// and a numeric symbol such as `libc.so.6(GLIBC_2.38)(64bit)`. Version extraction is
+    /// limited to the first component; `(64bit)` is architecture information, not a version.
+    fn libc_capability(name: &str) -> LibcCapability<'_> {
+        let Some((_, rest)) = name.split_once('(') else {
+            return LibcCapability::NoParenthesis;
+        };
+        let Some((version, _)) = rest.split_once(')') else {
+            return LibcCapability::Unterminated;
+        };
+        if version.is_empty() {
+            return LibcCapability::Empty;
+        }
+        match version.find(|character: char| character.is_ascii_digit()) {
+            Some(index) => LibcCapability::Version(&version[index..]),
+            None => LibcCapability::NonNumeric,
+        }
+    }
+
+    /// Orders `libc.so.6` capabilities when reducing requirements.
+    ///
+    /// A binary can require several cumulative GLIBC symbol versions. Publishing the highest
+    /// numeric version omits requirements that glibc's provides already imply. This deliberately
+    /// applies only to `libc.so.6`; it is not a general shared-library dependency rule.
+    fn compare_libc_requirements(first: &str, second: &str) -> Ordering {
+        let first = libc_capability(first);
+        let second = libc_capability(second);
+
+        match (&first, &second) {
+            (LibcCapability::Version(first), LibcCapability::Version(second)) => {
+                // Empty epoch and release isolate RPM's version-component comparison.
+                Evr::new("", first, "").cmp(&Evr::new("", second, ""))
+            }
+            _ => first.rank().cmp(&second.rank()),
+        }
+    }
+
+    /// Filters requirements that repository clients do not need to resolve.
+    ///
+    /// - skip rpmlib() deps (internal RPM feature tracking)
+    /// - skip file-path requires for primary files the package itself contains
+    /// - skip deps that the package itself provides (self-satisfied dependencies)
+    ///
+    /// `MISSINGOK` requirements remain in `requires` - createrepo_c with LEGACY_WEAKDEPS_ENABLED
+    /// reinterprets that flag as a weak recommendation;  that is not implemented here.
+    fn filter_requires(
+        dependencies: Vec<rpm::Dependency>,
+        provided: &HashSet<DependencyKey>,
+        files: &crate::FileList,
+    ) -> Result<Vec<Requirement>, MetadataError> {
+        let mut requires = IndexSet::new();
+        let mut libc_requirement: Option<(String, Requirement)> = None;
+
+        for dependency in dependencies {
+            // RPM feature requirements describe the package format, not an installable package.
+            if dependency.name.starts_with("rpmlib(") {
+                continue;
+            }
+
+            // A package satisfies a primary-path requirement when it installs that path itself.
+            if dependency.name.starts_with('/')
+                && files.contains(&dependency.name)
+                && utils::is_primary_file(&dependency.name)
+            {
+                continue;
+            }
+
+            let dependency_key = dependency_key(&dependency);
+            // Self-provided requirements do not constrain a repository transaction.
+            if provided.contains(&dependency_key) {
+                continue;
+            }
+
+            // An explicit epoch must be numeric; otherwise repository clients cannot compare it.
+            if !has_valid_epoch(&dependency.version) {
+                continue;
+            }
+
+            let requirement: Requirement = dependency.try_into()?;
+            // GLIBC symbol versions are cumulative, so retain only the highest libc capability.
+            if requirement.name().starts_with("libc.so.6") {
+                if libc_requirement.as_ref().is_none_or(|(name, _)| {
+                    compare_libc_requirements(name, requirement.name()) == Ordering::Less
+                }) {
+                    libc_requirement = Some((requirement.name().to_owned(), requirement));
+                }
+            } else {
+                // Removes duplicates through the use of IndexSet.
+                requires.insert(requirement);
+            }
+        }
+
+        let mut requires: Vec<_> = requires.into_iter().collect();
+        if let Some((_, requirement)) = libc_requirement {
+            // Keep the legacy libc reduction after normal requirements for stable output order.
+            requires.push(requirement);
+        }
+        Ok(requires)
+    }
+
     impl TryFrom<rpm::Dependency> for Requirement {
         type Error = MetadataError;
 
         fn try_from(d: rpm::Dependency) -> Result<Self, Self::Error> {
-            let flags = if d.flags.contains(rpm::DependencyFlags::GE) {
-                Some(RequirementType::GE)
-            } else if d.flags.contains(rpm::DependencyFlags::LE) {
-                Some(RequirementType::LE)
-            } else if d.flags.contains(rpm::DependencyFlags::EQUAL) {
-                Some(RequirementType::EQ)
-            } else if d.flags.contains(rpm::DependencyFlags::LESS) {
-                Some(RequirementType::LT)
-            } else if d.flags.contains(rpm::DependencyFlags::GREATER) {
-                Some(RequirementType::GT)
-            } else {
-                None
-            };
-
-            let pre = d.flags
-                & (rpm::DependencyFlags::SCRIPT_PRE
-                    | rpm::DependencyFlags::SCRIPT_POST
-                    | rpm::DependencyFlags::PREREQ);
+            let flags = dependency_flags(d.flags);
 
             let evr = Evr::parse(&d.version);
 
@@ -97,7 +270,7 @@ pub mod rpm_parsing {
                 .set_epoch(epoch)
                 .set_version(version)
                 .set_release(release)
-                .set_preinstall(!pre.is_empty()))
+                .set_preinstall(is_preinstall(d.flags)))
         }
     }
 
@@ -178,20 +351,10 @@ pub mod rpm_parsing {
                 Ok(out)
             }
 
-            fn dep_key(dep: &Requirement) -> String {
-                format!(
-                    "{}{}{}{}{}",
-                    dep.name(),
-                    dep.flags().map_or("", |f| f.as_str()),
-                    dep.epoch().unwrap_or(""),
-                    dep.version().unwrap_or(""),
-                    dep.release().unwrap_or(""),
-                )
-            }
-
-            // Build a set of provided deps so we can filter self-provided entries from requires
-            let provides = convert_deps(pkg.get_provides()?)?;
-            let provided: HashSet<String> = provides.iter().map(dep_key).collect();
+            // Build a set of provided deps so we can filter self-provided entries from requires.
+            let rpm_provides = pkg.get_provides()?;
+            let provided: HashSet<_> = rpm_provides.iter().map(dependency_key).collect();
+            let provides = convert_deps(rpm_provides)?;
 
             // All files are stored; the primary/filelists split happens at write time
             pkg.for_each_file_entry(|f| {
@@ -212,21 +375,8 @@ pub mod rpm_parsing {
                 Ok(())
             })?;
 
-            // Filter requires:
-            // - skip rpmlib() deps (internal RPM feature tracking)
-            // - skip file-path requires for primary files the package itself contains
-            // - skip deps that the package itself provides (self-satisfied dependencies)
-            let requires = convert_deps(pkg.get_requires()?)?;
-            let requires: Vec<_> = requires
-                .into_iter()
-                .filter(|r| !r.name().starts_with("rpmlib("))
-                .filter(|r| {
-                    !(r.name().starts_with('/')
-                        && pkg_metadata.files().contains(r.name())
-                        && utils::is_primary_file(r.name()))
-                })
-                .filter(|r| !provided.contains(&dep_key(r)))
-                .collect();
+            // Omit redundant requirements so primary metadata matches createrepo_c output.
+            let requires = filter_requires(pkg.get_requires()?, &provided, pkg_metadata.files())?;
 
             pkg_metadata.set_requires(requires);
             pkg_metadata.set_provides(provides);
@@ -302,6 +452,169 @@ pub mod rpm_parsing {
             let pkg = Package::from_file(&path)?;
             self.add_package(&pkg)?;
             Ok(())
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        /// Creates an RPM dependency for require-filtering tests.
+        fn dependency(name: &str, flags: rpm::DependencyFlags, version: &str) -> rpm::Dependency {
+            rpm::Dependency {
+                name: name.to_owned(),
+                flags,
+                version: version.to_owned(),
+            }
+        }
+
+        /// Returns requirement names to keep filtering assertions focused on selection and order.
+        fn requirement_names(requires: Vec<Requirement>) -> Vec<String> {
+            requires
+                .into_iter()
+                .map(|requirement| requirement.name().to_owned())
+                .collect()
+        }
+
+        /// Preserves valid comparator bits and drops combinations that XML cannot represent.
+        #[test]
+        fn preserves_only_valid_rpm_comparison_operators() {
+            // Other dependency bits must not change the comparator, while contradictory bounds
+            // have no representation in repository metadata.
+            assert_eq!(
+                dependency_flags(
+                    rpm::DependencyFlags::GREATER
+                        | rpm::DependencyFlags::EQUAL
+                        | rpm::DependencyFlags::PREREQ,
+                ),
+                Some(RequirementType::GE)
+            );
+            assert_eq!(
+                dependency_flags(rpm::DependencyFlags::LESS | rpm::DependencyFlags::GREATER,),
+                None
+            );
+        }
+
+        /// Accepts only nonnegative integer epochs.
+        #[test]
+        fn rejects_invalid_dependency_epochs() {
+            assert!(has_valid_epoch("1:1"));
+            assert!(!has_valid_epoch("-1:1"));
+            assert!(!has_valid_epoch("999999999999999999999:1"));
+            assert!(!has_valid_epoch("invalid:1"));
+        }
+
+        /// Filters RPM internals, self-provides, and malformed epochs without conflating EVRs.
+        #[test]
+        fn filters_redundant_requires() {
+            // Raw keys prevent distinct EVRs from colliding while RPM internals and malformed
+            // epochs remain excluded.
+            let provided = HashSet::from([dependency_key(&dependency(
+                "provided",
+                rpm::DependencyFlags::EQUAL,
+                "1:23",
+            ))]);
+            let requires = filter_requires(
+                vec![
+                    dependency("rpmlib(PayloadIsXz)", rpm::DependencyFlags::LE, "5.2"),
+                    dependency("provided", rpm::DependencyFlags::EQUAL, "1:23"),
+                    dependency("provided", rpm::DependencyFlags::EQUAL, "12:3"),
+                    dependency("bad-epoch", rpm::DependencyFlags::ANY, "not-an-epoch:1"),
+                    dependency(
+                        "large-epoch",
+                        rpm::DependencyFlags::ANY,
+                        "999999999999999999999:1",
+                    ),
+                    dependency("numeric-epoch", rpm::DependencyFlags::ANY, "1:1"),
+                    dependency("kept", rpm::DependencyFlags::ANY, ""),
+                ],
+                &provided,
+                &crate::FileList::new(),
+            )
+            .unwrap();
+
+            assert_eq!(
+                requirement_names(requires),
+                ["provided", "numeric-epoch", "kept"]
+            );
+        }
+
+        /// Removes exact duplicate requirements regardless of where they occur in the header.
+        #[test]
+        fn removes_duplicate_requires_regardless_of_order() {
+            // The intervening, different constraint must remain while the final duplicate is dropped.
+            let requires = filter_requires(
+                vec![
+                    dependency("duplicate", rpm::DependencyFlags::EQUAL, "1"),
+                    dependency("duplicate", rpm::DependencyFlags::EQUAL, "1"),
+                    dependency("duplicate", rpm::DependencyFlags::GREATER, "2"),
+                    dependency("duplicate", rpm::DependencyFlags::EQUAL, "1"),
+                ],
+                &HashSet::new(),
+                &crate::FileList::new(),
+            )
+            .unwrap();
+
+            assert_eq!(requires.len(), 2);
+            assert_eq!(requires[0].flags(), Some(RequirementType::EQ));
+            assert_eq!(requires[0].version(), Some("1"));
+            assert_eq!(requires[1].flags(), Some(RequirementType::GT));
+            assert_eq!(requires[1].version(), Some("2"));
+        }
+
+        /// Retains the greatest libc symbol-version capability after ordinary requirements.
+        #[test]
+        fn retains_only_the_highest_libc_requirement() {
+            // libc capabilities are condensed, and the retained capability follows other requires.
+            let requires = filter_requires(
+                vec![
+                    dependency("other", rpm::DependencyFlags::ANY, ""),
+                    dependency("libc.so.6(GLIBC_2.3)", rpm::DependencyFlags::ANY, ""),
+                    dependency("libc.so.6(GLIBC_2.4)", rpm::DependencyFlags::ANY, ""),
+                ],
+                &HashSet::new(),
+                &crate::FileList::new(),
+            )
+            .unwrap();
+
+            assert_eq!(
+                requirement_names(requires),
+                ["other", "libc.so.6(GLIBC_2.4)"]
+            );
+        }
+
+        /// Orders libc capability forms before numeric symbol versions.
+        #[test]
+        fn orders_libc_capability_forms() {
+            let forms = [
+                "libc.so.6",
+                "libc.so.6(GLIBC_2",
+                "libc.so.6()(64bit)",
+                "libc.so.6(GLIBC_ABI_DT_RELR)(64bit)",
+                "libc.so.6(GLIBC_2.38)(64bit)",
+            ];
+
+            // Each form is less specific than the following form.
+            for pair in forms.windows(2) {
+                assert_eq!(compare_libc_requirements(pair[0], pair[1]), Ordering::Less);
+            }
+        }
+
+        /// Marks transaction scriptlet requirements as installation-ordering requirements.
+        #[test]
+        fn marks_transaction_scriptlet_requires_as_preinstall() {
+            // Transaction scriptlets participate in installation ordering just like %pre and %post.
+            let requires = filter_requires(
+                vec![
+                    dependency("pretrans", rpm::DependencyFlags::PRETRANS, ""),
+                    dependency("posttrans", rpm::DependencyFlags::POSTTRANS, ""),
+                ],
+                &HashSet::new(),
+                &crate::FileList::new(),
+            )
+            .unwrap();
+
+            assert!(requires.iter().all(Requirement::preinstall));
         }
     }
 }
