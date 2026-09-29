@@ -24,6 +24,18 @@ fn test_read_rpm_from_file() -> Result<(), MetadataError> {
     Ok(())
 }
 
+/// Keeps RPM header directory and basename components intact in repository metadata.
+#[test]
+fn test_file_path_components_are_preserved() {
+    let mut pkg = Package::default();
+    pkg.add_file_split(FileType::File, "/usr/libexec/example/", "tool");
+
+    let file = pkg.files().iter().next().unwrap();
+    assert_eq!(file.dir(), "/usr/libexec/example/");
+    assert_eq!(file.basename(), "tool");
+    assert_eq!(file.path(), "/usr/libexec/example/tool");
+}
+
 #[test]
 fn test_sort_packages_by_evr() {
     let mut packages: Vec<Package> = vec![
