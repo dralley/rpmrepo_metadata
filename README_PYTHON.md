@@ -143,7 +143,7 @@ pkg = Package.from_file("packages/foo-1.0-1.el9.x86_64.rpm")
 print(f"{pkg.nevra()} - {len(pkg.files)} files")
 
 # With custom options
-pkg = Package.from_file_with_options(
+pkg = Package.from_file(
     "packages/foo-1.0-1.el9.x86_64.rpm",
     checksum_type=ChecksumType.Sha512,
     location_href="Packages/f/foo-1.0-1.el9.x86_64.rpm",
@@ -152,6 +152,27 @@ pkg = Package.from_file_with_options(
 )
 print(f"Checksum type: {pkg.checksum_type}")  # "sha512"
 print(f"Location: {pkg.location_href}")
+```
+
+### Parse an RPM buffer
+
+With a complete RPM buffer, `from_buffer` derives a checksum using `checksum_type` (SHA-256 by
+default) and the package size. Supplying both values permits a header-only buffer instead.
+Supplying only one is rejected because they both describe the full RPM file. Supplied values are
+trusted and are not verified against the buffer.
+
+```python
+from rpmrepo_metadata import ChecksumType, Package
+
+with open("packages/foo-1.0-1.el9.x86_64.rpm", "rb") as rpm_file:
+    rpm_bytes = rpm_file.read()
+
+pkg = Package.from_buffer(
+    rpm_bytes,
+    time_file=1_700_000_000,
+    location_href="Packages/f/foo-1.0-1.el9.x86_64.rpm",
+    checksum_type=ChecksumType.Sha512,
+)
 ```
 
 ### Write a repository with RepositoryWriter

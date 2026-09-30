@@ -53,7 +53,7 @@ pub use metadata::{
     UpdateCollection, UpdateCollectionModule, UpdateCollectionPackage, UpdateRecord,
     UpdateReference, UpdateinfoXml,
 };
-pub use package::{PackageIterator, PackageOptions};
+pub use package::{PackageFileOptions, PackageIterator, PackageOptions, PackageSource};
 pub use repository::{
     Repository, RepositoryOptions, RepositoryReader, RepositoryWriter, UpdateinfoIterator,
 };

@@ -74,21 +74,54 @@ if let Some(comps) = reader.read_comps()? {
 With the `read_rpm` feature (enabled by default), you can extract metadata from `.rpm` files.
 
 ```rust
-use rpmrepo_metadata::{Package, PackageOptions, ChecksumType};
+use rpmrepo_metadata::{ChecksumType, Package, PackageFileOptions, PackageOptions};
 
 // Using defaults (SHA-256 checksum, 10 changelog entries)
 let pkg = Package::from_file("packages/foo-1.0-1.el9.x86_64.rpm")?;
 println!("{} {} files", pkg.nevra(), pkg.files().len());
 
 // With custom options
-let options = PackageOptions {
-    checksum_type: ChecksumType::Sha512,
+let options = PackageFileOptions {
+    package_options: PackageOptions {
+        checksum_type: ChecksumType::Sha512,
+        changelog_limit: 5,
+    },
     location_href: Some("Packages/f/foo-1.0-1.el9.x86_64.rpm".to_string()),
-    changelog_limit: 5,
-    ..Default::default()
+    location_base: None,
 };
 let pkg = Package::from_file_with_options("packages/foo-1.0-1.el9.x86_64.rpm", options)?;
 ```
+
+### Parse an RPM buffer
+
+When the full RPM bytes are available, `from_buffer` derives a checksum using
+`PackageOptions::checksum_type` (SHA-256 by default) and the package size automatically.
+Supplying both values permits a header-only buffer instead. Supplying only one is rejected
+because they both describe the full RPM file. Supplied values are trusted and are not verified
+against the buffer.
+
+```rust
+use rpmrepo_metadata::{ChecksumType, Package, PackageOptions, PackageSource};
+
+let bytes = std::fs::read("packages/foo-1.0-1.el9.x86_64.rpm")?;
+let source = PackageSource {
+    checksum: None,
+    size_package: None,
+    time_file: 1_700_000_000,
+    location_href: "Packages/f/foo-1.0-1.el9.x86_64.rpm".to_owned(),
+    location_base: None,
+};
+let options = PackageOptions {
+    checksum_type: ChecksumType::Sha512,
+    ..Default::default()
+};
+let pkg = Package::from_buffer(bytes, source, options)?;
+```
+
+If the application already parsed headers with the compatible `rpm` crate, use
+`Package::from_package_metadata(&metadata, source, options)` to reuse that
+`rpm::PackageMetadata` without reparsing it. That API has no package buffer, so its
+`PackageSource::checksum` and `PackageSource::size_package` must both be `Some`.
 
 ### Build a repository with RepositoryWriter
 

@@ -6,6 +6,8 @@
 
 extern crate rpmrepo_metadata;
 
+use std::io::{BufReader, Cursor};
+
 use pretty_assertions::assert_eq;
 use rpmrepo_metadata::*;
 
@@ -21,6 +23,131 @@ fn test_read_rpm_from_file() -> Result<(), MetadataError> {
     pkg.set_time_file(common::COMPLEX_PACKAGE.time_file());
     assert_eq!(&pkg, &*common::COMPLEX_PACKAGE);
 
+    Ok(())
+}
+
+fn package_source() -> PackageSource {
+    PackageSource {
+        checksum: Some(common::COMPLEX_PACKAGE.checksum().clone()),
+        size_package: Some(common::COMPLEX_PACKAGE.size_package()),
+        time_file: common::COMPLEX_PACKAGE.time_file(),
+        location_href: common::COMPLEX_PACKAGE.location_href().to_owned(),
+        location_base: common::COMPLEX_PACKAGE.location_base().map(str::to_owned),
+    }
+}
+
+/// Converts metadata already parsed by rpm-rs without reparsing its headers.
+#[test]
+fn test_package_from_rpm_metadata() -> Result<(), MetadataError> {
+    let bytes = std::fs::read(COMPLEX_PKG_PATH)?;
+    let rpm_metadata = rpm::PackageMetadata::parse(&mut BufReader::new(Cursor::new(&bytes)))?;
+
+    let package =
+        Package::from_package_metadata(&rpm_metadata, package_source(), Default::default())?;
+    assert_eq!(&package, &*common::COMPLEX_PACKAGE);
+
+    Ok(())
+}
+
+/// Parses RPM headers from a buffer using caller-provided file metadata.
+#[test]
+fn test_package_from_buffer() -> Result<(), MetadataError> {
+    let bytes = std::fs::read(COMPLEX_PKG_PATH)?;
+    let rpm_metadata = rpm::PackageMetadata::parse(&mut BufReader::new(Cursor::new(&bytes)))?;
+    let header_end = rpm_metadata.get_package_segment_offsets().payload as usize;
+    let package = Package::from_buffer(&bytes[..header_end], package_source(), Default::default())?;
+    assert_eq!(&package, &*common::COMPLEX_PACKAGE);
+
+    Ok(())
+}
+
+/// Derives checksum and size when parsing a complete RPM buffer.
+#[test]
+fn test_package_from_buffer_derives_file_values() -> Result<(), MetadataError> {
+    let bytes = std::fs::read(COMPLEX_PKG_PATH)?;
+    let source = PackageSource {
+        checksum: None,
+        size_package: None,
+        time_file: common::COMPLEX_PACKAGE.time_file(),
+        location_href: common::COMPLEX_PACKAGE.location_href().to_owned(),
+        location_base: common::COMPLEX_PACKAGE.location_base().map(str::to_owned),
+    };
+
+    let package = Package::from_buffer(&bytes, source, Default::default())?;
+    assert_eq!(&package, &*common::COMPLEX_PACKAGE);
+
+    Ok(())
+}
+
+/// Rejects a checksum without its corresponding full-file size.
+#[test]
+fn test_package_from_buffer_requires_file_values_together() {
+    let bytes = std::fs::read(COMPLEX_PKG_PATH).unwrap();
+    let source = PackageSource {
+        checksum: Some(common::COMPLEX_PACKAGE.checksum().clone()),
+        size_package: None,
+        time_file: common::COMPLEX_PACKAGE.time_file(),
+        location_href: common::COMPLEX_PACKAGE.location_href().to_owned(),
+        location_base: None,
+    };
+
+    let error = Package::from_buffer(&bytes, source, Default::default()).unwrap_err();
+    assert!(matches!(error, MetadataError::InconsistentMetadataError(_)));
+}
+
+/// Rejects a full-file size without its corresponding checksum.
+#[test]
+fn test_package_from_buffer_requires_checksum_with_size() {
+    let bytes = std::fs::read(COMPLEX_PKG_PATH).unwrap();
+    let source = PackageSource {
+        checksum: None,
+        size_package: Some(common::COMPLEX_PACKAGE.size_package()),
+        time_file: common::COMPLEX_PACKAGE.time_file(),
+        location_href: common::COMPLEX_PACKAGE.location_href().to_owned(),
+        location_base: None,
+    };
+
+    let error = Package::from_buffer(&bytes, source, Default::default()).unwrap_err();
+    assert!(matches!(error, MetadataError::InconsistentMetadataError(_)));
+}
+
+/// Requires full-file values when converting previously parsed RPM metadata.
+#[test]
+fn test_package_from_rpm_metadata_requires_file_values() -> Result<(), MetadataError> {
+    let bytes = std::fs::read(COMPLEX_PKG_PATH)?;
+    let rpm_metadata = rpm::PackageMetadata::parse(&mut BufReader::new(Cursor::new(&bytes)))?;
+    let source = PackageSource {
+        checksum: None,
+        size_package: None,
+        time_file: common::COMPLEX_PACKAGE.time_file(),
+        location_href: common::COMPLEX_PACKAGE.location_href().to_owned(),
+        location_base: None,
+    };
+
+    let error =
+        Package::from_package_metadata(&rpm_metadata, source, Default::default()).unwrap_err();
+    assert!(matches!(error, MetadataError::MissingFieldError(_)));
+    Ok(())
+}
+
+/// Uses the configured checksum type when deriving values from a complete RPM buffer.
+#[test]
+fn test_package_from_buffer_uses_configured_checksum_type() -> Result<(), MetadataError> {
+    let bytes = std::fs::read(COMPLEX_PKG_PATH)?;
+    let source = PackageSource {
+        checksum: None,
+        size_package: None,
+        time_file: common::COMPLEX_PACKAGE.time_file(),
+        location_href: common::COMPLEX_PACKAGE.location_href().to_owned(),
+        location_base: None,
+    };
+    let options = PackageOptions {
+        checksum_type: ChecksumType::Sha512,
+        ..Default::default()
+    };
+
+    let package = Package::from_buffer(&bytes, source, options)?;
+    assert!(matches!(package.checksum(), Checksum::Sha512(_)));
     Ok(())
 }
 
