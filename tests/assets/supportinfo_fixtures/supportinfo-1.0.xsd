@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" 
-           elementFormDefault="qualified" 
-           version="1.1">
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" version="1.1">
 
   <xs:annotation>
     <xs:appinfo>
@@ -23,7 +21,7 @@
     <xs:annotation>
       <xs:documentation xml:lang="en">
         The top level package_support element contains lifecycle definitions, support milestones,
-        support levels, package listings, and classification information. The schema_version and current_as attributes 
+        support levels, package listings, and classification information. The schema_version and current_as attributes
         indicate the version and timestamp of this support data.
       </xs:documentation>
     </xs:annotation>
@@ -127,7 +125,7 @@
               <xs:annotation>
                 <xs:documentation xml:lang="en">
                   A phase represents a period in a package's lifecycle with specific support characteristics.
-                  Each phase has only a start boundary (date or milestone). The phase continues until the 
+                  Each phase has only a start boundary (date or milestone). The phase continues until the
                   start of the next phase, or indefinitely if it's the last phase in the lifecycle.
                 </xs:documentation>
               </xs:annotation>
@@ -136,6 +134,13 @@
                 <xs:attribute name="support_level" type="xs:string" use="required"/>
                 <xs:attribute name="start_date" type="xs:date" use="optional"/>
                 <xs:attribute name="start_milestone" type="xs:string" use="optional"/>
+                <xs:attribute name="display_name" type="xs:string" use="optional">
+                  <xs:annotation>
+                    <xs:documentation xml:lang="en">
+                      Customer-facing display name for this phase.
+                    </xs:documentation>
+                  </xs:annotation>
+                </xs:attribute>
                 <xs:assert test="(@start_date or @start_milestone) and not(@start_date and @start_milestone)"/>
               </xs:complexType>
             </xs:element>
@@ -151,6 +156,20 @@
             <xs:annotation>
               <xs:documentation xml:lang="en">
                 Optional reference to a note that provides additional context for this lifecycle.
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+          <xs:attribute name="display_name" type="xs:string" use="optional">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Customer-facing display name for this lifecycle.
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+          <xs:attribute name="description" type="xs:string" use="optional">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Human-readable description of what this lifecycle represents.
               </xs:documentation>
             </xs:annotation>
           </xs:attribute>
@@ -176,6 +195,20 @@
         <xs:complexType>
           <xs:attribute name="name" type="xs:string" use="required"/>
           <xs:attribute name="date" type="xs:date" use="required"/>
+          <xs:attribute name="display_name" type="xs:string" use="optional">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Customer-facing display name for this milestone.
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+          <xs:attribute name="description" type="xs:string" use="optional">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Human-readable description of what this milestone represents.
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
         </xs:complexType>
       </xs:element>
     </xs:sequence>
@@ -198,6 +231,20 @@
         <xs:complexType>
           <xs:attribute name="name" type="xs:string" use="required"/>
           <xs:attribute name="severities" type="xs:string" use="required"/>
+          <xs:attribute name="description" type="xs:string" use="required">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Human-readable description of what this support level means.
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+          <xs:attribute name="display_name" type="xs:string" use="optional">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Customer-facing display name for this support level.
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
         </xs:complexType>
       </xs:element>
     </xs:sequence>
@@ -272,6 +319,20 @@
           <xs:attribute name="dist" type="xs:string" use="required"/>
           <xs:attribute name="vendor" type="xs:string" use="required"/>
           <xs:attribute name="signing_key" type="xs:string" use="optional"/>
+          <xs:attribute name="display_name" type="xs:string" use="optional">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Customer-facing display name for this package origin.
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
+          <xs:attribute name="description" type="xs:string" use="optional">
+            <xs:annotation>
+              <xs:documentation xml:lang="en">
+                Human-readable description of this package origin.
+              </xs:documentation>
+            </xs:annotation>
+          </xs:attribute>
         </xs:complexType>
       </xs:element>
     </xs:sequence>

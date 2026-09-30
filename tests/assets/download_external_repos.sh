@@ -6,7 +6,7 @@ DEST="${1:-external_repos2}"
 
 ### Download external repositories
 
-CentOS 7
+# CentOS 7
 rpmrepo download --only-metadata "$DEST"/centos-stream/centos7 http://vault.centos.org/centos/7/os/x86_64/
 
 # CentOS Stream 8 - BaseOS
@@ -42,17 +42,23 @@ rpmrepo download --only-metadata "$DEST"/centos-stream/cs10-baseos http://mirror
 # CentOS Stream 10 - Appstream
 rpmrepo download --only-metadata "$DEST"/centos-stream/cs10-appstream http://mirror.stream.centos.org/10-stream/AppStream/x86_64/os/
 
-# Fedora 42
-rpmrepo download --only-metadata "$DEST"/fedora/fedora42 https://dl.fedoraproject.org/pub/fedora/linux/releases/42/Everything/x86_64/os/
 
-# Fedora 42 Updates
-rpmrepo download --only-metadata "$DEST"/fedora/fedora42-updates https://dl.fedoraproject.org/pub/fedora/linux/updates/42/Everything/x86_64/
+# Fedora 44
+rpmrepo download --only-metadata "$DEST"/fedora/fedora44 https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Everything/x86_64/os/
+
+# Fedora 44 Updates
+rpmrepo download --only-metadata "$DEST"/fedora/fedora44-updates https://dl.fedoraproject.org/pub/fedora/linux/updates/44/Everything/x86_64/
+
+# EPEL 9 - Everything
+rpmrepo download --only-metadata "$DEST"/fedora/epel9 https://download.fedoraproject.org/pub/epel/9/Everything/x86_64/
 
 # EPEL 10 - Everything
 rpmrepo download --only-metadata "$DEST"/fedora/epel9 https://download.fedoraproject.org/pub/epel/10/Everything/x86_64/
 
 # RPMFusion - Fedora 42
 rpmrepo download --only-metadata "$DEST"/fedora/rpmfusion-f42 https://download1.rpmfusion.org/free/fedora/releases/42/Everything/x86_64/os/
+
+
 
 # OpenSUSE Tumbleweed
 rpmrepo download --only-metadata "$DEST"/other/opensuse-tumbleweed https://download.opensuse.org/tumbleweed/repo/oss/
@@ -65,6 +71,8 @@ rpmrepo download --only-metadata "$DEST"/other/alma8-appstream https://repo.alma
 
 # Oracle Linux 9
 rpmrepo download --only-metadata "$DEST"/other/ol9 https://yum.oracle.com/repo/OracleLinux/OL9/developer/x86_64/
+
+
 
 # Microsoft Azure RHEL9 additions
 rpmrepo download --only-metadata "$DEST"/vendor/ms-rhel9-additions https://packages.microsoft.com/rhel/9/prod/
@@ -83,6 +91,8 @@ rpmrepo download --only-metadata "$DEST"/vendor/google-cloud-sdk-el9 https://pac
 
 # Elasticsearch EL9
 rpmrepo download --only-metadata "$DEST"/vendor/elasticsearch-el9 https://artifacts.elastic.co/packages/9.x/yum/
+
+
 
 # Rundeck - has a backwards-pointing location href and multiple checksums in repomd.xml
 rpmrepo download --only-metadata "$DEST"/weird/rundeck-location-href https://packages.rundeck.com/pagerduty/rundeck/rpm_any/rpm_any/x86_64/

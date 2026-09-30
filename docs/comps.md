@@ -108,6 +108,15 @@ optional additional attributes:
 <packagereq type="mandatory" basearchonly="true">grub2-efi-x64</packagereq>
 ```
 
+#### Package attributes
+
+| Attribute | Description |
+|-----------|-------------|
+| `type` | One of `mandatory`, `default`, `optional`, `conditional`. Some comps files in the wild omit this attribute; libcomps defaults to `mandatory` when absent. |
+| `requires` | The package name that triggers installation of this conditional package. Only meaningful when `type="conditional"`. |
+| `basearchonly` | Boolean. If `true`, the package is only installed for the system's base architecture, suppressing multilib variants. If a `mandatory` package with `basearchonly="true"` cannot be installed on the basearch, the group install fails. |
+| `arch` | Comma/space-separated list of architectures this package applies to. Rarely used and seemingly not parsed by libsolv. Matching is exact against the basearch value — e.g., `arch="i686"` does not apply on `x86_64` even though x86\_64 can run i686 packages. |
+
 #### Package types
 
 | Type | Behavior |
@@ -116,15 +125,6 @@ optional additional attributes:
 | `default` | Installed by default, but can be excluded. |
 | `optional` | Not installed by default. Included with `--with-optional`. |
 | `conditional` | Installed only if the package named in the `requires` attribute is also being installed. |
-
-#### Package attributes
-
-| Attribute | Description |
-|-----------|-------------|
-| `type` | One of `mandatory`, `default`, `optional`, `conditional`. Some comps files in the wild omit this attribute; libcomps defaults to `default` when absent. |
-| `requires` | The package name that triggers installation of this conditional package. Only meaningful when `type="conditional"`. |
-| `basearchonly` | Boolean. If `true`, the package is only installed for the system's base architecture, suppressing multilib variants. If a `mandatory` package with `basearchonly="true"` cannot be installed on the basearch, the group install fails. |
-| `arch` | Comma/space-separated list of architectures this package applies to. Rarely used and seemingly not parsed by libsolv. Matching is exact against the basearch value — e.g., `arch="i686"` does not apply on `x86_64` even though x86\_64 can run i686 packages. |
 
 ### How dependency solving handles comps
 
