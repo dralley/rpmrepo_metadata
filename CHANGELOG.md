@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Added package-buffer parsing with configurable automatic checksum and size calculation.
+
+### Changed
+
+- Separated shared package parsing options (`PackageOptions`) from file-specific location options.
+
 ### Fixed
 
 - Made changelog parsing (from RPM headers) more consistent with createrepo_c and more optimized. Trims trailing whitespace.

@@ -204,13 +204,88 @@ class TestPackage:
         assert "foo" in pkg.nvra()
 
 
-class TestPackageFromFile:
+class TestPackageFromHeader:
     def test_from_file(self):
         pkg = r.Package.from_file(RPM_FIXTURE)
         assert pkg.name == "complex-package"
         assert pkg.version == "2.3.4"
         assert pkg.release == "5.el8"
         assert pkg.arch == "x86_64"
+
+    def test_from_buffer(self):
+        """Parses RPM headers with caller-provided file metadata."""
+        expected = r.Package.from_file(RPM_FIXTURE)
+        with open(RPM_FIXTURE, "rb") as rpm_file:
+            data = rpm_file.read()[: expected.rpm_header_range[1]]
+
+        parsed = r.Package.from_buffer(
+            data,
+            time_file=expected.time_file,
+            location_href=expected.location_href,
+            checksum=expected.checksum,
+            size_package=expected.size_package,
+            location_base=expected.location_base,
+        )
+
+        assert parsed == expected
+
+    def test_package_from_buffer_derives_file_values(self):
+        """Derives SHA-256 and package size from a complete RPM buffer."""
+        expected = r.Package.from_file(RPM_FIXTURE)
+        with open(RPM_FIXTURE, "rb") as rpm_file:
+            data = rpm_file.read()
+
+        parsed = r.Package.from_buffer(
+            data,
+            time_file=expected.time_file,
+            location_href=expected.location_href,
+            location_base=expected.location_base,
+        )
+
+        assert parsed == expected
+
+    def test_package_from_buffer_rejects_partial_file_values(self):
+        """Rejects a checksum when the matching full-file size is absent."""
+        expected = r.Package.from_file(RPM_FIXTURE)
+        with open(RPM_FIXTURE, "rb") as rpm_file:
+            data = rpm_file.read()
+
+        with pytest.raises(r.MetadataError, match="must be supplied together"):
+            r.Package.from_buffer(
+                data,
+                time_file=expected.time_file,
+                location_href=expected.location_href,
+                checksum=expected.checksum,
+            )
+
+    def test_package_from_buffer_rejects_size_without_checksum(self):
+        """Rejects a full-file size when the matching checksum is absent."""
+        expected = r.Package.from_file(RPM_FIXTURE)
+        with open(RPM_FIXTURE, "rb") as rpm_file:
+            data = rpm_file.read()
+
+        with pytest.raises(r.MetadataError, match="must be supplied together"):
+            r.Package.from_buffer(
+                data,
+                time_file=expected.time_file,
+                location_href=expected.location_href,
+                size_package=expected.size_package,
+            )
+
+    def test_package_from_buffer_uses_configured_checksum_type(self):
+        """Uses the requested checksum type when parsing a complete RPM buffer."""
+        expected = r.Package.from_file(RPM_FIXTURE)
+        with open(RPM_FIXTURE, "rb") as rpm_file:
+            data = rpm_file.read()
+
+        parsed = r.Package.from_buffer(
+            data,
+            time_file=expected.time_file,
+            location_href=expected.location_href,
+            checksum_type=r.ChecksumType.Sha512,
+        )
+
+        assert parsed.checksum_type == "sha512"
 
     def test_from_file_populates_metadata(self):
         pkg = r.Package.from_file(RPM_FIXTURE)

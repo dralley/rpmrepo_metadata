@@ -11,27 +11,70 @@ use crate::constants::mdrecord;
 use crate::filelist::FilelistsXmlReader;
 use crate::other::OtherXmlReader;
 use crate::primary::PrimaryXmlReader;
-use crate::{ChecksumType, FilelistsXml, MetadataError, OtherXml, Package, PrimaryXml};
+use crate::{Checksum, ChecksumType, FilelistsXml, MetadataError, OtherXml, Package, PrimaryXml};
 use crate::{RepomdData, utils};
 
-/// Options for reading an RPM package file into a [`Package`].
+/// Options for parsing an RPM package into a [`Package`].
 pub struct PackageOptions {
     /// Checksum algorithm used to hash the RPM file. Default: SHA-256.
     pub checksum_type: ChecksumType,
-    /// Override for the `location_href` field. If `None`, defaults to the RPM filename.
+    /// Maximum number of changelog entries to keep (most recent first). Default: 10.
+    pub changelog_limit: usize,
+}
+
+/// File-specific options for reading an RPM package into a [`Package`].
+#[derive(Default)]
+pub struct PackageFileOptions {
+    /// Options shared by all RPM package parsing APIs.
+    pub package_options: PackageOptions,
+    /// Override for the `location_href` field. If `None`, it defaults to the RPM filename.
     pub location_href: Option<String>,
     /// Optional base URL prepended to `location_href` when resolving the package location.
     pub location_base: Option<String>,
-    /// Maximum number of changelog entries to keep (most recent first). Default: 10.
-    pub changelog_limit: usize,
+}
+
+/// File-derived data needed to create repository metadata from RPM headers.
+///
+/// RPM headers do not contain the full-file checksum, on-disk size, modification time, or
+/// repository location. Callers that parse headers independently provide those values here.
+/// [`Package::from_package_metadata`] requires `checksum` and `size_package` to be present.
+pub struct PackageSource {
+    /// Checksum of the complete RPM file.
+    ///
+    /// [`Package::from_buffer`] derives this using [`PackageOptions::checksum_type`] when it and
+    /// `size_package` are both `None`.
+    pub checksum: Option<Checksum>,
+    /// Size of the complete RPM file in bytes.
+    ///
+    /// [`Package::from_buffer`] derives this from the buffer length when it and
+    /// `checksum` are both `None`.
+    pub size_package: Option<u64>,
+    /// Modification time of the RPM file as seconds since the Unix epoch.
+    pub time_file: u64,
+    /// Package location relative to the repository root.
+    pub location_href: String,
+    /// Optional base URL for the package location.
+    pub location_base: Option<String>,
+}
+
+#[cfg(feature = "read_rpm")]
+impl PackageSource {
+    /// Reports whether both full-file values are present and rejects a partial pair.
+    fn has_file_values(&self) -> Result<bool, MetadataError> {
+        match (&self.checksum, self.size_package) {
+            (Some(_), Some(_)) => Ok(true),
+            (None, None) => Ok(false),
+            _ => Err(MetadataError::InconsistentMetadataError(
+                "checksum and size_package must be supplied together".to_owned(),
+            )),
+        }
+    }
 }
 
 impl Default for PackageOptions {
     fn default() -> Self {
         Self {
             checksum_type: ChecksumType::Sha256,
-            location_href: None,
-            location_base: None,
             changelog_limit: 10,
         }
     }
@@ -299,21 +342,80 @@ pub mod rpm_parsing {
     }
 
     impl Package {
-        /// Read an RPM file from disk using default [`PackageOptions`].
+        /// Read an RPM file from disk using default [`PackageFileOptions`].
         pub fn from_file<A: AsRef<Path>>(path: A) -> Result<Package, MetadataError> {
-            Self::from_file_with_options(path, PackageOptions::default())
+            Self::from_file_with_options(path, PackageFileOptions::default())
         }
 
-        /// Read an RPM file from disk using the provided [`PackageOptions`].
+        /// Read an RPM file from disk using the provided [`PackageFileOptions`].
         pub fn from_file_with_options<A: AsRef<Path>>(
             path: A,
-            options: PackageOptions,
+            options: PackageFileOptions,
         ) -> Result<Package, MetadataError> {
             let file = File::open(&path)?;
             let file_metadata = file.metadata()?;
-
             let pkg = rpm::PackageMetadata::parse(&mut BufReader::new(&file))?;
 
+            let href = options.location_href.unwrap_or_else(|| {
+                path.as_ref()
+                    .file_name()
+                    .map(|f| f.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| path.as_ref().to_string_lossy().into_owned())
+            });
+            let source = PackageSource {
+                checksum: Some(utils::checksum_file(
+                    path.as_ref(),
+                    options.package_options.checksum_type,
+                )?),
+                size_package: Some(file_metadata.len()),
+                time_file: file_metadata
+                    .modified()?
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
+                location_href: href,
+                location_base: options.location_base,
+            };
+
+            Self::from_package_metadata(&pkg, source, options.package_options)
+        }
+
+        /// Parse RPM headers from a buffer and create repository package metadata.
+        ///
+        /// If [`PackageSource::checksum`] and [`PackageSource::size_package`] are supplied, the
+        /// buffer needs only the RPM lead, signature header, and main header. If both are absent,
+        /// the buffer is assumed to contain the complete RPM and both values are derived from it
+        /// using [`PackageOptions::checksum_type`] and its byte length. Supplying only one is an
+        /// error. Supplied values are trusted and are not verified against the buffer.
+        pub fn from_buffer(
+            buffer: impl AsRef<[u8]>,
+            mut source: PackageSource,
+            options: PackageOptions,
+        ) -> Result<Package, MetadataError> {
+            let buffer = buffer.as_ref();
+            if !source.has_file_values()? {
+                source.checksum = Some(utils::checksum_bytes(buffer, options.checksum_type)?);
+                source.size_package = Some(buffer.len() as u64);
+            }
+            let pkg = rpm::PackageMetadata::parse(&mut BufReader::new(buffer))?;
+            Self::from_package_metadata(&pkg, source, options)
+        }
+
+        /// Create repository package metadata from previously parsed RPM headers.
+        ///
+        /// This avoids reparsing headers when the caller also needs RPM metadata such as
+        /// signatures. [`PackageSource::checksum`] and [`PackageSource::size_package`] must be
+        /// present because there is no source buffer from which to derive them.
+        pub fn from_package_metadata(
+            pkg: &rpm::PackageMetadata,
+            source: PackageSource,
+            options: PackageOptions,
+        ) -> Result<Package, MetadataError> {
+            if !source.has_file_values()? {
+                return Err(MetadataError::MissingFieldError(
+                    "checksum and size_package",
+                ));
+            }
             let mut pkg_metadata = Package::default();
 
             pkg_metadata.set_name(pkg.get_name()?);
@@ -403,28 +505,21 @@ pub mod rpm_parsing {
             changelogs.reverse();
             pkg_metadata.set_changelogs(changelogs);
 
-            pkg_metadata.set_checksum(utils::checksum_file(path.as_ref(), options.checksum_type)?);
-
-            let href = options.location_href.unwrap_or_else(|| {
-                path.as_ref()
-                    .file_name()
-                    .map(|f| f.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| path.as_ref().to_string_lossy().into_owned())
-            });
-            pkg_metadata.set_location_href(href);
-            if let Some(base) = options.location_base {
+            pkg_metadata.set_checksum(
+                source
+                    .checksum
+                    .ok_or(MetadataError::MissingFieldError("checksum"))?,
+            );
+            pkg_metadata.set_location_href(source.location_href);
+            if let Some(base) = source.location_base {
                 pkg_metadata.set_location_base(Some(base));
             }
-
-            let file_size = file_metadata.len();
-            let unix_timestamp = file_metadata
-                .modified()?
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
-
-            pkg_metadata.set_size_package(file_size);
-            pkg_metadata.set_time_file(unix_timestamp);
+            pkg_metadata.set_size_package(
+                source
+                    .size_package
+                    .ok_or(MetadataError::MissingFieldError("size_package"))?,
+            );
+            pkg_metadata.set_time_file(source.time_file);
 
             let offsets = pkg.get_package_segment_offsets();
             pkg_metadata.set_rpm_header_range(offsets.header, offsets.payload);

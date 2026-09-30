@@ -577,13 +577,52 @@ mod rpmrepo_metadata {
             location_base: Option<String>,
             changelog_limit: usize,
         ) -> PyResult<Self> {
-            let options = crate::PackageOptions {
-                checksum_type: checksum_type.into(),
+            let options = crate::PackageFileOptions {
+                package_options: crate::PackageOptions {
+                    checksum_type: checksum_type.into(),
+                    changelog_limit,
+                },
                 location_href,
                 location_base,
-                changelog_limit,
             };
             let pkg = crate::Package::from_file_with_options(&path, options)?;
+            Ok(Package { inner: pkg })
+        }
+
+        /// Parse RPM headers from bytes with caller-supplied file metadata.
+        ///
+        /// With both `checksum` and `size_package`, `data` needs only the RPM lead,
+        /// signature header, and main header. If both are omitted, it must contain the complete
+        /// RPM and both values are derived with `checksum_type` and the buffer length. Supplying
+        /// only one is an error. Supplied values are trusted and are not verified against `data`.
+        #[cfg(feature = "read_rpm")]
+        #[staticmethod]
+        #[pyo3(signature = (data, time_file, location_href, checksum=None, size_package=None, location_base=None, changelog_limit=10, checksum_type=ChecksumType::Sha256))]
+        #[allow(clippy::too_many_arguments)]
+        fn from_buffer(
+            data: &[u8],
+            time_file: u64,
+            location_href: String,
+            checksum: Option<(String, String)>,
+            size_package: Option<u64>,
+            location_base: Option<String>,
+            changelog_limit: usize,
+            checksum_type: ChecksumType,
+        ) -> PyResult<Self> {
+            let source = crate::PackageSource {
+                checksum: checksum
+                    .map(|(kind, value)| crate::Checksum::try_create(kind, value))
+                    .transpose()?,
+                size_package,
+                time_file,
+                location_href,
+                location_base,
+            };
+            let options = crate::PackageOptions {
+                checksum_type: checksum_type.into(),
+                changelog_limit,
+            };
+            let pkg = crate::Package::from_buffer(data, source, options)?;
             Ok(Package { inner: pkg })
         }
 

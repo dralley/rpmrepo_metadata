@@ -19,7 +19,7 @@ use sha2;
 use crate::{Checksum, ChecksumType, CompressionType, MetadataError};
 
 // TODO: these Box<dyn Read> shouldn't be necessary
-fn get_digest<D: digest::Digest>(mut reader: Box<dyn Read>) -> Result<String, MetadataError> {
+fn get_digest<D: digest::Digest>(mut reader: impl Read) -> Result<String, MetadataError> {
     let mut buffer = [0; 4096];
     let mut hasher = D::new();
 
@@ -37,6 +37,26 @@ fn get_digest<D: digest::Digest>(mut reader: Box<dyn Read>) -> Result<String, Me
 /// Compute a checksum of the file at `path`.
 pub fn checksum_file(path: &Path, checksum_type: ChecksumType) -> Result<Checksum, MetadataError> {
     let reader = Box::new(BufReader::new(File::open(path).unwrap())) as Box<dyn Read>;
+
+    let result = match checksum_type {
+        ChecksumType::Md5 => Checksum::Md5(get_digest::<md5::Md5>(reader)?),
+        ChecksumType::Sha1 => Checksum::Sha1(get_digest::<sha1::Sha1>(reader)?),
+        ChecksumType::Sha224 => Checksum::Sha224(get_digest::<sha2::Sha224>(reader)?),
+        ChecksumType::Sha256 => Checksum::Sha256(get_digest::<sha2::Sha256>(reader)?),
+        ChecksumType::Sha384 => Checksum::Sha384(get_digest::<sha2::Sha384>(reader)?),
+        ChecksumType::Sha512 => Checksum::Sha512(get_digest::<sha2::Sha512>(reader)?),
+        ChecksumType::Unknown => panic!("Cannot create digest using type Checksum::Unknown"),
+    };
+
+    Ok(result)
+}
+
+/// Compute a checksum of bytes already held in memory.
+pub fn checksum_bytes(
+    bytes: &[u8],
+    checksum_type: ChecksumType,
+) -> Result<Checksum, MetadataError> {
+    let reader = std::io::Cursor::new(bytes);
 
     let result = match checksum_type {
         ChecksumType::Md5 => Checksum::Md5(get_digest::<md5::Md5>(reader)?),
