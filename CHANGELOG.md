@@ -17,7 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Made changelog parsing (from RPM headers) more consistent with createrepo_c and more optimized. Trims trailing whitespace.
+- Strip XML-forbidden control characters from RPM changelogs.
+- Made changelog parsing (from RPM headers) more consistent with createrepo_c and more optimized. Trims whitespace.
 - Improved RPM requirement filtering for scriptlet requirements, duplicate requirements, and libc capabilities.
 - RPM file metadata now handles device, FIFO, and socket entries without failing.
 
