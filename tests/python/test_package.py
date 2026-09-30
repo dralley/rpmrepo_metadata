@@ -1,6 +1,7 @@
 import os
 
 import pytest
+from rpm_rs import PackageBuilder
 
 import rpmrepo_metadata as r
 
@@ -286,6 +287,59 @@ class TestPackageFromHeader:
         )
 
         assert parsed.checksum_type == "sha512"
+
+    # TODO: apply the same stripping to things other than changelogs
+    def test_package_parse_strips_xml_forbidden_characters(self):
+        """Strips XML-forbidden characters from changelogs in an rpm-rs-built RPM."""
+        builder = PackageBuilder("changelog-control-chars", "1.0", "MIT", "noarch")
+        builder.add_changelog_entry("AuthorXYName", "DescriptionABCDE", 1_700_000_000)
+        rpm_bytes = builder.build().to_bytes()
+
+        replacements = [
+            (b"AuthorXYName", b"Author\x1b\tName"),
+            (b"DescriptionABCDE", b"Description\x1f\n\xef\xbf\xbe"),
+        ]
+
+        # replace the values in the binary with "corrupted" versions
+        for original, replacement in replacements:
+            assert len(original) == len(replacement)
+            assert rpm_bytes.count(original) == 1
+            rpm_bytes = rpm_bytes.replace(original, replacement, 1)
+
+        parsed = r.Package.from_buffer(
+            rpm_bytes,
+            time_file=0,
+            location_href="changelog-control-chars-1.0-1.noarch.rpm",
+        )
+
+        assert parsed.changelogs == [("Author\tName", 1_700_000_000, "Description\n")]
+
+    def test_package_parse_lossy_decodes_non_utf8_changelog_characters(self):
+        """Parses non-UTF-8 data in changelogs (so long as RPMTAG_ENCODING does not claim UTF-8)"""
+        builder = PackageBuilder("invalid-utf8-changelog", "1.0", "MIT", "noarch")
+        builder.add_changelog_entry("AuthorXYName", "DescriptionABCDE", 1_700_000_000)
+        rpm_bytes = builder.build().to_bytes()
+
+        replacements = [
+            # There is an RPMTAG_ENCODING tag which declares that the package uses UTF-8 for strings.
+            # rpm-rs always declares this, and treats decoding issues as errors during parsing when it is
+            # declared, so we have to corrupt that value to bypass the check for testing purposes.
+            (b"utf-8\x00", b"ascii\x00"),
+            (b"AuthorXYName", b"Author\xffYName"),
+            (b"DescriptionABCDE", b"Description\xffBCDE"),
+        ]
+        for original, replacement in replacements:
+            assert len(original) == len(replacement)
+            assert rpm_bytes.count(original) == 1
+            rpm_bytes = rpm_bytes.replace(original, replacement, 1)
+
+        parsed = r.Package.from_buffer(
+            rpm_bytes,
+            time_file=0,
+            location_href="invalid-utf8-changelog-1.0-1.noarch.rpm",
+        )
+
+        assert parsed.changelogs == [("Author�YName", 1_700_000_000, "Description�BCDE")]
 
     def test_from_file_populates_metadata(self):
         pkg = r.Package.from_file(RPM_FIXTURE)

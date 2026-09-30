@@ -101,7 +101,7 @@ jobs:
         with:
           args: --release --out dist --features supportinfo,python_ext
           manylinux: 2_28
-      - run: pip install dist/*.whl pytest
+      - run: pip install dist/*.whl pytest rpm-rs==0.29.0
       - run: pytest tests/python/
 
   fmt:
