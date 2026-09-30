@@ -1,3 +1,8 @@
 broken_fixture_repos/
 fixture_repos/
 external_repos/
+
+# No need to make this public
+tests/assets/validate_cdn_repos.py
+# Should definitely not be public
+tests/assets/cdn_metadata_cache/**
