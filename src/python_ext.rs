@@ -72,6 +72,7 @@ fn json_value_to_py(py: Python<'_>, value: &serde_json::Value) -> PyResult<Py<Py
 #[pymodule]
 mod rpmrepo_metadata {
     use super::*;
+    use pyo3::types::PyString;
 
     #[pymodule_export]
     use super::MetadataError;
@@ -1104,15 +1105,26 @@ mod rpmrepo_metadata {
         }
 
         #[getter(files_split)]
-        pub fn files_split(&self) -> Vec<CrFileTuple> {
+        pub fn files_split<'py>(
+            &self,
+            py: Python<'py>,
+        ) -> Vec<(Option<String>, Bound<'py, PyString>, String)> {
             let mut result = Vec::new();
+            // Key by data pointer - directory strings sharing the same interned
+            // directory point to the same slice, so pointer identity is sufficient.
+            // No unsafe required.
+            let mut dir_cache = std::collections::HashMap::new();
             for f in self.inner.files().iter() {
                 let filetype = match f.filetype() {
                     crate::metadata::FileType::File => None,
                     crate::metadata::FileType::Dir => Some("dir".to_owned()),
                     crate::metadata::FileType::Ghost => Some("ghost".to_owned()),
                 };
-                result.push((filetype, f.dir().to_owned(), f.basename().to_owned()));
+                let dir = dir_cache
+                    .entry(f.dir().as_ptr())
+                    .or_insert_with(|| PyString::new(py, f.dir()))
+                    .clone();
+                result.push((filetype, dir, f.basename().to_owned()));
             }
             result
         }

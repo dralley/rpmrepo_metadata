@@ -174,6 +174,13 @@ class TestPackage:
         assert len(split) == 1
         assert split[0][2] == "foo"  # filename portion
 
+    def test_files_split_interns_directories(self):
+        pkg = r.Package()
+        pkg.files = [(None, "/usr/bin/foo"), (None, "/usr/bin/bar")]
+        split = pkg.files_split
+        assert split[0][1] is split[1][1]  # shared directory object
+        assert split[0][1] is split[1][1]  # shared directory object
+
     def test_files_invalid_type(self):
         pkg = r.Package()
         with pytest.raises(ValueError):
