@@ -1,6 +1,6 @@
 [package]
 name = "rpmrepo_metadata"
-version = "0.8.0"
+version = "0.8.1"
 authors = ["Daniel Alley <dalley@redhat.com>"]
 edition = "2024"
 license = "MPL-2.0"
