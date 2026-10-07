@@ -152,7 +152,7 @@ pub mod rpm_parsing {
     fn has_valid_epoch(version: &str) -> bool {
         version
             .split_once(':')
-            .is_none_or(|(epoch, _)| epoch.parse::<u64>().is_ok())
+            .is_none_or(|(epoch, _)| epoch.is_empty() || epoch.parse::<u64>().is_ok())
     }
 
     /// The first capability form used to reduce `libc.so.6` requirements.
@@ -612,13 +612,35 @@ pub mod rpm_parsing {
             );
         }
 
-        /// Accepts only nonnegative integer epochs.
+        /// Accepts nonnegative integer epochs and empty epochs (rare but possible).
         #[test]
-        fn rejects_invalid_dependency_epochs() {
+        fn validates_dependency_epochs() {
             assert!(has_valid_epoch("1:1"));
+            assert!(has_valid_epoch(":1"));
             assert!(!has_valid_epoch("-1:1"));
             assert!(!has_valid_epoch("999999999999999999999:1"));
             assert!(!has_valid_epoch("invalid:1"));
+        }
+
+        /// Empty epoch is converted to zero
+        #[test]
+        fn converts_empty_dependency_epoch_to_zero() {
+            // Present in EPEL7 repo
+            let requires = filter_requires(
+                vec![dependency(
+                    "freerdp1.2(x86-64)",
+                    rpm::DependencyFlags::EQUAL,
+                    ":1.2.0-13.el7",
+                )],
+                &HashSet::new(),
+                &crate::FileList::new(),
+            )
+            .unwrap();
+
+            assert_eq!(requires.len(), 1);
+            assert_eq!(requires[0].epoch(), Some("0"));
+            assert_eq!(requires[0].version(), Some("1.2.0"));
+            assert_eq!(requires[0].release(), Some("13.el7"));
         }
 
         /// Filters RPM internals, self-provides, and malformed epochs without conflating EVRs.

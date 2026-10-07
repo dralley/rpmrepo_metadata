@@ -19,14 +19,28 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; If not, see <http://www.gnu.org/licenses/>.
 
+import argparse
+import locale
 import os
 import os.path
-import sys
+from pathlib import Path
 
-import pytest
+# RPM headers may contain localized i18n strings. Use the RPM default locale so both
+# implementations select the same string regardless of the caller's environment.
+os.environ["LANG"] = "C"
+os.environ["LC_ALL"] = "C"
+locale.setlocale(locale.LC_ALL, "C")
 
 import createrepo_c as cr
+import pytest
 import rpmrepo_metadata as rpmmd
+
+# These known direct-RPM parsing differences cannot arise while comparing existing RPM-MD
+# metadata because the metadata itself has already selected one representation.
+DIRECT_RPM_DIFFERENCES = {
+    "changelogs": "rpmrepo_metadata preserves duplicate RPM changelog timestamps; createrepo_c increments earlier duplicates.",
+    "requires": "rpmrepo_metadata suppresses duplicate requirements globally; createrepo_c only suppresses a duplicate of the last retained variant for a name.",
+}
 
 
 def compare_updaterecord(rpmrepo_updaterec, cr_updaterec):
@@ -108,6 +122,84 @@ def compare_updaterecord(rpmrepo_updaterec, cr_updaterec):
             assert rpmrepo_updatepkg.relogin_suggested == cr_updatepkg.relogin_suggested, f"relogin_suggested: rpmrepo={rpmrepo_updatepkg.relogin_suggested!r} vs createrepo_c={cr_updatepkg.relogin_suggested!r}"
 
 
+def _remove_xml_forbidden_characters(value):
+    return "".join(
+        character
+        for character in value
+        if character in "\t\n\r" or ord(character) >= 0x20
+    )
+
+
+def _normalize_changelog_author(author):
+    """Normalize the documented author-string differences between the parsers."""
+    # rpmrepo_metadata trims Unicode whitespace; createrepo_c removes trailing ASCII
+    # spaces only. The adapter removes XML-forbidden characters from both values.
+    return _remove_xml_forbidden_characters(author.strip())
+
+
+def compare_changelogs(rpmrepo_changelogs, cr_changelogs):
+    """Compare changelogs while accounting for createrepo_c's known adaptations."""
+    assert len(rpmrepo_changelogs) == len(cr_changelogs), (
+        f"changelogs length: rpmrepo={len(rpmrepo_changelogs)!r} "
+        f"vs createrepo_c={len(cr_changelogs)!r}"
+    )
+
+    # createrepo_c increments entries in a run of equal timestamps so the dates are
+    # strictly increasing. Only accept that transformation when rpmrepo_metadata has
+    # the corresponding equal-timestamp run; real timestamp differences remain visible.
+    for index, (rpmrepo_changelog, cr_changelog) in enumerate(
+        zip(rpmrepo_changelogs, cr_changelogs)
+    ):
+        rpmrepo_author, rpmrepo_timestamp, rpmrepo_description = rpmrepo_changelog
+        cr_author, cr_timestamp, cr_description = cr_changelog
+        assert _normalize_changelog_author(rpmrepo_author) == _normalize_changelog_author(
+            cr_author
+        ), f"changelogs[{index}] author: rpmrepo={rpmrepo_author!r} vs createrepo_c={cr_author!r}"
+        assert _remove_xml_forbidden_characters(rpmrepo_description) == _remove_xml_forbidden_characters(
+            cr_description
+        ), (
+            f"changelogs[{index}] description: rpmrepo={rpmrepo_description!r} "
+            f"vs createrepo_c={cr_description!r}"
+        )
+
+        if rpmrepo_timestamp == cr_timestamp:
+            continue
+
+        run_start = index
+        while (
+            run_start > 0
+            and rpmrepo_changelogs[run_start - 1][1] == rpmrepo_timestamp
+        ):
+            run_start -= 1
+        run_offset = index - run_start
+        if cr_changelogs[run_start][1] != rpmrepo_timestamp or not all(
+            changelog[1] == rpmrepo_timestamp
+            for changelog in rpmrepo_changelogs[run_start : index + 1]
+        ) or cr_timestamp != cr_changelogs[run_start][1] + run_offset:
+            raise AssertionError(
+                f"changelogs[{index}] timestamp: rpmrepo={rpmrepo_timestamp!r} "
+                f"vs createrepo_c={cr_timestamp!r}"
+            )
+
+
+def _deduplicate_requirements(requirements):
+    """Apply rpmrepo_metadata's exact-duplicate semantics to either dependency list."""
+    return list(dict.fromkeys(requirements))
+
+
+def compare_requirements(rpmrepo_requirements, cr_requirements, field):
+    rpmrepo_requirements = _deduplicate_requirements(rpmrepo_requirements)
+    cr_requirements = _deduplicate_requirements(cr_requirements)
+    if rpmrepo_requirements == cr_requirements:
+        return
+
+    rpmrepo_only = [requirement for requirement in rpmrepo_requirements if requirement not in cr_requirements]
+    cr_only = [requirement for requirement in cr_requirements if requirement not in rpmrepo_requirements]
+    raise AssertionError(
+        f"{field}: rpmrepo-only={rpmrepo_only!r}; createrepo_c-only={cr_only!r}"
+    )
+
+
 def compare_pkgs(rpmrepo_pkg, cr_pkg):
     # API DIFFERENCES vs. createrepo_c
     #
@@ -172,10 +264,12 @@ def compare_pkgs(rpmrepo_pkg, cr_pkg):
     cr_header_range = (cr_pkg.rpm_header_start, cr_pkg.rpm_header_end)
     assert rpmrepo_pkg.rpm_header_range == cr_header_range, f"rpm_header_range: rpmrepo={rpmrepo_pkg.rpm_header_range!r} vs createrepo_c={cr_header_range!r}"
 
-    assert rpmrepo_pkg.files_split == cr_pkg.files, f"files: rpmrepo={rpmrepo_pkg.files_split!r} vs createrepo_c={cr_pkg.files!r}"
-    assert rpmrepo_pkg.changelogs == cr_pkg.changelogs, f"changelogs: rpmrepo={rpmrepo_pkg.changelogs!r} vs createrepo_c={cr_pkg.changelogs!r}"
-
-    assert rpmrepo_pkg.requires == cr_pkg.requires, f"requires: rpmrepo={rpmrepo_pkg.requires!r} vs createrepo_c={cr_pkg.requires!r}"
+    # createrepo_c retains per-file digests when parsing an RPM, but they are not present in
+    # RPM-MD filelists metadata and rpmrepo_metadata intentionally does not retain them.
+    cr_files = [(filetype or None, dirname, basename) for filetype, dirname, basename, *_ in cr_pkg.files]
+    assert rpmrepo_pkg.files_split == cr_files, f"files: rpmrepo={rpmrepo_pkg.files_split!r} vs createrepo_c={cr_files!r}"
+    compare_changelogs(rpmrepo_pkg.changelogs, cr_pkg.changelogs)
+    compare_requirements(rpmrepo_pkg.requires, cr_pkg.requires, "requires")
     assert rpmrepo_pkg.provides == cr_pkg.provides, f"provides: rpmrepo={rpmrepo_pkg.provides!r} vs createrepo_c={cr_pkg.provides!r}"
     assert rpmrepo_pkg.obsoletes == cr_pkg.obsoletes, f"obsoletes: rpmrepo={rpmrepo_pkg.obsoletes!r} vs createrepo_c={cr_pkg.obsoletes!r}"
     assert rpmrepo_pkg.recommends == cr_pkg.recommends, f"recommends: rpmrepo={rpmrepo_pkg.recommends!r} vs createrepo_c={cr_pkg.recommends!r}"
@@ -202,6 +296,55 @@ def validate_rpmrepo(repo_path):
 
     for rpmrepo_updaterecord, createrepo_updaterecord in zip(rpmrepo_updates, cr_updates):
         compare_updaterecord(rpmrepo_updaterecord, createrepo_updaterecord)
+
+
+def find_rpms(directory):
+    """Yield RPM files below a directory in deterministic order."""
+    for dirpath, dirnames, filenames in os.walk(directory):
+        dirnames.sort()
+        for filename in sorted(filenames):
+            if filename.endswith(".rpm"):
+                yield os.path.join(dirpath, filename)
+
+
+def find_repository(filename, directory):
+    """Return the repository containing an RPM, based on its repodata directory."""
+    root = Path(directory).resolve()
+    path = Path(filename).resolve()
+    for parent in (path.parent, *path.parents):
+        if (parent / "repodata").is_dir():
+            return os.path.relpath(parent, root)
+    return os.path.relpath(path.parent, root)
+
+
+def validate_rpm_files(directory):
+    """Compare package metadata built directly from every RPM below a directory."""
+    count = 0
+    differences = {field: 0 for field in DIRECT_RPM_DIFFERENCES}
+    for filename in find_rpms(directory):
+        rpmrepo_pkg = None
+        try:
+            rpmrepo_pkg = rpmmd.Package.from_file(filename)
+            createrepo_pkg = cr.package_from_rpm(
+                filename, location_href=os.path.basename(filename)
+            )
+            compare_pkgs(rpmrepo_pkg, createrepo_pkg)
+        except Exception as error:
+            relative_filename = os.path.relpath(filename, directory)
+            repository = find_repository(filename, directory)
+            context = (
+                f"repository: {repository}\n"
+                f"package: {relative_filename}\n"
+                f"nevra: {rpmrepo_pkg.nevra() if rpmrepo_pkg is not None else 'unavailable'}\n"
+            )
+            raise AssertionError(
+                f"{context}{type(error).__name__}: {error}"
+            ) from error
+        for field in differences:
+            if getattr(rpmrepo_pkg, field) != getattr(createrepo_pkg, field):
+                differences[field] += 1
+        count += 1
+    return count, {field: count for field, count in differences.items() if count}
 
 
 def find_repos(directory):
@@ -232,13 +375,28 @@ def test_validate_broken_repo(path):
 
 
 if __name__ == "__main__":
-    repo_path = sys.argv[1]
+    parser = argparse.ArgumentParser()
+    parser.add_argument("repo_path", nargs="?", help="repository tree to compare")
+    parser.add_argument(
+        "--rpm-files",
+        metavar="DIRECTORY",
+        help="compare metadata produced by parsing every RPM below DIRECTORY",
+    )
+    args = parser.parse_args()
     GREEN = "\u001b[32;1m"
     RED = "\u001b[31;1m"
     RESET = "\u001b[0m"
     try:
-        validate_rpmrepo(repo_path)
-        print(GREEN + "OK" + RESET)
+        if args.rpm_files:
+            count, differences = validate_rpm_files(args.rpm_files)
+            summary = ", ".join(f"{field}={count}" for field, count in differences.items())
+            suffix = f"; documented differences: {summary}" if summary else ""
+            print(GREEN + f"OK ({count} RPMs{suffix})" + RESET)
+        elif args.repo_path:
+            validate_rpmrepo(args.repo_path)
+            print(GREEN + "OK" + RESET)
+        else:
+            parser.error("repo_path or --rpm-files is required")
     except AssertionError:
         print(RED + "FAIL" + RESET)
         raise
