@@ -466,14 +466,21 @@ pub mod rpm_parsing {
             pkg_metadata.set_rpm_buildhost(pkg.get_build_host().unwrap_or_default());
             pkg_metadata.set_rpm_sourcerpm(pkg.get_source_rpm().unwrap_or_default());
 
+            // Prefer the v6 main-header uncompressed payload size; unlike signature tags,
+            // it is not intended to be rewritten after the package is built.
             let archive_size = pkg
-                .signature
-                .get_entry_data_as_u64(rpm::IndexSignatureTag::RPMSIGTAG_LONGARCHIVESIZE)
-                .unwrap_or_else(|_| {
+                .header
+                .get_entry_data_as_u64(rpm::IndexTag::RPMTAG_PAYLOADSIZEALT)
+                .or_else(|_| {
+                    pkg.signature
+                        .get_entry_data_as_u64(rpm::IndexSignatureTag::RPMSIGTAG_LONGARCHIVESIZE)
+                })
+                .or_else(|_| {
                     pkg.signature
                         .get_entry_data_as_u32(rpm::IndexSignatureTag::RPMSIGTAG_PAYLOADSIZE)
-                        .unwrap_or(0) as u64
-                });
+                        .map(|size| size as u64)
+                })
+                .unwrap_or(0);
             pkg_metadata.set_size_archive(archive_size);
             pkg_metadata.set_size_installed(pkg.get_installed_size()?);
 

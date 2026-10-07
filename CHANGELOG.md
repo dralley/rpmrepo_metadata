@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Fix archive size determination for RPMv6 packages.
+
 ## 0.8.2
 
 ### Performance
