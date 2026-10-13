@@ -369,7 +369,7 @@ impl Package {
 
     /// Set the package summary.
     pub fn set_summary(&mut self, summary: impl Into<String>) -> &mut Self {
-        self.summary = sanitize_xml_text(summary);
+        self.summary = sanitize_xml_text(summary, "package summary");
         self
     }
 
@@ -380,7 +380,7 @@ impl Package {
 
     /// Set the package description.
     pub fn set_description(&mut self, description: impl Into<String>) -> &mut Self {
-        self.description = sanitize_xml_text(description);
+        self.description = sanitize_xml_text(description, "package description");
         self
     }
 
@@ -402,7 +402,7 @@ impl Package {
 
     /// Set the upstream project URL.
     pub fn set_url(&mut self, url: impl Into<String>) -> &mut Self {
-        self.url = sanitize_xml_text(url);
+        self.url = sanitize_xml_text(url, "package URL");
         self
     }
 
@@ -708,9 +708,9 @@ impl Package {
     /// Append a changelog entry.
     pub fn add_changelog(&mut self, author: &str, description: &str, date: u64) -> &mut Self {
         self.rpm_changelogs.push(Changelog {
-            author: sanitize_xml_text(author),
+            author: sanitize_xml_text(author, "changelog author"),
             timestamp: date,
-            description: sanitize_xml_text(description),
+            description: sanitize_xml_text(description, "changelog description"),
         });
         self
     }
@@ -720,9 +720,9 @@ impl Package {
         self.rpm_changelogs = changelogs
             .into_iter()
             .map(|changelog| Changelog {
-                author: sanitize_xml_text(changelog.author),
+                author: sanitize_xml_text(changelog.author, "changelog author"),
                 timestamp: changelog.timestamp,
-                description: sanitize_xml_text(changelog.description),
+                description: sanitize_xml_text(changelog.description, "changelog description"),
             })
             .collect();
         self

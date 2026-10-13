@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Replace XML-forbidden characters in RPM package metadata so generated repository XML remains valid.
+- Warn when XML-forbidden characters are replaced in package metadata.
 
 ## 0.8.3
 

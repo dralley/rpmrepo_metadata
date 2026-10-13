@@ -6,16 +6,18 @@ use quick_xml::{self, events::*};
 use crate::MetadataError;
 use crate::constants::XML_VERSION;
 
-/// Replace characters forbidden by XML 1.0 with U+FFFD.
+/// Replace characters forbidden by XML 1.0 with U+FFFD and log a warning.
 ///
 /// TAB, LF, and CR are valid XML whitespace and are preserved. RPM header
 /// fields are otherwise untrusted input, and a forbidden control character
 /// would make the entire generated metadata document invalid.
-pub(crate) fn sanitize_xml_text(value: impl Into<String>) -> String {
+pub(crate) fn sanitize_xml_text(value: impl Into<String>, field: &str) -> String {
     let value = value.into();
     if value.chars().all(is_xml_1_0_char) {
         return value;
     }
+
+    log::warn!("Replacing XML-forbidden characters in {field} with U+FFFD");
 
     value
         .chars()

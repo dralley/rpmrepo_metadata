@@ -335,9 +335,9 @@ pub mod rpm_parsing {
     impl From<rpm::ChangelogEntry> for Changelog {
         fn from(value: rpm::ChangelogEntry) -> Self {
             Changelog {
-                author: sanitize_xml_text(value.name),
+                author: sanitize_xml_text(value.name, "RPMTAG_CHANGELOGNAME"),
                 timestamp: value.timestamp,
-                description: sanitize_xml_text(value.description),
+                description: sanitize_xml_text(value.description, "RPMTAG_CHANGELOGTEXT"),
             }
         }
     }
