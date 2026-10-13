@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Include package identity in XML-normalization warnings when available.
+
 ## 0.9
 
 ### Added

@@ -328,6 +328,20 @@ impl Package {
         )
     }
 
+    /// Return the package NEVRA when it is complete enough for warning context.
+    fn xml_warning_nevra(&self) -> Option<String> {
+        (!self.name.is_empty()
+            && !self.version().is_empty()
+            && !self.release().is_empty()
+            && !self.arch.is_empty())
+        .then(|| self.nevra())
+    }
+
+    /// Sanitize package text and include the package NEVRA in any warning.
+    fn sanitize_package_xml_text(&self, value: impl Into<String>, field: &str) -> String {
+        sanitize_xml_text(value, field, || self.xml_warning_nevra())
+    }
+
     /// Set the package checksum.
     pub fn set_checksum(&mut self, checksum: Checksum) -> &mut Self {
         self.checksum = checksum;
@@ -369,7 +383,7 @@ impl Package {
 
     /// Set the package summary.
     pub fn set_summary(&mut self, summary: impl Into<String>) -> &mut Self {
-        self.summary = sanitize_xml_text(summary, "package summary");
+        self.summary = self.sanitize_package_xml_text(summary, "package summary");
         self
     }
 
@@ -380,7 +394,7 @@ impl Package {
 
     /// Set the package description.
     pub fn set_description(&mut self, description: impl Into<String>) -> &mut Self {
-        self.description = sanitize_xml_text(description, "package description");
+        self.description = self.sanitize_package_xml_text(description, "package description");
         self
     }
 
@@ -391,7 +405,7 @@ impl Package {
 
     /// Set the packager name/email.
     pub fn set_packager(&mut self, packager: impl Into<String>) -> &mut Self {
-        self.packager = sanitize_xml_text(packager, "package packager");
+        self.packager = self.sanitize_package_xml_text(packager, "package packager");
         self
     }
 
@@ -402,7 +416,7 @@ impl Package {
 
     /// Set the upstream project URL.
     pub fn set_url(&mut self, url: impl Into<String>) -> &mut Self {
-        self.url = sanitize_xml_text(url, "package URL");
+        self.url = self.sanitize_package_xml_text(url, "package URL");
         self
     }
 
@@ -468,7 +482,7 @@ impl Package {
 
     /// Set the RPM license tag.
     pub fn set_rpm_license(&mut self, license: impl Into<String>) -> &mut Self {
-        self.rpm_license = sanitize_xml_text(license, "RPM license");
+        self.rpm_license = self.sanitize_package_xml_text(license, "RPM license");
         self
     }
 
@@ -479,7 +493,7 @@ impl Package {
 
     /// Set the RPM vendor tag.
     pub fn set_rpm_vendor(&mut self, vendor: impl Into<String>) -> &mut Self {
-        self.rpm_vendor = sanitize_xml_text(vendor, "RPM vendor");
+        self.rpm_vendor = self.sanitize_package_xml_text(vendor, "RPM vendor");
         self
     }
 
@@ -490,7 +504,7 @@ impl Package {
 
     /// Set the RPM group tag.
     pub fn set_rpm_group(&mut self, group: impl Into<String>) -> &mut Self {
-        self.rpm_group = sanitize_xml_text(group, "RPM group");
+        self.rpm_group = self.sanitize_package_xml_text(group, "RPM group");
         self
     }
 
@@ -501,7 +515,7 @@ impl Package {
 
     /// Set the hostname of the build machine.
     pub fn set_rpm_buildhost(&mut self, rpm_buildhost: impl Into<String>) -> &mut Self {
-        self.rpm_buildhost = sanitize_xml_text(rpm_buildhost, "RPM build host");
+        self.rpm_buildhost = self.sanitize_package_xml_text(rpm_buildhost, "RPM build host");
         self
     }
 
@@ -708,9 +722,9 @@ impl Package {
     /// Append a changelog entry.
     pub fn add_changelog(&mut self, author: &str, description: &str, date: u64) -> &mut Self {
         self.rpm_changelogs.push(Changelog {
-            author: sanitize_xml_text(author, "changelog author"),
+            author: self.sanitize_package_xml_text(author, "changelog author"),
             timestamp: date,
-            description: sanitize_xml_text(description, "changelog description"),
+            description: self.sanitize_package_xml_text(description, "changelog description"),
         });
         self
     }
@@ -720,9 +734,15 @@ impl Package {
         self.rpm_changelogs = changelogs
             .into_iter()
             .map(|changelog| Changelog {
-                author: sanitize_xml_text(changelog.author, "changelog author"),
+                author: sanitize_xml_text(changelog.author, "changelog author", || {
+                    self.xml_warning_nevra()
+                }),
                 timestamp: changelog.timestamp,
-                description: sanitize_xml_text(changelog.description, "changelog description"),
+                description: sanitize_xml_text(
+                    changelog.description,
+                    "changelog description",
+                    || self.xml_warning_nevra(),
+                ),
             })
             .collect();
         self
