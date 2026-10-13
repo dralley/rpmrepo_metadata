@@ -88,6 +88,11 @@ fn test_package_from_buffer_replaces_xml_forbidden_header_characters() -> Result
         b"http://bobloblaw.com",
         b"http://bobloblaw\x08com",
     );
+    replace_unique_bytes(&mut bytes, b"Michael Bluth", b"Michael\x08Bluth");
+    replace_unique_bytes(&mut bytes, b"MPLv2", b"MPL\x08v");
+    replace_unique_bytes(&mut bytes, b"Bluth Company", b"Bluth\x08Company");
+    replace_unique_bytes(&mut bytes, b"Development/Tools", b"Development\x08Tools");
+    replace_unique_bytes(&mut bytes, b"\xc7localhost\0", b"\xc7local\x08ost\0");
 
     let package = Package::from_buffer(&bytes, package_source(), Default::default())?;
     assert_eq!(
@@ -96,6 +101,11 @@ fn test_package_from_buffer_replaces_xml_forbidden_header_characters() -> Result
     );
     assert_eq!(package.description(), "Complex�package");
     assert_eq!(package.url(), "http://bobloblaw�com");
+    assert_eq!(package.packager(), "Michael�Bluth");
+    assert_eq!(package.rpm_license(), "MPL�v");
+    assert_eq!(package.rpm_vendor(), "Bluth�Company");
+    assert_eq!(package.rpm_group(), "Development�Tools");
+    assert_eq!(package.rpm_buildhost(), "local�ost");
 
     Ok(())
 }

@@ -83,12 +83,22 @@ class TestPackage:
         pkg = r.Package()
         pkg.summary = "summary\x08"
         pkg.description = "description\x1b"
+        pkg.packager = "packager\x01"
         pkg.url = "https://example.com/\x01"
+        pkg.rpm_license = "license\x08"
+        pkg.rpm_vendor = "vendor\x1b"
+        pkg.rpm_group = "group\x01"
+        pkg.rpm_buildhost = "buildhost\x08"
         pkg.changelogs = [("author\x02", 1, "changelog\x03")]
 
         assert pkg.summary == "summary�"
         assert pkg.description == "description�"
+        assert pkg.packager == "packager�"
         assert pkg.url == "https://example.com/�"
+        assert pkg.rpm_license == "license�"
+        assert pkg.rpm_vendor == "vendor�"
+        assert pkg.rpm_group == "group�"
+        assert pkg.rpm_buildhost == "buildhost�"
         assert pkg.changelogs == [("author�", 1, "changelog�")]
         assert "Replacing XML-forbidden characters in package summary with U+FFFD" in caplog.messages
 
@@ -346,15 +356,24 @@ class TestPackageFromHeader:
 
     def test_package_parse_replaces_xml_forbidden_header_characters(self):
         """Replaces XML-forbidden characters in RPM header text."""
-        builder = PackageBuilder("control-chars", "1.0", "MIT", "noarch", "summaryX")
+        builder = PackageBuilder("control-chars", "1.0", "licenseX", "noarch", "summaryX")
         builder.description("descriptionX")
+        builder.packager("packagerX")
         builder.url("https://example.com/X")
+        builder.vendor("vendorX")
+        builder.group("groupX")
+        builder.build_host("buildhostX")
         rpm_bytes = builder.build().to_bytes()
 
         for original, replacement in (
             (b"summaryX", b"summary\x08"),
             (b"descriptionX", b"description\x1b"),
+            (b"packagerX", b"packager\x01"),
             (b"https://example.com/X", b"https://example.com/\x01"),
+            (b"licenseX", b"license\x08"),
+            (b"vendorX", b"vendor\x1b"),
+            (b"groupX", b"group\x01"),
+            (b"buildhostX", b"buildhost\x08"),
         ):
             assert len(original) == len(replacement)
             assert rpm_bytes.count(original) == 1
@@ -368,7 +387,12 @@ class TestPackageFromHeader:
 
         assert parsed.summary == "summary�"
         assert parsed.description == "description�"
+        assert parsed.packager == "packager�"
         assert parsed.url == "https://example.com/�"
+        assert parsed.rpm_license == "license�"
+        assert parsed.rpm_vendor == "vendor�"
+        assert parsed.rpm_group == "group�"
+        assert parsed.rpm_buildhost == "buildhost�"
 
     def test_package_parse_lossy_decodes_non_utf8_changelog_characters(self):
         """Parses non-UTF-8 data in changelogs (so long as RPMTAG_ENCODING does not claim UTF-8)"""
