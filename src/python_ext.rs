@@ -72,7 +72,16 @@ fn json_value_to_py(py: Python<'_>, value: &serde_json::Value) -> PyResult<Py<Py
 #[pymodule]
 mod rpmrepo_metadata {
     use super::*;
+    use pyo3::exceptions::PyRuntimeError;
     use pyo3::types::PyString;
+
+    #[pymodule_init]
+    fn init(_module: &Bound<'_, PyModule>) -> PyResult<()> {
+        // Forward Rust log records to Python's logging system when the extension is imported.
+        pyo3_log::try_init()
+            .map(|_| ())
+            .map_err(|error| PyRuntimeError::new_err(error.to_string()))
+    }
 
     #[pymodule_export]
     use super::MetadataError;
