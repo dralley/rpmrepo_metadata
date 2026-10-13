@@ -38,9 +38,7 @@ impl RpmMetadata for FilelistsXml {
             repository
                 .packages_mut()
                 .entry(pkgid)
-                .and_modify(|p| {
-                    std::mem::swap(&mut p.rpm_files, &mut package.as_mut().unwrap().rpm_files)
-                })
+                .and_modify(|p| p.replace_files(package.as_mut().unwrap().take_files()))
                 .or_insert(package.take().unwrap());
         }
         Ok(())
@@ -278,7 +276,7 @@ impl FilelistsVisitor for FilelistsMaterializer<'_> {
                 )));
                 return;
             }
-            pkg.rpm_files.clear();
+            pkg.clear_files();
         } else {
             let mut pkg = Package::default();
             pkg.set_name(name)

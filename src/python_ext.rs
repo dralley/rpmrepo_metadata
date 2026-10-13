@@ -733,7 +733,7 @@ mod rpmrepo_metadata {
 
         #[getter(checksum_type)]
         pub fn checksum_type(&self) -> &str {
-            self.inner.checksum.to_values().unwrap().0
+            self.inner.checksum().to_values().unwrap().0
         }
 
         #[setter(location_href)]

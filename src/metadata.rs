@@ -169,40 +169,40 @@ impl TryInto<CompressionType> for &str {
 #[derive(Clone, Default, Debug, PartialEq, Hash)]
 pub struct Package {
     // pub(crate) parse_state: ParseState,
-    pub name: String,
-    pub arch: String,
-    pub evr: rpm_version::Evr<'static>,
-    pub checksum: Checksum,
-    pub location_href: String,
-    pub location_base: Option<String>,
-    pub summary: String,
-    pub description: String,
-    pub packager: String,
-    pub url: String,
-    pub time_file: u64,
-    pub time_build: u64,
-    pub size_package: u64,
-    pub size_installed: u64,
-    pub size_archive: u64,
+    name: String,
+    arch: String,
+    evr: rpm_version::Evr<'static>,
+    checksum: Checksum,
+    location_href: String,
+    location_base: Option<String>,
+    summary: String,
+    description: String,
+    packager: String,
+    url: String,
+    time_file: u64,
+    time_build: u64,
+    size_package: u64,
+    size_installed: u64,
+    size_archive: u64,
 
-    pub rpm_license: String,           // rpm:license
-    pub rpm_vendor: String,            // rpm:vendor
-    pub rpm_group: String,             // rpm:group
-    pub rpm_buildhost: String,         // rpm:buildhost
-    pub rpm_sourcerpm: String,         // rpm:sourcerpm
-    pub rpm_header_range: HeaderRange, // rpm:header-range
+    rpm_license: String,           // rpm:license
+    rpm_vendor: String,            // rpm:vendor
+    rpm_group: String,             // rpm:group
+    rpm_buildhost: String,         // rpm:buildhost
+    rpm_sourcerpm: String,         // rpm:sourcerpm
+    rpm_header_range: HeaderRange, // rpm:header-range
 
-    pub rpm_requires: Vec<Requirement>,    // rpm:provides
-    pub rpm_provides: Vec<Requirement>,    // rpm:requires
-    pub rpm_conflicts: Vec<Requirement>,   // rpm:conflicts
-    pub rpm_obsoletes: Vec<Requirement>,   // rpm:obsoletes
-    pub rpm_suggests: Vec<Requirement>,    // rpm:suggests
-    pub rpm_enhances: Vec<Requirement>,    // rpm:enhances
-    pub rpm_recommends: Vec<Requirement>,  // rpm:recommends
-    pub rpm_supplements: Vec<Requirement>, // rpm:supplements
+    rpm_requires: Vec<Requirement>,    // rpm:provides
+    rpm_provides: Vec<Requirement>,    // rpm:requires
+    rpm_conflicts: Vec<Requirement>,   // rpm:conflicts
+    rpm_obsoletes: Vec<Requirement>,   // rpm:obsoletes
+    rpm_suggests: Vec<Requirement>,    // rpm:suggests
+    rpm_enhances: Vec<Requirement>,    // rpm:enhances
+    rpm_recommends: Vec<Requirement>,  // rpm:recommends
+    rpm_supplements: Vec<Requirement>, // rpm:supplements
 
-    pub rpm_changelogs: Vec<Changelog>,
-    pub rpm_files: FileList,
+    rpm_changelogs: Vec<Changelog>,
+    rpm_files: FileList,
 }
 
 impl Package {
@@ -539,6 +539,12 @@ impl Package {
         self
     }
 
+    /// Add a `Requires` dependency.
+    pub fn add_require(&mut self, requirement: Requirement) -> &mut Self {
+        self.rpm_requires.push(requirement);
+        self
+    }
+
     /// Return the `Requires` dependencies.
     pub fn requires(&self) -> &[Requirement] {
         &self.rpm_requires
@@ -547,6 +553,12 @@ impl Package {
     /// Set the list of `Provides` capabilities.
     pub fn set_provides(&mut self, provides: Vec<Requirement>) -> &mut Self {
         self.rpm_provides = provides;
+        self
+    }
+
+    /// Add a `Provides` capability.
+    pub fn add_provide(&mut self, provide: Requirement) -> &mut Self {
+        self.rpm_provides.push(provide);
         self
     }
 
@@ -561,6 +573,12 @@ impl Package {
         self
     }
 
+    /// Add a `Conflicts` dependency.
+    pub fn add_conflict(&mut self, conflict: Requirement) -> &mut Self {
+        self.rpm_conflicts.push(conflict);
+        self
+    }
+
     /// Return the `Conflicts` dependencies.
     pub fn conflicts(&self) -> &[Requirement] {
         &self.rpm_conflicts
@@ -569,6 +587,12 @@ impl Package {
     /// Set the list of `Obsoletes` dependencies.
     pub fn set_obsoletes(&mut self, obsoletes: Vec<Requirement>) -> &mut Self {
         self.rpm_obsoletes = obsoletes;
+        self
+    }
+
+    /// Add an `Obsoletes` dependency.
+    pub fn add_obsolete(&mut self, obsolete: Requirement) -> &mut Self {
+        self.rpm_obsoletes.push(obsolete);
         self
     }
 
@@ -583,6 +607,12 @@ impl Package {
         self
     }
 
+    /// Add a `Suggests` dependency.
+    pub fn add_suggest(&mut self, suggest: Requirement) -> &mut Self {
+        self.rpm_suggests.push(suggest);
+        self
+    }
+
     /// Return the `Suggests` dependencies.
     pub fn suggests(&self) -> &[Requirement] {
         &self.rpm_suggests
@@ -591,6 +621,12 @@ impl Package {
     /// Set the list of `Enhances` (weak reverse) dependencies.
     pub fn set_enhances(&mut self, enhances: Vec<Requirement>) -> &mut Self {
         self.rpm_enhances = enhances;
+        self
+    }
+
+    /// Add an `Enhances` dependency.
+    pub fn add_enhance(&mut self, enhance: Requirement) -> &mut Self {
+        self.rpm_enhances.push(enhance);
         self
     }
 
@@ -605,6 +641,12 @@ impl Package {
         self
     }
 
+    /// Add a `Recommends` dependency.
+    pub fn add_recommend(&mut self, recommend: Requirement) -> &mut Self {
+        self.rpm_recommends.push(recommend);
+        self
+    }
+
     /// Return the `Recommends` dependencies.
     pub fn recommends(&self) -> &[Requirement] {
         &self.rpm_recommends
@@ -613,6 +655,12 @@ impl Package {
     /// Set the list of `Supplements` (weak reverse) dependencies.
     pub fn set_supplements(&mut self, supplements: Vec<Requirement>) -> &mut Self {
         self.rpm_supplements = supplements;
+        self
+    }
+
+    /// Add a `Supplements` dependency.
+    pub fn add_supplement(&mut self, supplement: Requirement) -> &mut Self {
+        self.rpm_supplements.push(supplement);
         self
     }
 
@@ -637,6 +685,14 @@ impl Package {
     pub fn clear_files(&mut self) -> &mut Self {
         self.rpm_files.clear();
         self
+    }
+
+    pub(crate) fn take_files(&mut self) -> FileList {
+        std::mem::take(&mut self.rpm_files)
+    }
+
+    pub(crate) fn replace_files(&mut self, files: FileList) {
+        self.rpm_files = files;
     }
 
     /// Return the file list.
@@ -675,6 +731,10 @@ impl Package {
     /// Return the changelog entries.
     pub fn changelogs(&self) -> &[Changelog] {
         &self.rpm_changelogs
+    }
+
+    pub(crate) fn take_changelogs(&mut self) -> Vec<Changelog> {
+        std::mem::take(&mut self.rpm_changelogs)
     }
 }
 

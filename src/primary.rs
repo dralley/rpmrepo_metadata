@@ -527,49 +527,49 @@ impl PrimaryVisitor for PackageMaterializer<'_> {
 
     fn add_provide(&mut self, req: RequirementData<'_>) {
         if let Some(pkg) = self.package.as_mut() {
-            pkg.rpm_provides.push(Requirement::from(req));
+            pkg.add_provide(Requirement::from(req));
         }
     }
 
     fn add_require(&mut self, req: RequirementData<'_>) {
         if let Some(pkg) = self.package.as_mut() {
-            pkg.rpm_requires.push(Requirement::from(req));
+            pkg.add_require(Requirement::from(req));
         }
     }
 
     fn add_conflict(&mut self, req: RequirementData<'_>) {
         if let Some(pkg) = self.package.as_mut() {
-            pkg.rpm_conflicts.push(Requirement::from(req));
+            pkg.add_conflict(Requirement::from(req));
         }
     }
 
     fn add_obsolete(&mut self, req: RequirementData<'_>) {
         if let Some(pkg) = self.package.as_mut() {
-            pkg.rpm_obsoletes.push(Requirement::from(req));
+            pkg.add_obsolete(Requirement::from(req));
         }
     }
 
     fn add_suggest(&mut self, req: RequirementData<'_>) {
         if let Some(pkg) = self.package.as_mut() {
-            pkg.rpm_suggests.push(Requirement::from(req));
+            pkg.add_suggest(Requirement::from(req));
         }
     }
 
     fn add_enhance(&mut self, req: RequirementData<'_>) {
         if let Some(pkg) = self.package.as_mut() {
-            pkg.rpm_enhances.push(Requirement::from(req));
+            pkg.add_enhance(Requirement::from(req));
         }
     }
 
     fn add_recommend(&mut self, req: RequirementData<'_>) {
         if let Some(pkg) = self.package.as_mut() {
-            pkg.rpm_recommends.push(Requirement::from(req));
+            pkg.add_recommend(Requirement::from(req));
         }
     }
 
     fn add_supplement(&mut self, req: RequirementData<'_>) {
         if let Some(pkg) = self.package.as_mut() {
-            pkg.rpm_supplements.push(Requirement::from(req));
+            pkg.add_supplement(Requirement::from(req));
         }
     }
 
