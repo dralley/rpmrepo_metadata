@@ -87,7 +87,6 @@ pub mod rpm_parsing {
 
     use indexmap::IndexSet;
 
-    use crate::parsing_utils::sanitize_xml_text;
     use crate::{Changelog, Evr, Requirement, RequirementType};
 
     use super::*;
@@ -335,9 +334,9 @@ pub mod rpm_parsing {
     impl From<rpm::ChangelogEntry> for Changelog {
         fn from(value: rpm::ChangelogEntry) -> Self {
             Changelog {
-                author: sanitize_xml_text(value.name, "RPMTAG_CHANGELOGNAME"),
+                author: value.name,
                 timestamp: value.timestamp,
-                description: sanitize_xml_text(value.description, "RPMTAG_CHANGELOGTEXT"),
+                description: value.description,
             }
         }
     }
@@ -766,6 +765,15 @@ pub mod rpm_parsing {
                 description: "Description\u{0}\u{1F}\n\u{FFFE}".to_owned(),
             });
 
+            let mut package = Package::default();
+            package
+                .set_name("package")
+                .set_version("1")
+                .set_release("1")
+                .set_arch("noarch")
+                .set_changelogs(vec![changelog]);
+
+            let changelog = &package.changelogs()[0];
             assert_eq!(changelog.author, "Author�\t");
             assert_eq!(changelog.description, "Description��\n�");
         }

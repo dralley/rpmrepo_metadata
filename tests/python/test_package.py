@@ -102,6 +102,20 @@ class TestPackage:
         assert pkg.changelogs == [("author�", 1, "changelog�")]
         assert "Replacing XML-forbidden characters in package summary with U+FFFD" in caplog.messages
 
+    def test_user_text_warning_identifies_package(self, caplog):
+        caplog.set_level(logging.WARNING)
+        pkg = r.Package()
+        pkg.name = "package"
+        pkg.version = "1"
+        pkg.release = "1"
+        pkg.arch = "noarch"
+        pkg.summary = "summary\x08"
+
+        assert (
+            "Replacing XML-forbidden characters in package summary for package "
+            "package-0:1-1.noarch with U+FFFD"
+        ) in caplog.messages
+
     def test_packager_url(self):
         pkg = r.Package()
         pkg.packager = "Test User"

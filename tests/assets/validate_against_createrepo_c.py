@@ -43,6 +43,17 @@ DIRECT_RPM_DIFFERENCES = {
 }
 
 
+def _normalize_advisory_date(value):
+    """Normalize createrepo_c's parsed dates and epoch timestamps for comparison."""
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return str(value)
+    if hasattr(value, "date"):
+        return str(value.date())
+    return str(value).split()[0]
+
+
 def compare_updaterecord(rpmrepo_updaterec, cr_updaterec):
     # API DIFFERENCES vs. createrepo_c
     #
@@ -59,13 +70,13 @@ def compare_updaterecord(rpmrepo_updaterec, cr_updaterec):
     assert rpmrepo_updaterec.title == cr_updaterec.title, f"title: rpmrepo={rpmrepo_updaterec.title!r} vs createrepo_c={cr_updaterec.title!r}"
     # API DIFFERENCE: rpmrepo_metadata returns the raw date string from the XML attribute,
     # while createrepo_c parses it into a datetime object.
-    # Normalize both to just the date portion (YYYY-MM-DD) by:
-    # - For createrepo_c: use .date() to get just the date part
-    # - For rpmrepo: split on space/time and take first part (handles "YYYY-MM-DD", "YYYY-MM-DD HH:MM:SS", "YYYY-MM-DD UTC")
-    cr_issued = str(cr_updaterec.issued_date.date()) if cr_updaterec.issued_date is not None else None
-    cr_updated = str(cr_updaterec.updated_date.date()) if cr_updaterec.updated_date is not None else None
-    rpmrepo_issued = rpmrepo_updaterec.issued_date.split()[0] if rpmrepo_updaterec.issued_date else None
-    rpmrepo_updated = rpmrepo_updaterec.updated_date.split()[0] if rpmrepo_updaterec.updated_date else None
+    # Normalize both to a date (YYYY-MM-DD) or an epoch timestamp. createrepo_c
+    # returns parsed dates as datetime objects and epoch timestamps as integers,
+    # while rpmrepo_metadata keeps the original string.
+    cr_issued = _normalize_advisory_date(cr_updaterec.issued_date)
+    cr_updated = _normalize_advisory_date(cr_updaterec.updated_date)
+    rpmrepo_issued = _normalize_advisory_date(rpmrepo_updaterec.issued_date)
+    rpmrepo_updated = _normalize_advisory_date(rpmrepo_updaterec.updated_date)
     assert rpmrepo_issued == cr_issued, f"issued_date: rpmrepo={rpmrepo_issued!r} vs createrepo_c={cr_issued!r}"
     assert rpmrepo_updated == cr_updated, f"updated_date: rpmrepo={rpmrepo_updated!r} vs createrepo_c={cr_updated!r}"
     assert rpmrepo_updaterec.rights == cr_updaterec.rights, f"rights: rpmrepo={rpmrepo_updaterec.rights!r} vs createrepo_c={cr_updaterec.rights!r}"
@@ -87,8 +98,14 @@ def compare_updaterecord(rpmrepo_updaterec, cr_updaterec):
         assert rpmrepo_updateref.title == cr_updateref.title, f"title: rpmrepo={rpmrepo_updateref.title!r} vs createrepo_c={cr_updateref.title!r}"
 
     for rpmrepo_updatecoll, cr_updatecoll in zip(rpmrepo_updaterec.pkglist, cr_updaterec.collections):
-        assert rpmrepo_updatecoll.shortname == cr_updatecoll.shortname, f"shortname: rpmrepo={rpmrepo_updatecoll.shortname!r} vs createrepo_c={cr_updatecoll.shortname!r}"
-        assert rpmrepo_updatecoll.name == cr_updatecoll.name, f"name: rpmrepo={rpmrepo_updatecoll.name!r} vs createrepo_c={cr_updatecoll.name!r}"
+        # API DIFFERENCE: rpmrepo_metadata returns "" for missing collection
+        # names, while createrepo_c returns None.
+        rpmrepo_shortname = rpmrepo_updatecoll.shortname or None
+        cr_shortname = cr_updatecoll.shortname or None
+        assert rpmrepo_shortname == cr_shortname, f"shortname: rpmrepo={rpmrepo_updatecoll.shortname!r} vs createrepo_c={cr_updatecoll.shortname!r}"
+        rpmrepo_collection_name = rpmrepo_updatecoll.name or None
+        cr_collection_name = cr_updatecoll.name or None
+        assert rpmrepo_collection_name == cr_collection_name, f"name: rpmrepo={rpmrepo_updatecoll.name!r} vs createrepo_c={cr_updatecoll.name!r}"
         if rpmrepo_updatecoll.module is not None:
             assert cr_updatecoll.module is not None, f"module: rpmrepo={rpmrepo_updatecoll.module!r} vs createrepo_c={cr_updatecoll.module!r}"
             assert rpmrepo_updatecoll.module.name == cr_updatecoll.module.name, f"module.name: rpmrepo={rpmrepo_updatecoll.module.name!r} vs createrepo_c={cr_updatecoll.module.name!r}"

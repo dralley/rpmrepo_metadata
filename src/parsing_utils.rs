@@ -11,13 +11,25 @@ use crate::constants::XML_VERSION;
 /// TAB, LF, and CR are valid XML whitespace and are preserved. RPM header
 /// fields are otherwise untrusted input, and a forbidden control character
 /// would make the entire generated metadata document invalid.
-pub(crate) fn sanitize_xml_text(value: impl Into<String>, field: &str) -> String {
+pub(crate) fn sanitize_xml_text<F>(
+    value: impl Into<String>,
+    field: &str,
+    package_nevra: F,
+) -> String
+where
+    F: FnOnce() -> Option<String>,
+{
     let value = value.into();
     if value.chars().all(is_xml_1_0_char) {
         return value;
     }
 
-    log::warn!("Replacing XML-forbidden characters in {field} with U+FFFD");
+    match package_nevra() {
+        Some(nevra) => log::warn!(
+            "Replacing XML-forbidden characters in {field} for package {nevra} with U+FFFD"
+        ),
+        None => log::warn!("Replacing XML-forbidden characters in {field} with U+FFFD"),
+    }
 
     value
         .chars()
