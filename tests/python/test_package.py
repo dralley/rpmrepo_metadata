@@ -77,6 +77,18 @@ class TestPackage:
         assert pkg.summary == "A summary"
         assert pkg.description == "A description"
 
+    def test_user_text_replaces_xml_forbidden_characters(self):
+        pkg = r.Package()
+        pkg.summary = "summary\x08"
+        pkg.description = "description\x1b"
+        pkg.url = "https://example.com/\x01"
+        pkg.changelogs = [("author\x02", 1, "changelog\x03")]
+
+        assert pkg.summary == "summary�"
+        assert pkg.description == "description�"
+        assert pkg.url == "https://example.com/�"
+        assert pkg.changelogs == [("author�", 1, "changelog�")]
+
     def test_packager_url(self):
         pkg = r.Package()
         pkg.packager = "Test User"
@@ -302,9 +314,8 @@ class TestPackageFromHeader:
 
         assert parsed.checksum_type == "sha512"
 
-    # TODO: apply the same stripping to things other than changelogs
-    def test_package_parse_strips_xml_forbidden_characters(self):
-        """Strips XML-forbidden characters from changelogs in an rpm-rs-built RPM."""
+    def test_package_parse_replaces_xml_forbidden_characters(self):
+        """Replaces XML-forbidden characters in an rpm-rs-built RPM changelog."""
         builder = PackageBuilder("changelog-control-chars", "1.0", "MIT", "noarch")
         builder.add_changelog_entry("AuthorXYName", "DescriptionABCDE", 1_700_000_000)
         rpm_bytes = builder.build().to_bytes()
@@ -326,7 +337,35 @@ class TestPackageFromHeader:
             location_href="changelog-control-chars-1.0-1.noarch.rpm",
         )
 
-        assert parsed.changelogs == [("Author\tName", 1_700_000_000, "Description\n")]
+        assert parsed.changelogs == [
+            ("Author�\tName", 1_700_000_000, "Description�\n�")
+        ]
+
+    def test_package_parse_replaces_xml_forbidden_header_characters(self):
+        """Replaces XML-forbidden characters in RPM header text."""
+        builder = PackageBuilder("control-chars", "1.0", "MIT", "noarch", "summaryX")
+        builder.description("descriptionX")
+        builder.url("https://example.com/X")
+        rpm_bytes = builder.build().to_bytes()
+
+        for original, replacement in (
+            (b"summaryX", b"summary\x08"),
+            (b"descriptionX", b"description\x1b"),
+            (b"https://example.com/X", b"https://example.com/\x01"),
+        ):
+            assert len(original) == len(replacement)
+            assert rpm_bytes.count(original) == 1
+            rpm_bytes = rpm_bytes.replace(original, replacement, 1)
+
+        parsed = r.Package.from_buffer(
+            rpm_bytes,
+            time_file=0,
+            location_href="control-chars-1.0-1.noarch.rpm",
+        )
+
+        assert parsed.summary == "summary�"
+        assert parsed.description == "description�"
+        assert parsed.url == "https://example.com/�"
 
     def test_package_parse_lossy_decodes_non_utf8_changelog_characters(self):
         """Parses non-UTF-8 data in changelogs (so long as RPMTAG_ENCODING does not claim UTF-8)"""

@@ -36,6 +36,17 @@ fn package_source() -> PackageSource {
     }
 }
 
+fn replace_unique_bytes(buffer: &mut [u8], original: &[u8], replacement: &[u8]) {
+    assert_eq!(original.len(), replacement.len());
+    let offsets: Vec<_> = buffer
+        .windows(original.len())
+        .enumerate()
+        .filter_map(|(offset, value)| (value == original).then_some(offset))
+        .collect();
+    assert_eq!(offsets.len(), 1, "expected exactly one {original:?}");
+    buffer[offsets[0]..offsets[0] + replacement.len()].copy_from_slice(replacement);
+}
+
 /// Converts metadata already parsed by rpm-rs without reparsing its headers.
 #[test]
 fn test_package_from_rpm_metadata() -> Result<(), MetadataError> {
@@ -57,6 +68,34 @@ fn test_package_from_buffer() -> Result<(), MetadataError> {
     let header_end = rpm_metadata.get_package_segment_offsets().payload as usize;
     let package = Package::from_buffer(&bytes[..header_end], package_source(), Default::default())?;
     assert_eq!(&package, &*common::COMPLEX_PACKAGE);
+
+    Ok(())
+}
+
+/// Replaces XML-forbidden characters in user-facing RPM header fields.
+#[test]
+fn test_package_from_buffer_replaces_xml_forbidden_header_characters() -> Result<(), MetadataError>
+{
+    let mut bytes = std::fs::read(COMPLEX_PKG_PATH)?;
+    replace_unique_bytes(
+        &mut bytes,
+        b"A package for exercising many different features of RPM metadata",
+        b"A package for exercising many\x08different features of RPM metadata",
+    );
+    replace_unique_bytes(&mut bytes, b"Complex package", b"Complex\x1bpackage");
+    replace_unique_bytes(
+        &mut bytes,
+        b"http://bobloblaw.com",
+        b"http://bobloblaw\x08com",
+    );
+
+    let package = Package::from_buffer(&bytes, package_source(), Default::default())?;
+    assert_eq!(
+        package.summary(),
+        "A package for exercising many�different features of RPM metadata"
+    );
+    assert_eq!(package.description(), "Complex�package");
+    assert_eq!(package.url(), "http://bobloblaw�com");
 
     Ok(())
 }

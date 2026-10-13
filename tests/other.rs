@@ -73,6 +73,29 @@ fn test_other_xml_writer_complex_pkg() -> Result<(), MetadataError> {
 }
 
 #[test]
+fn test_other_xml_writer_replaces_forbidden_control_characters() -> Result<(), MetadataError> {
+    let mut package = Package::default();
+    package.set_checksum(Checksum::Sha256("checksum".to_owned()));
+    package.add_changelog("author\x08", "description\x1b", 1);
+    assert_eq!(package.changelogs()[0].author, "author�");
+    assert_eq!(package.changelogs()[0].description, "description�");
+
+    let mut writer = OtherXml::new_writer(utils::create_xml_writer(Cursor::new(Vec::new())));
+    writer.write_header(1)?;
+    writer.write_package(&package)?;
+    writer.finish()?;
+
+    let buffer = writer.into_inner().into_inner();
+    let output = std::str::from_utf8(&buffer)?;
+    assert!(output.contains("author=\"author�\""));
+    assert!(output.contains(">description�</changelog>"));
+    assert!(!output.contains('\x08'));
+    assert!(!output.contains('\x1b'));
+
+    Ok(())
+}
+
+#[test]
 fn test_other_xml_writer_file() -> Result<(), MetadataError> {
     let working_dir = TempDir::new("")?;
     let other_name = working_dir.path().join("other.xml");

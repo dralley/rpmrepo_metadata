@@ -126,6 +126,34 @@ fn test_primary_xml_writer_complex_pkg() -> Result<(), MetadataError> {
 }
 
 #[test]
+fn test_primary_xml_writer_replaces_forbidden_control_characters() -> Result<(), MetadataError> {
+    let mut package = Package::default();
+    package.set_checksum(Checksum::Sha256("checksum".to_owned()));
+    package.set_summary("summary\x08");
+    package.set_description("description\x1b");
+    package.set_url("https://example.com/\x01");
+    assert_eq!(package.summary(), "summary�");
+    assert_eq!(package.description(), "description�");
+    assert_eq!(package.url(), "https://example.com/�");
+
+    let mut writer = PrimaryXml::new_writer(utils::create_xml_writer(Cursor::new(Vec::new())));
+    writer.write_header(1)?;
+    writer.write_package(&package)?;
+    writer.finish()?;
+
+    let buffer = writer.into_inner().into_inner();
+    let output = std::str::from_utf8(&buffer)?;
+    assert!(output.contains("<summary>summary�</summary>"));
+    assert!(output.contains("<description>description�</description>"));
+    assert!(output.contains("<url>https://example.com/�</url>"));
+    assert!(!output.contains('\x08'));
+    assert!(!output.contains('\x1b'));
+    assert!(!output.contains('\x01'));
+
+    Ok(())
+}
+
+#[test]
 fn test_primary_xml_writer_file() -> Result<(), MetadataError> {
     let working_dir = TempDir::new("")?;
     let other_name = working_dir.path().join("primary.xml");
