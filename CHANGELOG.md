@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Make RPM package metadata fields private; use `Package` methods to create and modify package metadata.
+- Forward Rust package metadata warnings to Python's logging system.
 
 ### Fixed
 

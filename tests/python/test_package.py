@@ -1,3 +1,4 @@
+import logging
 import os
 
 import pytest
@@ -77,7 +78,8 @@ class TestPackage:
         assert pkg.summary == "A summary"
         assert pkg.description == "A description"
 
-    def test_user_text_replaces_xml_forbidden_characters(self):
+    def test_user_text_replaces_xml_forbidden_characters(self, caplog):
+        caplog.set_level(logging.WARNING)
         pkg = r.Package()
         pkg.summary = "summary\x08"
         pkg.description = "description\x1b"
@@ -88,6 +90,7 @@ class TestPackage:
         assert pkg.description == "description�"
         assert pkg.url == "https://example.com/�"
         assert pkg.changelogs == [("author�", 1, "changelog�")]
+        assert "Replacing XML-forbidden characters in package summary with U+FFFD" in caplog.messages
 
     def test_packager_url(self):
         pkg = r.Package()
