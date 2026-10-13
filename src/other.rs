@@ -39,10 +39,7 @@ impl RpmMetadata for OtherXml {
                 .packages_mut()
                 .entry(pkgid)
                 .and_modify(|p| {
-                    std::mem::swap(
-                        &mut p.rpm_changelogs,
-                        &mut package.as_mut().unwrap().rpm_changelogs,
-                    )
+                    p.set_changelogs(package.as_mut().unwrap().take_changelogs());
                 })
                 .or_insert(package.take().unwrap());
         }

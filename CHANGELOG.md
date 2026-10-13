@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Make RPM package metadata fields private; use `Package` methods to create and modify package metadata.
+
 ### Fixed
 
 - Replace XML-forbidden characters in RPM package metadata so generated repository XML remains valid.
