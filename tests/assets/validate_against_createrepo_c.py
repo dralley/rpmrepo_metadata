@@ -122,19 +122,11 @@ def compare_updaterecord(rpmrepo_updaterec, cr_updaterec):
             assert rpmrepo_updatepkg.relogin_suggested == cr_updatepkg.relogin_suggested, f"relogin_suggested: rpmrepo={rpmrepo_updatepkg.relogin_suggested!r} vs createrepo_c={cr_updatepkg.relogin_suggested!r}"
 
 
-def _remove_xml_forbidden_characters(value):
-    return "".join(
-        character
-        for character in value
-        if character in "\t\n\r" or ord(character) >= 0x20
-    )
-
-
 def _normalize_changelog_author(author):
     """Normalize the documented author-string differences between the parsers."""
     # rpmrepo_metadata trims Unicode whitespace; createrepo_c removes trailing ASCII
-    # spaces only. The adapter removes XML-forbidden characters from both values.
-    return _remove_xml_forbidden_characters(author.strip())
+    # spaces only.
+    return author.strip()
 
 
 def compare_changelogs(rpmrepo_changelogs, cr_changelogs):
@@ -155,9 +147,7 @@ def compare_changelogs(rpmrepo_changelogs, cr_changelogs):
         assert _normalize_changelog_author(rpmrepo_author) == _normalize_changelog_author(
             cr_author
         ), f"changelogs[{index}] author: rpmrepo={rpmrepo_author!r} vs createrepo_c={cr_author!r}"
-        assert _remove_xml_forbidden_characters(rpmrepo_description) == _remove_xml_forbidden_characters(
-            cr_description
-        ), (
+        assert rpmrepo_description == cr_description, (
             f"changelogs[{index}] description: rpmrepo={rpmrepo_description!r} "
             f"vs createrepo_c={cr_description!r}"
         )
@@ -376,7 +366,7 @@ def test_validate_broken_repo(path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("repo_path", nargs="?", help="repository tree to compare")
+    parser.add_argument("repo_path", nargs="?", help="repository root or tree to compare")
     parser.add_argument(
         "--rpm-files",
         metavar="DIRECTORY",
@@ -387,16 +377,22 @@ if __name__ == "__main__":
     RED = "\u001b[31;1m"
     RESET = "\u001b[0m"
     try:
+        modes = sum(value is not None for value in (args.repo_path, args.rpm_files))
+        if modes != 1:
+            parser.error("exactly one of repo_path or --rpm-files is required")
         if args.rpm_files:
             count, differences = validate_rpm_files(args.rpm_files)
             summary = ", ".join(f"{field}={count}" for field, count in differences.items())
             suffix = f"; documented differences: {summary}" if summary else ""
             print(GREEN + f"OK ({count} RPMs{suffix})" + RESET)
         elif args.repo_path:
-            validate_rpmrepo(args.repo_path)
-            print(GREEN + "OK" + RESET)
-        else:
-            parser.error("repo_path or --rpm-files is required")
+            repos = find_repos(args.repo_path)
+            if not repos:
+                parser.error(f"no repositories found below {args.repo_path}")
+            for path in repos:
+                validate_rpmrepo(os.path.join(args.repo_path, path))
+            suffix = f" ({len(repos)} repositories)" if len(repos) > 1 else ""
+            print(GREEN + f"OK{suffix}" + RESET)
     except AssertionError:
         print(RED + "FAIL" + RESET)
         raise
