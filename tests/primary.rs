@@ -131,10 +131,20 @@ fn test_primary_xml_writer_replaces_forbidden_control_characters() -> Result<(),
     package.set_checksum(Checksum::Sha256("checksum".to_owned()));
     package.set_summary("summary\x08");
     package.set_description("description\x1b");
+    package.set_packager("packager\x01");
     package.set_url("https://example.com/\x01");
+    package.set_rpm_license("license\x08");
+    package.set_rpm_vendor("vendor\x1b");
+    package.set_rpm_group("group\x01");
+    package.set_rpm_buildhost("buildhost\x08");
     assert_eq!(package.summary(), "summary�");
     assert_eq!(package.description(), "description�");
+    assert_eq!(package.packager(), "packager�");
     assert_eq!(package.url(), "https://example.com/�");
+    assert_eq!(package.rpm_license(), "license�");
+    assert_eq!(package.rpm_vendor(), "vendor�");
+    assert_eq!(package.rpm_group(), "group�");
+    assert_eq!(package.rpm_buildhost(), "buildhost�");
 
     let mut writer = PrimaryXml::new_writer(utils::create_xml_writer(Cursor::new(Vec::new())));
     writer.write_header(1)?;
@@ -145,7 +155,12 @@ fn test_primary_xml_writer_replaces_forbidden_control_characters() -> Result<(),
     let output = std::str::from_utf8(&buffer)?;
     assert!(output.contains("<summary>summary�</summary>"));
     assert!(output.contains("<description>description�</description>"));
+    assert!(output.contains("<packager>packager�</packager>"));
     assert!(output.contains("<url>https://example.com/�</url>"));
+    assert!(output.contains("<rpm:license>license�</rpm:license>"));
+    assert!(output.contains("<rpm:vendor>vendor�</rpm:vendor>"));
+    assert!(output.contains("<rpm:group>group�</rpm:group>"));
+    assert!(output.contains("<rpm:buildhost>buildhost�</rpm:buildhost>"));
     assert!(!output.contains('\x08'));
     assert!(!output.contains('\x1b'));
     assert!(!output.contains('\x01'));

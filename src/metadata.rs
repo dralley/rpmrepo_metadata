@@ -391,7 +391,7 @@ impl Package {
 
     /// Set the packager name/email.
     pub fn set_packager(&mut self, packager: impl Into<String>) -> &mut Self {
-        self.packager = packager.into();
+        self.packager = sanitize_xml_text(packager, "package packager");
         self
     }
 
@@ -468,7 +468,7 @@ impl Package {
 
     /// Set the RPM license tag.
     pub fn set_rpm_license(&mut self, license: impl Into<String>) -> &mut Self {
-        self.rpm_license = license.into();
+        self.rpm_license = sanitize_xml_text(license, "RPM license");
         self
     }
 
@@ -479,7 +479,7 @@ impl Package {
 
     /// Set the RPM vendor tag.
     pub fn set_rpm_vendor(&mut self, vendor: impl Into<String>) -> &mut Self {
-        self.rpm_vendor = vendor.into();
+        self.rpm_vendor = sanitize_xml_text(vendor, "RPM vendor");
         self
     }
 
@@ -490,7 +490,7 @@ impl Package {
 
     /// Set the RPM group tag.
     pub fn set_rpm_group(&mut self, group: impl Into<String>) -> &mut Self {
-        self.rpm_group = group.into();
+        self.rpm_group = sanitize_xml_text(group, "RPM group");
         self
     }
 
@@ -501,7 +501,7 @@ impl Package {
 
     /// Set the hostname of the build machine.
     pub fn set_rpm_buildhost(&mut self, rpm_buildhost: impl Into<String>) -> &mut Self {
-        self.rpm_buildhost = rpm_buildhost.into();
+        self.rpm_buildhost = sanitize_xml_text(rpm_buildhost, "RPM build host");
         self
     }
 
