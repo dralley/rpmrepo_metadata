@@ -20,7 +20,7 @@ use quick_xml::{Reader, Writer};
 use thiserror::Error;
 
 use crate::utils::{DirId, StringPool};
-use crate::{Repository, constants::mdrecord, utils};
+use crate::{Repository, constants::mdrecord, parsing_utils::sanitize_xml_text, utils};
 
 /// Marker type for repomd.xml read/write operations.
 pub struct RepomdXml;
@@ -369,7 +369,7 @@ impl Package {
 
     /// Set the package summary.
     pub fn set_summary(&mut self, summary: impl Into<String>) -> &mut Self {
-        self.summary = summary.into();
+        self.summary = sanitize_xml_text(summary);
         self
     }
 
@@ -380,7 +380,7 @@ impl Package {
 
     /// Set the package description.
     pub fn set_description(&mut self, description: impl Into<String>) -> &mut Self {
-        self.description = description.into();
+        self.description = sanitize_xml_text(description);
         self
     }
 
@@ -402,7 +402,7 @@ impl Package {
 
     /// Set the upstream project URL.
     pub fn set_url(&mut self, url: impl Into<String>) -> &mut Self {
-        self.url = url.into();
+        self.url = sanitize_xml_text(url);
         self
     }
 
@@ -652,16 +652,23 @@ impl Package {
     /// Append a changelog entry.
     pub fn add_changelog(&mut self, author: &str, description: &str, date: u64) -> &mut Self {
         self.rpm_changelogs.push(Changelog {
-            author: author.to_owned(),
+            author: sanitize_xml_text(author),
             timestamp: date,
-            description: description.to_owned(),
+            description: sanitize_xml_text(description),
         });
         self
     }
 
     /// Replace the changelog entries.
     pub fn set_changelogs(&mut self, changelogs: Vec<Changelog>) -> &mut Self {
-        self.rpm_changelogs = changelogs;
+        self.rpm_changelogs = changelogs
+            .into_iter()
+            .map(|changelog| Changelog {
+                author: sanitize_xml_text(changelog.author),
+                timestamp: changelog.timestamp,
+                description: sanitize_xml_text(changelog.description),
+            })
+            .collect();
         self
     }
 

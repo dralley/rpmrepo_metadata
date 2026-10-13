@@ -87,6 +87,7 @@ pub mod rpm_parsing {
 
     use indexmap::IndexSet;
 
+    use crate::parsing_utils::sanitize_xml_text;
     use crate::{Changelog, Evr, Requirement, RequirementType};
 
     use super::*;
@@ -334,31 +335,11 @@ pub mod rpm_parsing {
     impl From<rpm::ChangelogEntry> for Changelog {
         fn from(value: rpm::ChangelogEntry) -> Self {
             Changelog {
-                author: strip_xml_forbidden_chars(value.name),
+                author: sanitize_xml_text(value.name),
                 timestamp: value.timestamp,
-                description: strip_xml_forbidden_chars(value.description),
+                description: sanitize_xml_text(value.description),
             }
         }
-    }
-
-    /// Removes characters that XML 1.0 cannot represent from RPM changelog text.
-    fn strip_xml_forbidden_chars(value: String) -> String {
-        if value.chars().all(is_xml_1_0_char) {
-            return value;
-        }
-
-        value
-            .chars()
-            .filter(|value| is_xml_1_0_char(*value))
-            .collect()
-    }
-
-    /// Reports whether a Unicode scalar value is permitted by XML 1.0's `Char` production.
-    fn is_xml_1_0_char(value: char) -> bool {
-        matches!(
-            value,
-            '\u{9}' | '\u{A}' | '\u{D}' | '\u{20}'..='\u{D7FF}' | '\u{E000}'..='\u{FFFD}' | '\u{10000}'..='\u{10FFFF}'
-        )
     }
 
     impl Package {
@@ -776,17 +757,17 @@ pub mod rpm_parsing {
             assert!(!requirement.preinstall());
         }
 
-        /// Strips XML-forbidden characters from RPM changelog authors and descriptions.
+        /// Replaces XML-forbidden characters in RPM changelog authors and descriptions.
         #[test]
-        fn strips_xml_forbidden_characters_from_changelogs() {
+        fn replaces_xml_forbidden_characters_in_changelogs() {
             let changelog = Changelog::from(rpm::ChangelogEntry {
                 name: "Author\u{1B}\t".to_owned(),
                 timestamp: 0,
                 description: "Description\u{0}\u{1F}\n\u{FFFE}".to_owned(),
             });
 
-            assert_eq!(changelog.author, "Author\t");
-            assert_eq!(changelog.description, "Description\n");
+            assert_eq!(changelog.author, "Author�\t");
+            assert_eq!(changelog.description, "Description��\n�");
         }
 
         /// Matches createrepo_c when an RPM entry is both a directory and ghost.

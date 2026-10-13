@@ -6,6 +6,37 @@ use quick_xml::{self, events::*};
 use crate::MetadataError;
 use crate::constants::XML_VERSION;
 
+/// Replace characters forbidden by XML 1.0 with U+FFFD.
+///
+/// TAB, LF, and CR are valid XML whitespace and are preserved. RPM header
+/// fields are otherwise untrusted input, and a forbidden control character
+/// would make the entire generated metadata document invalid.
+pub(crate) fn sanitize_xml_text(value: impl Into<String>) -> String {
+    let value = value.into();
+    if value.chars().all(is_xml_1_0_char) {
+        return value;
+    }
+
+    value
+        .chars()
+        .map(|character| {
+            if is_xml_1_0_char(character) {
+                character
+            } else {
+                '\u{FFFD}'
+            }
+        })
+        .collect()
+}
+
+/// Reports whether a Unicode scalar value is permitted by XML 1.0's `Char` production.
+pub(crate) fn is_xml_1_0_char(value: char) -> bool {
+    matches!(
+        value,
+        '\u{9}' | '\u{A}' | '\u{D}' | '\u{20}'..='\u{D7FF}' | '\u{E000}'..='\u{FFFD}' | '\u{10000}'..='\u{10FFFF}'
+    )
+}
+
 /// Normalize an attribute value then resolve double-encoded ampersands.
 ///
 /// Workaround for an issue first encountered in createrepo_c:
