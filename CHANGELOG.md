@@ -7,15 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 0.9
+
+### Added
+
+- Warn when XML-forbidden characters are replaced in package metadata.
+- Forward Rust package metadata warnings to Python's logging system.
+
 ### Changed
 
 - Make RPM package metadata fields private; use `Package` methods to create and modify package metadata.
-- Forward Rust package metadata warnings to Python's logging system.
 
 ### Fixed
 
 - Replace XML-forbidden characters in RPM package metadata so generated repository XML remains valid.
-- Warn when XML-forbidden characters are replaced in package metadata.
 
 ## 0.8.3
 
