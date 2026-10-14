@@ -6,6 +6,11 @@ import rpmrepo_metadata as r
 
 from conftest import FIXTURES_DIR
 
+# skip the module if SupportInfo support not enabled in the build
+if not hasattr(r, "SupportInfoPackage"):
+    pytest.skip("SupportInfo not enabled", allow_module_level=True)
+
+
 SUPPORTINFO_FIXTURES = os.path.join(
     FIXTURES_DIR, "supportinfo_fixtures"
 )
@@ -88,7 +93,6 @@ class TestSupportInfoTypes:
 
     def test_parse_support_info_function_exists(self):
         assert hasattr(r, "parse_support_info")
-
 
 class TestSupportInfoV1Construction:
     def test_create_empty(self):
