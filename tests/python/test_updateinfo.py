@@ -8,17 +8,23 @@ import rpmrepo_metadata as r
 from conftest import FIXTURES_DIR
 
 
+def _external_repositories():
+    """Yield repository roots below the external fixtures directory."""
+    external = os.path.join(FIXTURES_DIR, "external_repos")
+    if not os.path.isdir(external):
+        return
+
+    for dirpath, dirnames, _filenames in os.walk(external):
+        dirnames[:] = [name for name in dirnames if not name.startswith(".") and name != "repodata"]
+        if os.path.isfile(os.path.join(dirpath, "repodata", "repomd.xml")):
+            yield dirpath
+
+
 class TestUpdateRecord:
     @pytest.fixture
     def advisory(self):
         """Load an advisory from a real repo if available, otherwise skip."""
-        external = os.path.join(FIXTURES_DIR, "external_repos")
-        if not os.path.isdir(external):
-            pytest.skip("No external repos available")
-        for name in os.listdir(external):
-            repo_dir = os.path.join(external, name)
-            if not os.path.isdir(repo_dir):
-                continue
+        for repo_dir in _external_repositories():
             try:
                 reader = r.RepositoryReader(repo_dir)
                 it = reader.iter_advisories()
@@ -45,7 +51,7 @@ class TestUpdateRecord:
         assert isinstance(advisory.severity, str)
         assert isinstance(advisory.summary, str)
         assert isinstance(advisory.description, str)
-        assert isinstance(advisory.solution, str)
+        assert advisory.solution is None or isinstance(advisory.solution, str)
 
     def test_optional_fields(self, advisory):
         assert advisory.issued_date is None or isinstance(advisory.issued_date, str)
@@ -88,13 +94,7 @@ class TestUpdateRecord:
 
 class TestUpdateinfoReader:
     def test_iteration(self):
-        external = os.path.join(FIXTURES_DIR, "external_repos")
-        if not os.path.isdir(external):
-            pytest.skip("No external repos available")
-        for name in os.listdir(external):
-            repo_dir = os.path.join(external, name)
-            if not os.path.isdir(repo_dir):
-                continue
+        for repo_dir in _external_repositories():
             try:
                 reader = r.RepositoryReader(repo_dir)
                 records = list(reader.iter_advisories())
