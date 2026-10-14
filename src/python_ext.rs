@@ -740,6 +740,12 @@ mod rpmrepo_metadata {
             self.inner.pkgid()
         }
 
+        /// Validate that structured package metadata contains only XML 1.0 characters.
+        pub fn validate_xml_fields(&self) -> PyResult<()> {
+            self.inner.validate_xml_fields()?;
+            Ok(())
+        }
+
         #[getter(checksum_type)]
         pub fn checksum_type(&self) -> &str {
             self.inner.checksum().to_values().unwrap().0

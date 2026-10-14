@@ -51,6 +51,18 @@ pub(crate) fn is_xml_1_0_char(value: char) -> bool {
     )
 }
 
+/// Reject a string containing characters forbidden by XML 1.0.
+///
+/// This is used for identifiers and paths, whose values carry package
+/// semantics and therefore must not be silently changed.
+pub(crate) fn validate_xml_text(value: &str, field: &'static str) -> Result<(), MetadataError> {
+    if value.chars().all(is_xml_1_0_char) {
+        Ok(())
+    } else {
+        Err(MetadataError::InvalidXmlCharacterError(field))
+    }
+}
+
 /// Normalize an attribute value then resolve double-encoded ampersands.
 ///
 /// Workaround for an issue first encountered in createrepo_c:

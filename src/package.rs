@@ -531,6 +531,8 @@ pub mod rpm_parsing {
             let offsets = pkg.get_package_segment_offsets();
             pkg_metadata.set_rpm_header_range(offsets.header, offsets.payload);
 
+            pkg_metadata.validate_xml_fields()?;
+
             Ok(pkg_metadata)
         }
     }
