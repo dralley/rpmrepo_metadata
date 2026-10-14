@@ -71,6 +71,14 @@ class TestPackage:
         pkg.location_base = None
         assert pkg.location_base is None
 
+    def test_validate_xml_fields(self):
+        pkg = r.Package()
+        pkg.checksum = ("sha256", "a" * 64)
+        pkg.location_href = "packages/\x08package.rpm"
+
+        with pytest.raises(r.MetadataError, match="package location href"):
+            pkg.validate_xml_fields()
+
     def test_summary_description(self):
         pkg = r.Package()
         pkg.summary = "A summary"

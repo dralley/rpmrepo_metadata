@@ -72,6 +72,8 @@ pub enum MetadataError {
     UnknownAttributeError(String),
     #[error("Missing metadata header")]
     MissingHeaderError,
+    #[error("XML-forbidden character in {0}")]
+    InvalidXmlCharacterError(&'static str),
 }
 
 impl From<quick_xml::events::attributes::AttrError> for MetadataError {
@@ -340,6 +342,53 @@ impl Package {
     /// Sanitize package text and include the package NEVRA in any warning.
     fn sanitize_package_xml_text(&self, value: impl Into<String>, field: &str) -> String {
         sanitize_xml_text(value, field, || self.xml_warning_nevra())
+    }
+
+    /// Validate fields whose values must not be altered to produce valid XML.
+    pub fn validate_xml_fields(&self) -> Result<(), MetadataError> {
+        use crate::parsing_utils::validate_xml_text;
+
+        validate_xml_text(&self.name, "package name")?;
+        validate_xml_text(&self.arch, "package architecture")?;
+        validate_xml_text(self.evr.epoch(), "package epoch")?;
+        validate_xml_text(self.evr.version(), "package version")?;
+        validate_xml_text(self.evr.release(), "package release")?;
+        validate_xml_text(self.pkgid(), "package checksum")?;
+        validate_xml_text(&self.location_href, "package location href")?;
+        if let Some(location_base) = &self.location_base {
+            validate_xml_text(location_base, "package location base")?;
+        }
+        validate_xml_text(&self.rpm_sourcerpm, "source RPM filename")?;
+
+        for requirement in self
+            .rpm_requires
+            .iter()
+            .chain(&self.rpm_provides)
+            .chain(&self.rpm_conflicts)
+            .chain(&self.rpm_obsoletes)
+            .chain(&self.rpm_suggests)
+            .chain(&self.rpm_enhances)
+            .chain(&self.rpm_recommends)
+            .chain(&self.rpm_supplements)
+        {
+            validate_xml_text(requirement.name(), "dependency name")?;
+            if let Some(epoch) = requirement.epoch() {
+                validate_xml_text(epoch, "dependency epoch")?;
+            }
+            if let Some(version) = requirement.version() {
+                validate_xml_text(version, "dependency version")?;
+            }
+            if let Some(release) = requirement.release() {
+                validate_xml_text(release, "dependency release")?;
+            }
+        }
+
+        for file in self.rpm_files.iter() {
+            validate_xml_text(file.dir(), "file directory")?;
+            validate_xml_text(file.basename(), "file name")?;
+        }
+
+        Ok(())
     }
 
     /// Set the package checksum.
@@ -2182,5 +2231,66 @@ mod tests {
     #[test]
     fn split_path_no_slash() {
         assert_eq!(split_path("somefile"), ("", "somefile"));
+    }
+
+    /// Create a package whose structured metadata contains valid XML 1.0 text.
+    fn package_with_valid_structured_fields() -> Package {
+        let mut package = Package::default();
+        package
+            .set_name("package")
+            .set_arch("noarch")
+            .set_version("1")
+            .set_release("1")
+            .set_checksum(Checksum::Sha256("0".repeat(64)))
+            .set_location_href("packages/package.rpm");
+        package
+    }
+
+    /// Reject XML-forbidden characters in structured package metadata.
+    #[test]
+    fn rejects_xml_forbidden_characters_in_structured_package_fields() {
+        let mut package = package_with_valid_structured_fields();
+        package.set_location_href("packages/\x08package.rpm");
+
+        assert!(matches!(
+            package.validate_xml_fields(),
+            Err(MetadataError::InvalidXmlCharacterError(
+                "package location href"
+            ))
+        ));
+
+        let mut package = package_with_valid_structured_fields();
+        package.set_requires(vec![Requirement::new("dependency\x08name")]);
+
+        assert!(matches!(
+            package.validate_xml_fields(),
+            Err(MetadataError::InvalidXmlCharacterError("dependency name"))
+        ));
+
+        let mut package = package_with_valid_structured_fields();
+        package.set_rpm_sourcerpm("package\x08source.rpm");
+
+        assert!(matches!(
+            package.validate_xml_fields(),
+            Err(MetadataError::InvalidXmlCharacterError(
+                "source RPM filename"
+            ))
+        ));
+
+        let mut package = package_with_valid_structured_fields();
+        package.set_name("package\x08name");
+
+        assert!(matches!(
+            package.validate_xml_fields(),
+            Err(MetadataError::InvalidXmlCharacterError("package name"))
+        ));
+
+        let mut package = package_with_valid_structured_fields();
+        package.add_file_split(FileType::File, "/usr/\x08bin/", "package");
+
+        assert!(matches!(
+            package.validate_xml_fields(),
+            Err(MetadataError::InvalidXmlCharacterError("file directory"))
+        ));
     }
 }

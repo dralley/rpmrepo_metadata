@@ -398,6 +398,7 @@ impl RepositoryWriter {
 
     /// Write a `Package` to the repo metadata.
     pub fn add_package(&mut self, pkg: &Package) -> Result<(), MetadataError> {
+        pkg.validate_xml_fields()?;
         self.num_pkgs_written += 1;
         assert!(
             self.num_pkgs_written <= self.num_pkgs,
