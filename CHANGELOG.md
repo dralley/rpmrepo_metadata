@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 0.9.1
+
 ### Changed
 
 - Include package identity in XML-normalization warnings when available.
@@ -15,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Reject XML-forbidden characters in structured package metadata before writing repository XML.
 
-## 0.9
+## 0.9.0
 
 ### Added
 
